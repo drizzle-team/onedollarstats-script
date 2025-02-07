@@ -26,7 +26,7 @@ const environment = {
 async function send(data: Event): Promise<void> {
   const analyticsUrl =
     stonksScript?.getAttribute("data-url") ||
-    "https://api.onedollarstats.com/events";
+    "https://collector.onedollarstats.com/events";
 
   const currentPage = new URL(location.href);
   currentPage.search = "";
