@@ -209,6 +209,7 @@ async function triggerPageView(): Promise<void> {
   const shouldCollectPage2 = document.body?.getAttribute("data-s:collect");
 
   if (shouldCollectPage1 === "false" || shouldCollectPage2 === "false") {
+    triggerPageView.lastPage = null;
     return;
   }
   const isAutocollect =
@@ -219,6 +220,7 @@ async function triggerPageView(): Promise<void> {
     shouldCollectPage1 !== "true" &&
     shouldCollectPage2 !== "true"
   ) {
+    triggerPageView.lastPage = null;
     return;
   }
 
@@ -278,9 +280,15 @@ if (window.history.pushState) {
     url?: string | URL | null | undefined
   ) {
     originalPushState.apply(this, [data, unused, url]);
-    triggerPageView();
+    window.requestAnimationFrame(() => {
+      triggerPageView();
+    });
   };
-  window.addEventListener("popstate", triggerPageView);
+  window.addEventListener("popstate", () => {
+    window.requestAnimationFrame(() => {
+      triggerPageView();
+    });
+  });
 }
 
 if (document.visibilityState !== "visible") {

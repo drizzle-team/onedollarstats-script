@@ -27,7 +27,9 @@ beforeEach(async (ctx: Context) => {
   const page = await browser.newPage();
   await page.setRequestInterception(true);
   page.on("request", (interceptedRequest) => {
-    if (interceptedRequest.url() === "https://api.onedollarstats.com/events") {
+    if (
+      interceptedRequest.url() === "https://collector.onedollarstats.com/events"
+    ) {
       const body = interceptedRequest.postData();
       if (body) {
         reqs.push(JSON.parse(body));
@@ -49,7 +51,7 @@ beforeEach(async (ctx: Context) => {
     await page.goto(path);
 
     await page.waitForNetworkIdle({
-      idleTime: 50,
+      idleTime: 100,
     });
   };
   ctx.reqs = reqs;
@@ -179,7 +181,7 @@ test("View: referrer", async ({ reqs, page }: Context) => {
   // await page.goto("http://google.com");
   await page.goto(MPA_URL, { referer: "http://google.com/" });
   await page.waitForNetworkIdle({
-    idleTime: 50,
+    idleTime: 100,
   });
 
   expect(reqs).toStrictEqual([
@@ -195,7 +197,7 @@ test("View: manually with referrer", async ({ reqs, page }: Context) => {
     referer: "http://google.com/",
   });
   await page.waitForNetworkIdle({
-    idleTime: 50,
+    idleTime: 100,
   });
 
   expect(reqs).toStrictEqual([
@@ -376,7 +378,7 @@ test("Event: via dom", async ({ reqs, page }: Context) => {
   await page.goto("http://localhost:4321/event");
   await page.click(".event-button");
   await page.waitForNetworkIdle({
-    idleTime: 50,
+    idleTime: 100,
   });
 
   expect(reqs).toStrictEqual([
@@ -391,7 +393,7 @@ test("Event: via dom with path", async ({ reqs, page }: Context) => {
   await page.goto("http://localhost:4321/event-with-path");
   await page.click(".event-button");
   await page.waitForNetworkIdle({
-    idleTime: 50,
+    idleTime: 100,
   });
 
   expect(reqs).toStrictEqual([
@@ -410,7 +412,7 @@ test("Event: via dom with path via meta tag", async ({
   await page.goto("http://localhost:4321/event-with-path-via-meta");
   await page.click(".event-button");
   await page.waitForNetworkIdle({
-    idleTime: 50,
+    idleTime: 100,
   });
 
   expect(reqs).toStrictEqual([
@@ -428,7 +430,7 @@ test("Event: via dom with path via body tag", async ({
   await page.goto("http://localhost:4321/event-with-path-via-body");
   await page.click(".event-button");
   await page.waitForNetworkIdle({
-    idleTime: 50,
+    idleTime: 100,
   });
 
   expect(reqs).toStrictEqual([
@@ -443,7 +445,7 @@ test("Event: via dom with path and props", async ({ reqs, page }: Context) => {
   await page.goto("http://localhost:4321/event-with-path-and-props");
   await page.click(".event-button");
   await page.waitForNetworkIdle({
-    idleTime: 50,
+    idleTime: 100,
   });
 
   expect(reqs).toStrictEqual([
@@ -506,7 +508,7 @@ test("Event: manually with referrer", async ({ reqs, page }: Context) => {
     referer: "http://google.com/",
   });
   await page.waitForNetworkIdle({
-    idleTime: 50,
+    idleTime: 100,
   });
 
   expect(reqs).toStrictEqual([
@@ -556,13 +558,10 @@ test("Event: manually with path and props", async ({ reqs, goto }: Context) => {
 });
 
 //SPA
-test("SPA: page to page navigation inside of layout", async ({
-  reqs,
-  page,
-}: Context) => {
+test("SPA: page to page navigation", async ({ reqs, page }: Context) => {
   await page.goto(`${SPA_URL}/layout`);
   await page.waitForNetworkIdle({
-    idleTime: 50,
+    idleTime: 100,
   });
   await page.click(".link");
   await page.waitForNetworkIdle({
@@ -591,45 +590,40 @@ test("SPA: page to page navigation inside of layout", async ({
   ]);
 });
 
-test("SPA: popstate event inside of layout", async ({
+test("SPA: page to page navigation inside of layout, with autocollect disabled", async ({
   reqs,
   page,
 }: Context) => {
-  await page.goto(`${SPA_URL}/layout/popstate`);
-  await page.waitForNetworkIdle({ idleTime: 50 });
-
-  await page.click(".link");
-  await page.waitForNetworkIdle({ idleTime: 100 });
-  await page.evaluate(() => {
-    window.history.back();
-    window.dispatchEvent(new PopStateEvent("popstate", { state: null }));
+  await page.goto(`${SPA_URL}/layout-autocollect-disabled`);
+  await page.waitForNetworkIdle({
+    idleTime: 100,
   });
-  await page.waitForNetworkIdle({ idleTime: 50 });
-  expect(reqs).toStrictEqual([
-    {
-      u: `${SPA_URL}/layout/popstate`,
-      e: [{ t: "PageView", h: false }],
-    },
-    {
-      u: `${SPA_URL}/layout/popstate/page-1`,
-      e: [{ t: "PageView", h: false }],
-    },
-    {
-      u: `${SPA_URL}/layout/popstate`,
-      e: [{ t: "PageView", h: false }],
-    },
-  ]);
+  await page.click(".link");
+  await page.waitForNetworkIdle({
+    idleTime: 100,
+  });
+  await page.click(".link-2");
+  await page.waitForNetworkIdle({
+    idleTime: 100,
+  });
+
+  expect(reqs).toStrictEqual([]);
 });
 
-test("SPA: page to page navigation outside of layout", async ({
+test("SPA: collect even if autocollect is disabled", async ({
   reqs,
   page,
 }: Context) => {
-  await page.goto(`${SPA_URL}/no-layout`);
+  await page.goto(`${SPA_URL}/layout-autocollect-disabled/collect-via-meta`);
   await page.waitForNetworkIdle({
-    idleTime: 50,
+    idleTime: 100,
   });
   await page.click(".link");
+  await page.waitForNetworkIdle({
+    idleTime: 100,
+  });
+
+  await page.click(".link-2");
   await page.waitForNetworkIdle({
     idleTime: 100,
   });
@@ -642,7 +636,35 @@ test("SPA: page to page navigation outside of layout", async ({
           t: "PageView",
         },
       ],
-      u: `${SPA_URL}/no-layout`,
+      u: `${SPA_URL}/layout-autocollect-disabled/collect-via-meta/page-1`,
+    },
+  ]);
+});
+
+test("SPA: ignore collect", async ({ reqs, page }: Context) => {
+  await page.goto(`${SPA_URL}/layout/ignore-collect`);
+  await page.waitForNetworkIdle({
+    idleTime: 100,
+  });
+  await page.click(".link");
+  await page.waitForNetworkIdle({
+    idleTime: 100,
+  });
+
+  await page.click(".link-2");
+  await page.waitForNetworkIdle({
+    idleTime: 100,
+  });
+
+  expect(reqs).toStrictEqual([
+    {
+      e: [
+        {
+          h: false,
+          t: "PageView",
+        },
+      ],
+      u: `${SPA_URL}/layout/ignore-collect`,
     },
     {
       e: [
@@ -651,17 +673,66 @@ test("SPA: page to page navigation outside of layout", async ({
           t: "PageView",
         },
       ],
-      u: `${SPA_URL}/no-layout/page-1`,
+      u: `${SPA_URL}/layout/ignore-collect`,
     },
   ]);
 });
 
-test("SPA: popstate event outside of layout", async ({
+test("SPA: navigate with props", async ({ reqs, page }: Context) => {
+  await page.goto(`${SPA_URL}/navigation-with-props`);
+  await page.waitForNetworkIdle({
+    idleTime: 100,
+  });
+  await page.click(".link");
+  await page.waitForNetworkIdle({
+    idleTime: 100,
+  });
+
+  await page.click(".link-2");
+  await page.waitForNetworkIdle({
+    idleTime: 100,
+  });
+
+  expect(reqs).toStrictEqual([
+    {
+      e: [
+        {
+          h: false,
+          t: "PageView",
+        },
+      ],
+      u: `${SPA_URL}/navigation-with-props`,
+    },
+    {
+      e: [
+        {
+          h: false,
+          t: "PageView",
+          p: {
+            prop1: "value1",
+          },
+        },
+      ],
+      u: `${SPA_URL}/navigation-with-props/page-1`,
+    },
+    {
+      e: [
+        {
+          h: false,
+          t: "PageView",
+        },
+      ],
+      u: `${SPA_URL}/navigation-with-props`,
+    },
+  ]);
+});
+
+test("SPA: popstate event inside of layout", async ({
   reqs,
   page,
 }: Context) => {
-  await page.goto(`${SPA_URL}/no-layout/popstate`);
-  await page.waitForNetworkIdle({ idleTime: 50 });
+  await page.goto(`${SPA_URL}/layout/popstate`);
+  await page.waitForNetworkIdle({ idleTime: 100 });
 
   await page.click(".link");
   await page.waitForNetworkIdle({ idleTime: 100 });
@@ -669,18 +740,18 @@ test("SPA: popstate event outside of layout", async ({
     window.history.back();
     window.dispatchEvent(new PopStateEvent("popstate", { state: null }));
   });
-  await page.waitForNetworkIdle({ idleTime: 50 });
+  await page.waitForNetworkIdle({ idleTime: 100 });
   expect(reqs).toStrictEqual([
     {
-      u: `${SPA_URL}/no-layout/popstate`,
+      u: `${SPA_URL}/layout/popstate`,
       e: [{ t: "PageView", h: false }],
     },
     {
-      u: `${SPA_URL}/no-layout/popstate/page-1`,
+      u: `${SPA_URL}/layout/popstate/page-1`,
       e: [{ t: "PageView", h: false }],
     },
     {
-      u: `${SPA_URL}/no-layout/popstate`,
+      u: `${SPA_URL}/layout/popstate`,
       e: [{ t: "PageView", h: false }],
     },
   ]);

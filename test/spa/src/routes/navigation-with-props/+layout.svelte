@@ -6,4 +6,5 @@
     data-allow-localhost="true"
   ></script>
 </svelte:head>
-<a href="/no-layout/page-1" class="link">Link</a>
+
+<slot />
