@@ -219,6 +219,17 @@ test("View: manually", async ({ reqs, goto }: Context) => {
   ]);
 });
 
+test("View: manually with id='stonks'", async ({ reqs, goto }: Context) => {
+  await goto(`${MPA_URL}/with-id`);
+
+  expect(reqs).toStrictEqual([
+    {
+      u: `${MPA_URL}/with-id`,
+      e: [{ t: "PageView", h: false }],
+    },
+  ]);
+});
+
 test("View: manually with path", async ({ reqs, goto }: Context) => {
   await goto(`${MPA_URL}/manually-view-with-path`);
 
