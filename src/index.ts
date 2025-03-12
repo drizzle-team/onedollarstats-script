@@ -28,18 +28,34 @@ async function send(data: Event): Promise<void> {
     stonksScript?.getAttribute("data-url") ||
     "https://collector.onedollarstats.com/events";
 
-  const currentPage = new URL(location.href);
-  currentPage.search = "";
+  let urlToSend: URL = new URL(location.href);
+  const debugAttribute = stonksScript.getAttribute("data-debug");
+
+  let isDebug: boolean = false;
+  if (debugAttribute) {
+    try {
+      const debugUrl = new URL(
+        `https://${debugAttribute}${urlToSend.pathname}`
+      );
+      if (urlToSend.hostname !== debugUrl.hostname) {
+        isDebug = true;
+        urlToSend = debugUrl;
+      }
+    } catch {
+      return;
+    }
+  }
+
+  urlToSend.search = "";
   if ("path" in data && data.path) {
-    currentPage.pathname = data.path; // ToDo: check sho menyaet teyvo
+    urlToSend.pathname = data.path; // ToDo: check sho menyaet teyvo
   }
   // remove slash
-  const cleanUrl = currentPage.href.replace(/\/$/, "");
+  const cleanUrl = urlToSend.href.replace(/\/$/, "");
 
   let referrer: string | undefined = data.referrer ?? undefined; // ToDo: collect referrer when user sends event
 
   if (!referrer) {
-    const currentPage = new URL(location.href);
     const docReferrer =
       document.referrer && document.referrer !== "null"
         ? document.referrer
@@ -48,7 +64,7 @@ async function send(data: Event): Promise<void> {
     if (docReferrer) {
       const referrerURL = new URL(docReferrer);
 
-      if (referrerURL.hostname !== currentPage.hostname) {
+      if (referrerURL.hostname !== urlToSend.hostname) {
         referrer = referrerURL.href;
       }
     }
@@ -65,6 +81,9 @@ async function send(data: Event): Promise<void> {
       },
     ],
   };
+  if (isDebug) {
+    body.debug = isDebug;
+  }
   if (data.utm && Object.keys(data.utm).length > 0) {
     body.qs = data.utm; // ToDo
   }
@@ -256,12 +275,7 @@ namespace triggerPageView {
 }
 
 function shouldBlockEvent(): boolean {
-  if (
-    environment.isLocalhost &&
-    !(stonksScript?.getAttribute("data-allow-localhost") === "true"
-      ? true
-      : false)
-  ) {
+  if (environment.isLocalhost && !stonksScript?.getAttribute("data-debug")) {
     return true;
   }
 

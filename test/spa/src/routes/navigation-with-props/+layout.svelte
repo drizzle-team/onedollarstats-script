@@ -1,10 +1,5 @@
 <svelte:head>
-  <script
-    id="stonks"
-    defer
-    src="/stonks.js"
-    data-allow-localhost="true"
-  ></script>
+  <script id="stonks" defer src="/stonks.js" data-debug="example.com"></script>
 </svelte:head>
 
 <slot />

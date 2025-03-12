@@ -15,6 +15,7 @@ interface Context extends TestContext {
 }
 const MPA_URL = "http://localhost:4321";
 const SPA_URL = "http://localhost:5173";
+const DEBUG_DOMAIN = "https://example.com";
 
 const browser = await puppeteer.launch({
   // headless: false,
@@ -70,8 +71,9 @@ test("View: default page view", async ({ reqs, goto }: Context) => {
 
   expect(reqs).toStrictEqual([
     {
-      u: MPA_URL,
+      u: DEBUG_DOMAIN,
       e: [{ t: "PageView", h: false }],
+      debug: true,
     },
   ]);
 });
@@ -108,8 +110,9 @@ test("View: collect page via meta even if autocollect disabled", async ({
 
   expect(reqs).toStrictEqual([
     {
-      u: `${MPA_URL}/view-collect-via-meta-if-autocollect-disabled`,
+      u: `${DEBUG_DOMAIN}/view-collect-via-meta-if-autocollect-disabled`,
       e: [{ t: "PageView", h: false }],
+      debug: true,
     },
   ]);
 });
@@ -122,8 +125,9 @@ test("View: collect page via body tag even if autocollect disabled", async ({
 
   expect(reqs).toStrictEqual([
     {
-      u: `${MPA_URL}/view-collect-via-body-if-autocollect-disabled`,
+      u: `${DEBUG_DOMAIN}/view-collect-via-body-if-autocollect-disabled`,
       e: [{ t: "PageView", h: false }],
+      debug: true,
     },
   ]);
 });
@@ -133,8 +137,9 @@ test("View: path via meta tag", async ({ reqs, goto }: Context) => {
 
   expect(reqs).toStrictEqual([
     {
-      u: "http://localhost:4321/new-path",
+      u: "https://example.com/new-path",
       e: [{ t: "PageView", h: false }],
+      debug: true,
     },
   ]);
 });
@@ -144,8 +149,9 @@ test("View: path via body tag", async ({ reqs, goto }: Context) => {
 
   expect(reqs).toStrictEqual([
     {
-      u: `${MPA_URL}/new-path`,
+      u: `${DEBUG_DOMAIN}/new-path`,
       e: [{ t: "PageView", h: false }],
+      debug: true,
     },
   ]);
 });
@@ -157,8 +163,9 @@ test("View: props via script 'data-props' attribute", async ({
 
   expect(reqs).toStrictEqual([
     {
-      u: `${MPA_URL}/view-with-props-via-script`,
+      u: `${DEBUG_DOMAIN}/view-with-props-via-script`,
       e: [{ t: "PageView", h: false, p: { key1: "value1", key2: "value2" } }],
+      debug: true,
     },
   ]);
 });
@@ -171,8 +178,9 @@ test("View: props via 'data-s:view-props' attributes", async ({
 
   expect(reqs).toStrictEqual([
     {
-      u: `${MPA_URL}/view-with-props-via-dom-attributes`,
+      u: `${DEBUG_DOMAIN}/view-with-props-via-dom-attributes`,
       e: [{ t: "PageView", h: false, p: { key1: "value1", key2: "value2" } }],
+      debug: true,
     },
   ]);
 });
@@ -186,8 +194,9 @@ test("View: referrer", async ({ reqs, page }: Context) => {
 
   expect(reqs).toStrictEqual([
     {
-      u: MPA_URL,
+      u: DEBUG_DOMAIN,
       e: [{ t: "PageView", h: false, r: "http://google.com/" }],
+      debug: true,
     },
   ]);
 });
@@ -202,8 +211,9 @@ test("View: manually with referrer", async ({ reqs, page }: Context) => {
 
   expect(reqs).toStrictEqual([
     {
-      u: `${MPA_URL}/manually-view`,
+      u: `${DEBUG_DOMAIN}/manually-view`,
       e: [{ t: "PageView", h: false, r: "http://google.com/" }],
+      debug: true,
     },
   ]);
 });
@@ -213,8 +223,9 @@ test("View: manually", async ({ reqs, goto }: Context) => {
 
   expect(reqs).toStrictEqual([
     {
-      u: `${MPA_URL}/manually-view`,
+      u: `${DEBUG_DOMAIN}/manually-view`,
       e: [{ t: "PageView", h: false }],
+      debug: true,
     },
   ]);
 });
@@ -224,8 +235,9 @@ test("View: manually with id='stonks'", async ({ reqs, goto }: Context) => {
 
   expect(reqs).toStrictEqual([
     {
-      u: `${MPA_URL}/with-id`,
+      u: `${DEBUG_DOMAIN}/with-id`,
       e: [{ t: "PageView", h: false }],
+      debug: true,
     },
   ]);
 });
@@ -235,8 +247,9 @@ test("View: manually with path", async ({ reqs, goto }: Context) => {
 
   expect(reqs).toStrictEqual([
     {
-      u: `${MPA_URL}/new-path`,
+      u: `${DEBUG_DOMAIN}/new-path`,
       e: [{ t: "PageView", h: false }],
+      debug: true,
     },
   ]);
 });
@@ -249,8 +262,9 @@ test("View: manually with path via meta tag", async ({
 
   expect(reqs).toStrictEqual([
     {
-      u: `${MPA_URL}/new-path`,
+      u: `${DEBUG_DOMAIN}/new-path`,
       e: [{ t: "PageView", h: false }],
+      debug: true,
     },
   ]);
 });
@@ -263,8 +277,9 @@ test("View: manually with path via body tag", async ({
 
   expect(reqs).toStrictEqual([
     {
-      u: "http://localhost:4321/new-path",
+      u: `${DEBUG_DOMAIN}/new-path`,
       e: [{ t: "PageView", h: false }],
+      debug: true,
     },
   ]);
 });
@@ -274,8 +289,9 @@ test("View: manually with props", async ({ reqs, goto }: Context) => {
 
   expect(reqs).toStrictEqual([
     {
-      u: "http://localhost:4321/manually-view-with-props",
+      u: `${DEBUG_DOMAIN}/manually-view-with-props`,
       e: [{ t: "PageView", h: false, p: { key1: "value1", key2: "value2" } }],
+      debug: true,
     },
   ]);
 });
@@ -288,8 +304,9 @@ test("View: manually with props via script", async ({
 
   expect(reqs).toStrictEqual([
     {
-      u: "http://localhost:4321/manually-view-with-props-via-script",
+      u: `${DEBUG_DOMAIN}/manually-view-with-props-via-script`,
       e: [{ t: "PageView", h: false, p: { key1: "value1", key2: "value2" } }],
+      debug: true,
     },
   ]);
 });
@@ -304,8 +321,9 @@ test("View: manually with props via dom attributes - 'data-s:view-props'", async
 
   expect(reqs).toStrictEqual([
     {
-      u: "http://localhost:4321/manually-view-with-props-via-dom-attributes",
+      u: `${DEBUG_DOMAIN}/manually-view-with-props-via-dom-attributes`,
       e: [{ t: "PageView", h: false, p: { key1: "value1", key2: "value2" } }],
+      debug: true,
     },
   ]);
 });
@@ -315,8 +333,9 @@ test("View: manually with path and props", async ({ reqs, goto }: Context) => {
 
   expect(reqs).toStrictEqual([
     {
-      u: "http://localhost:4321/new-path",
+      u: `${DEBUG_DOMAIN}/new-path`,
       e: [{ t: "PageView", h: false, p: { key1: "value1", key2: "value2" } }],
+      debug: true,
     },
   ]);
 });
@@ -331,8 +350,9 @@ test("View: manually with path via meta and props", async ({
 
   expect(reqs).toStrictEqual([
     {
-      u: "http://localhost:4321/new-path",
+      u: `${DEBUG_DOMAIN}/new-path`,
       e: [{ t: "PageView", h: false, p: { key1: "value1", key2: "value2" } }],
+      debug: true,
     },
   ]);
 });
@@ -347,8 +367,9 @@ test("View: manually with path via body attribute and props", async ({
 
   expect(reqs).toStrictEqual([
     {
-      u: "http://localhost:4321/new-path",
+      u: `${DEBUG_DOMAIN}/new-path`,
       e: [{ t: "PageView", h: false, p: { key1: "value1", key2: "value2" } }],
+      debug: true,
     },
   ]);
 });
@@ -363,8 +384,9 @@ test("View: manually with path and props via script attribute", async ({
 
   expect(reqs).toStrictEqual([
     {
-      u: "http://localhost:4321/new-path",
+      u: `${DEBUG_DOMAIN}/new-path`,
       e: [{ t: "PageView", h: false, p: { key1: "value1", key2: "value2" } }],
+      debug: true,
     },
   ]);
 });
@@ -379,8 +401,9 @@ test("View: manually with path and props via DOM attributes - 'data-s:view-props
 
   expect(reqs).toStrictEqual([
     {
-      u: "http://localhost:4321/new-path",
+      u: `${DEBUG_DOMAIN}/new-path`,
       e: [{ t: "PageView", h: false, p: { key1: "value1", key2: "value2" } }],
+      debug: true,
     },
   ]);
 });
@@ -394,8 +417,9 @@ test("Event: via dom", async ({ reqs, page }: Context) => {
 
   expect(reqs).toStrictEqual([
     {
-      u: "http://localhost:4321/event",
+      u: `${DEBUG_DOMAIN}/event`,
       e: [{ t: "Event", h: false }],
+      debug: true,
     },
   ]);
 });
@@ -409,8 +433,9 @@ test("Event: via dom with path", async ({ reqs, page }: Context) => {
 
   expect(reqs).toStrictEqual([
     {
-      u: "http://localhost:4321/new-path",
+      u: `${DEBUG_DOMAIN}/new-path`,
       e: [{ t: "Event", h: false }],
+      debug: true,
     },
   ]);
 });
@@ -428,8 +453,9 @@ test("Event: via dom with path via meta tag", async ({
 
   expect(reqs).toStrictEqual([
     {
-      u: "http://localhost:4321/new-path",
+      u: `${DEBUG_DOMAIN}/new-path`,
       e: [{ t: "Event", h: false }],
+      debug: true,
     },
   ]);
 });
@@ -446,8 +472,9 @@ test("Event: via dom with path via body tag", async ({
 
   expect(reqs).toStrictEqual([
     {
-      u: "http://localhost:4321/new-path",
+      u: `${DEBUG_DOMAIN}/new-path`,
       e: [{ t: "Event", h: false }],
+      debug: true,
     },
   ]);
 });
@@ -461,8 +488,9 @@ test("Event: via dom with path and props", async ({ reqs, page }: Context) => {
 
   expect(reqs).toStrictEqual([
     {
-      u: "http://localhost:4321/new-path",
+      u: `${DEBUG_DOMAIN}/new-path`,
       e: [{ t: "Event", h: false, p: { key1: "value1", key2: "value2" } }],
+      debug: true,
     },
   ]);
 });
@@ -472,8 +500,9 @@ test("Event: manually", async ({ reqs, goto }: Context) => {
 
   expect(reqs).toStrictEqual([
     {
-      u: "http://localhost:4321/event-manually",
+      u: `${DEBUG_DOMAIN}/event-manually`,
       e: [{ t: "Event", h: false }],
+      debug: true,
     },
   ]);
 });
@@ -483,8 +512,9 @@ test("Event: manually with path", async ({ reqs, goto }: Context) => {
 
   expect(reqs).toStrictEqual([
     {
-      u: "http://localhost:4321/new-path",
+      u: `${DEBUG_DOMAIN}/new-path`,
       e: [{ t: "Event", h: false }],
+      debug: true,
     },
   ]);
 });
@@ -497,8 +527,9 @@ test("Event: manually with path via meta tag", async ({
 
   expect(reqs).toStrictEqual([
     {
-      u: "http://localhost:4321/new-path",
+      u: `${DEBUG_DOMAIN}/new-path`,
       e: [{ t: "Event", h: false }],
+      debug: true,
     },
   ]);
 });
@@ -508,8 +539,9 @@ test("Event: manually with path via body", async ({ reqs, goto }: Context) => {
 
   expect(reqs).toStrictEqual([
     {
-      u: "http://localhost:4321/new-path",
+      u: `${DEBUG_DOMAIN}/new-path`,
       e: [{ t: "Event", h: false }],
+      debug: true,
     },
   ]);
 });
@@ -524,8 +556,9 @@ test("Event: manually with referrer", async ({ reqs, page }: Context) => {
 
   expect(reqs).toStrictEqual([
     {
-      u: `${MPA_URL}/event-manually`,
+      u: `${DEBUG_DOMAIN}/event-manually`,
       e: [{ t: "Event", h: false, r: "http://google.com/" }],
+      debug: true,
     },
   ]);
 });
@@ -540,8 +573,9 @@ test("Event: dom event with referrer", async ({ reqs, page }: Context) => {
   });
   expect(reqs).toStrictEqual([
     {
-      u: `${MPA_URL}/event`,
+      u: `${DEBUG_DOMAIN}/event`,
       e: [{ t: "Event", h: false, r: "http://google.com/" }],
+      debug: true,
     },
   ]);
 });
@@ -551,8 +585,9 @@ test("Event: manually with props", async ({ reqs, goto }: Context) => {
 
   expect(reqs).toStrictEqual([
     {
-      u: "http://localhost:4321/event-manually-with-props",
+      u: `${DEBUG_DOMAIN}/event-manually-with-props`,
       e: [{ t: "Event", h: false, p: { key1: "value1", key2: "value2" } }],
+      debug: true,
     },
   ]);
 });
@@ -562,8 +597,9 @@ test("Event: manually with path and props", async ({ reqs, goto }: Context) => {
 
   expect(reqs).toStrictEqual([
     {
-      u: "http://localhost:4321/new-path",
+      u: `${DEBUG_DOMAIN}/new-path`,
       e: [{ t: "Event", h: false, p: { key1: "value1", key2: "value2" } }],
+      debug: true,
     },
   ]);
 });
@@ -587,7 +623,8 @@ test("SPA: page to page navigation", async ({ reqs, page }: Context) => {
           t: "PageView",
         },
       ],
-      u: `${SPA_URL}/layout`,
+      u: `${DEBUG_DOMAIN}/layout`,
+      debug: true,
     },
     {
       e: [
@@ -596,7 +633,8 @@ test("SPA: page to page navigation", async ({ reqs, page }: Context) => {
           t: "PageView",
         },
       ],
-      u: `${SPA_URL}/layout/page-1`,
+      u: `${DEBUG_DOMAIN}/layout/page-1`,
+      debug: true,
     },
   ]);
 });
@@ -647,7 +685,8 @@ test("SPA: collect even if autocollect is disabled", async ({
           t: "PageView",
         },
       ],
-      u: `${SPA_URL}/layout-autocollect-disabled/collect-via-meta/page-1`,
+      u: `${DEBUG_DOMAIN}/layout-autocollect-disabled/collect-via-meta/page-1`,
+      debug: true,
     },
   ]);
 });
@@ -675,7 +714,8 @@ test("SPA: ignore collect", async ({ reqs, page }: Context) => {
           t: "PageView",
         },
       ],
-      u: `${SPA_URL}/layout/ignore-collect`,
+      u: `${DEBUG_DOMAIN}/layout/ignore-collect`,
+      debug: true,
     },
     {
       e: [
@@ -684,7 +724,8 @@ test("SPA: ignore collect", async ({ reqs, page }: Context) => {
           t: "PageView",
         },
       ],
-      u: `${SPA_URL}/layout/ignore-collect`,
+      u: `${DEBUG_DOMAIN}/layout/ignore-collect`,
+      debug: true,
     },
   ]);
 });
@@ -712,7 +753,8 @@ test("SPA: navigate with props", async ({ reqs, page }: Context) => {
           t: "PageView",
         },
       ],
-      u: `${SPA_URL}/navigation-with-props`,
+      u: `${DEBUG_DOMAIN}/navigation-with-props`,
+      debug: true,
     },
     {
       e: [
@@ -724,7 +766,8 @@ test("SPA: navigate with props", async ({ reqs, page }: Context) => {
           },
         },
       ],
-      u: `${SPA_URL}/navigation-with-props/page-1`,
+      u: `${DEBUG_DOMAIN}/navigation-with-props/page-1`,
+      debug: true,
     },
     {
       e: [
@@ -733,7 +776,8 @@ test("SPA: navigate with props", async ({ reqs, page }: Context) => {
           t: "PageView",
         },
       ],
-      u: `${SPA_URL}/navigation-with-props`,
+      u: `${DEBUG_DOMAIN}/navigation-with-props`,
+      debug: true,
     },
   ]);
 });
@@ -754,16 +798,19 @@ test("SPA: popstate event inside of layout", async ({
   await page.waitForNetworkIdle({ idleTime: 100 });
   expect(reqs).toStrictEqual([
     {
-      u: `${SPA_URL}/layout/popstate`,
+      u: `${DEBUG_DOMAIN}/layout/popstate`,
       e: [{ t: "PageView", h: false }],
+      debug: true,
     },
     {
-      u: `${SPA_URL}/layout/popstate/page-1`,
+      u: `${DEBUG_DOMAIN}/layout/popstate/page-1`,
       e: [{ t: "PageView", h: false }],
+      debug: true,
     },
     {
-      u: `${SPA_URL}/layout/popstate`,
+      u: `${DEBUG_DOMAIN}/layout/popstate`,
       e: [{ t: "PageView", h: false }],
+      debug: true,
     },
   ]);
 });
@@ -776,7 +823,7 @@ test("View: UTM params", async ({ reqs, goto }: Context) => {
 
   expect(reqs).toStrictEqual([
     {
-      u: MPA_URL,
+      u: DEBUG_DOMAIN,
       e: [
         {
           t: "PageView",
@@ -790,6 +837,7 @@ test("View: UTM params", async ({ reqs, goto }: Context) => {
         utm_term: "term",
         utm_content: "content",
       },
+      debug: true,
     },
   ]);
 });

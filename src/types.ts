@@ -66,6 +66,7 @@ export type MinimizedEvent = {
 
 export type BodyToSend = {
   u: string;
+  debug?: boolean;
   e: [MinimizedEvent];
   qs?: Record<string, string>;
 };

@@ -4,7 +4,7 @@
     defer
     src="/stonks.js"
     data-autocollect="false"
-    data-allow-localhost="true"
+    
   ></script> -->
 </svelte:head>
 
