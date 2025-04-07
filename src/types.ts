@@ -22,7 +22,7 @@ declare global {
     stonks: {
       event: (
         name: string,
-        arg2: Record<string, string> | string,
+        arg2?: Record<string, string> | string,
         props?: Record<string, string>
       ) => Promise<void>;
       view: (
@@ -51,17 +51,14 @@ export type Event = {
 // t: type
 // h: hash routing
 // r: referrer
-// v:
-// t:
 // p: properties
 // e: events
-// qs:
+// qs: utm params
 export type MinimizedEvent = {
   t: string;
   h?: boolean | undefined; // ToDo: how hash works
   r?: string | undefined;
   p?: Record<string, string>;
-  v?: string | undefined;
 };
 
 export type BodyToSend = {
