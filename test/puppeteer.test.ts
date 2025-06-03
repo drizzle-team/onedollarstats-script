@@ -842,6 +842,50 @@ test("View: UTM params", async ({ reqs, goto }: Context) => {
   ]);
 });
 
+test("Tracker exposes only `window.stonks` with public API and no other globals leak", async ({
+  page,
+  goto,
+}) => {
+  await goto(MPA_URL);
+
+  const globals = await page.evaluate(() => {
+    // Ключи window до загрузки страницы не доступны, поэтому здесь просто проверим:
+    // 1) Что window.stonks существует и у него есть event и view.
+    // 2) Что других "лишних" глобальных переменных, связанных с трекером, нет.
+
+    const stonks = window.stonks;
+    const hasStonks = !!stonks;
+    const hasEvent = typeof stonks?.event === "function";
+    const hasView = typeof stonks?.view === "function";
+
+    // Здесь проверим типичные имена функций/переменных, которые есть в коде, чтобы убедиться, что они не попали в глобальный скоуп
+    const forbiddenGlobals = [
+      "lastPage",
+      "send",
+      "trackPageView",
+      "handleTaggedElementClickEvent",
+      "shouldBlockEvent",
+      "environment",
+    ];
+
+    const leakedGlobals = forbiddenGlobals.filter((key) => key in window);
+
+    return {
+      hasStonks,
+      hasEvent,
+      hasView,
+      leakedGlobals,
+    };
+  });
+
+  expect(globals.hasStonks).toBe(true);
+  expect(globals.hasEvent).toBe(true);
+  expect(globals.hasView).toBe(true);
+  expect(globals.leakedGlobals).toEqual([]);
+});
+
+
+
 // ToDo:
 // shouldBlockEvent(headless browser)
 // --- Release
