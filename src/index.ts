@@ -3,6 +3,9 @@ import { parseUtmParams } from "./utils/parse-utm-params";
 
 import { parseProps } from "./utils/props-parser";
 
+// Wrapping the entire script in an IIFE (Immediately Invoked Function Expression)
+// to avoid polluting the global namespace. This isolates all variables and functions,
+// preventing potential conflicts with other scripts on the page.
 (function () {
   // Don't execute the script on the server side. Check for document instead of window, because Deno has the window object even on the server.
   if (!document) {
