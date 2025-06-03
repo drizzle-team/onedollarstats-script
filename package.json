@@ -1,7 +1,7 @@
 {
   "name": "@unexpected/tracker",
   "scripts": {
-    "bundle": "npx esbuild ./src/index.ts --bundle --minify --format=cjs --outfile=./build/stonks.js",
+    "bundle": "npx esbuild ./src/index.ts --bundle --minify --format=iife --outfile=./build/stonks.js",
     "bundle:test": "npx esbuild ./src/index.ts --bundle --format=cjs --outfile=./build/stonks.js",
     "test": "pnpm vitest run"
   },
