@@ -1,0 +1,1 @@
+import"../chunks/DsnmJJEf.js";import"../chunks/eWHZKcAA.js";import{f as p,a as r}from"../chunks/BQnYaZSu.js";var t=p('<a href="/page-2">Go to page 2</a>');function n(a){var o=t();r(a,o)}export{n as component};

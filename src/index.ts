@@ -195,6 +195,8 @@ import { parseProps } from "./utils/props-parser";
     data: ViewArguments,
     checkBlock: boolean = true
   ) {
+    console.log("trackPageView");
+
     if (checkBlock && shouldBlockEvent()) return;
 
     const urlParams = new URLSearchParams(location.search);
@@ -299,17 +301,22 @@ import { parseProps } from "./utils/props-parser";
 
   if (window.history.pushState) {
     const originalPushState = window.history.pushState;
+    
     window.history.pushState = function (
       data: unknown,
       unused: string,
       url?: string | URL | null | undefined
     ) {
+      console.log("pushstate");
+
       originalPushState.apply(this, [data, unused, url]);
       window.requestAnimationFrame(() => {
         triggerPageView();
       });
     };
     window.addEventListener("popstate", () => {
+      console.log("popstate");
+
       window.requestAnimationFrame(() => {
         triggerPageView();
       });
@@ -319,10 +326,14 @@ import { parseProps } from "./utils/props-parser";
   if (document.visibilityState !== "visible") {
     document.addEventListener("visibilitychange", () => {
       if (!lastPage && document.visibilityState === "visible") {
+        console.log("visibilitychange");
+
         triggerPageView();
       }
     });
   } else {
+    console.log("visibilitychange");
+
     triggerPageView();
   }
   document.addEventListener("click", handleTaggedElementClickEvent);

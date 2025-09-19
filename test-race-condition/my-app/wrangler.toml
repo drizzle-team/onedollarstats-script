@@ -1,0 +1,34 @@
+name = "onedollarstats-fe"
+compatibility_date = "2025-04-01"
+compatibility_flags = ["nodejs_compat"]
+main = "./build/worker/index.js"
+
+[assets]
+directory = "build"
+binding = "ASSETS"
+run_worker_first = true
+not_found_handling = "404-page"
+
+# name = "my-static-site"
+# compatibility_date = "2024-01-01"
+# compatibility_flags = ["nodejs_compat"]
+# main = "./index.js"
+
+# [site]
+# bucket = "./public"
+
+# name = "onedollarstats-fe"
+# compatibility_date = "2024-01-01"
+# main = "./.svelte-kit/cloudflare/_worker.js"
+
+# [assets]
+# directory = "./.svelte-kit"
+# binding = "ASSETS"
+# run_worker_first = true
+
+
+# [assets]
+# directory = "./public"
+# binding = "ASSETS"
+# run_worker_first = true
+# not_found_handling = "404-page"
