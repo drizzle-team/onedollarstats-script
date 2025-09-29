@@ -1,12 +1,11 @@
 import type { BodyToSend, Event, ViewArguments } from "./types";
 import { parseUtmParams } from "./utils/parse-utm-params";
-
 import { parseProps } from "./utils/props-parser";
 
 // Wrapping the entire script in an IIFE (Immediately Invoked Function Expression)
 // to avoid polluting the global namespace. This isolates all variables and functions,
 // preventing potential conflicts with other scripts on the page.
-(function () {
+(() => {
   // Don't execute the script on the server side. Check for document instead of window, because Deno has the window object even on the server.
   if (!document) {
     return;
@@ -16,29 +15,18 @@ import { parseProps } from "./utils/props-parser";
 
   window.stonks = {
     event: event,
-    view: view,
+    view: view
   };
 
   const stonksScript = <HTMLScriptElement>document.currentScript; // ToDo
-  const useHashRouting =
-    stonksScript?.getAttribute("data-hash-routing") !== null; // ToDo
+  const useHashRouting = stonksScript?.getAttribute("data-hash-routing") !== null; // ToDo
   const environment = {
-    isLocalhost:
-      /^localhost$|^127(\.[0-9]+){0,2}\.[0-9]+$|^\[::1?\]$/.test(
-        location.hostname
-      ) || location.protocol === "file:",
-    isHeadlessBrowser: !!(
-      window._phantom ||
-      window.__nightmare ||
-      window.navigator.webdriver ||
-      window.Cypress
-    ),
+    isLocalhost: /^localhost$|^127(\.[0-9]+){0,2}\.[0-9]+$|^\[::1?\]$/.test(location.hostname) || location.protocol === "file:",
+    isHeadlessBrowser: !!(window._phantom || window.__nightmare || window.navigator.webdriver || window.Cypress)
   };
 
   async function send(data: Event): Promise<void> {
-    const analyticsUrl =
-      stonksScript?.getAttribute("data-url") ||
-      "https://collector.onedollarstats.com/events";
+    const analyticsUrl = stonksScript?.getAttribute("data-url") || "https://collector.onedollarstats.com/events";
 
     let urlToSend: URL = new URL(location.href);
     const debugAttribute = stonksScript.getAttribute("data-debug");
@@ -46,9 +34,7 @@ import { parseProps } from "./utils/props-parser";
     let isDebug: boolean = false;
     if (debugAttribute) {
       try {
-        const debugUrl = new URL(
-          `https://${debugAttribute}${urlToSend.pathname}`
-        );
+        const debugUrl = new URL(`https://${debugAttribute}${urlToSend.pathname}`);
         if (urlToSend.hostname !== debugUrl.hostname) {
           isDebug = true;
           urlToSend = debugUrl;
@@ -68,10 +54,7 @@ import { parseProps } from "./utils/props-parser";
     let referrer: string | undefined = data.referrer ?? undefined; // ToDo: collect referrer when user sends event
 
     if (!referrer) {
-      const docReferrer =
-        document.referrer && document.referrer !== "null"
-          ? document.referrer
-          : undefined;
+      const docReferrer = document.referrer && document.referrer !== "null" ? document.referrer : undefined;
 
       if (docReferrer) {
         const referrerURL = new URL(docReferrer);
@@ -89,9 +72,9 @@ import { parseProps } from "./utils/props-parser";
           t: data.type,
           h: useHashRouting, // ToDo: why we send hash routing
           r: referrer,
-          p: data.props,
-        },
-      ],
+          p: data.props
+        }
+      ]
     };
     if (isDebug) {
       body.debug = isDebug;
@@ -100,31 +83,34 @@ import { parseProps } from "./utils/props-parser";
       body.qs = data.utm; // ToDo
     }
 
-    if (navigator.sendBeacon !== undefined) {
-      if (navigator.sendBeacon(analyticsUrl, JSON.stringify(body))) {
-        return;
-      }
-    }
+    // Prepare the event payload
+    const stringifiedBody = JSON.stringify(body);
+    const payload = encodeURIComponent(stringifiedBody); // Encode for safe inclusion in query string
 
-    fetch(analyticsUrl, {
-      body: JSON.stringify(body),
-      headers: {
-        "Content-Type": "application/json",
-      },
-      keepalive: true,
-      method: "POST",
-    }).catch((reason: Error) =>
-      console.error(`fetch() failed: ${reason.message}`)
-    );
+    // Create a 1x1 pixel image beacon
+    const img = new Image(1, 1);
+
+    // If loading image fails (server unavailable, blocked, etc.)
+    img.onerror = () => {
+      // First fallback: try sendBeacon
+      if (navigator.sendBeacon?.(analyticsUrl, stringifiedBody)) return;
+
+      // Second fallback: use fetch() with keepalive
+      fetch(analyticsUrl, {
+        method: "POST",
+        body: stringifiedBody,
+        headers: { "Content-Type": "application/json" },
+        keepalive: true
+      }).catch((err: Error) => console.error("[onedollarstats] fetch() failed:", err.message));
+    };
+
+    // Primary attempt: send data via image beacon (GET request with query string)
+    img.src = `${analyticsUrl}?data=${payload}`;
   }
 
-  async function event(
-    name: string,
-    arg2?: string | Record<string, string>,
-    props?: Record<string, string>
-  ) {
+  async function event(name: string, arg2?: string | Record<string, string>, props?: Record<string, string>) {
     if (shouldBlockEvent()) return;
-    let options: {
+    const options: {
       path?: string;
       props?: Record<string, string>;
     } = {};
@@ -137,11 +123,7 @@ import { parseProps } from "./utils/props-parser";
 
     let path: string | undefined = options?.path || undefined;
     if (!path) {
-      const newPath =
-        document.body?.getAttribute("data-s:path") ||
-        document
-          .querySelector('meta[name="stonks-path"]')
-          ?.getAttribute("content");
+      const newPath = document.body?.getAttribute("data-s:path") || document.querySelector('meta[name="stonks-path"]')?.getAttribute("content");
 
       if (newPath) {
         path = newPath;
@@ -151,7 +133,7 @@ import { parseProps } from "./utils/props-parser";
     send({
       type: name,
       props: options?.props,
-      path: path,
+      path: path
     });
   }
 
@@ -161,18 +143,15 @@ import { parseProps } from "./utils/props-parser";
     const target = clickEvent.target as Element;
     const eventName = target.getAttribute("data-s:event");
     if (!eventName) return;
-    let propsAttr = target.getAttribute("data-s:event-props");
-    let props = propsAttr ? parseProps(propsAttr) : undefined;
-    let path = target.getAttribute("data-s:event-path") || undefined;
+    const propsAttr = target.getAttribute("data-s:event-props");
+    const props = propsAttr ? parseProps(propsAttr) : undefined;
+    const path = target.getAttribute("data-s:event-path") || undefined;
 
     event(eventName, path, props);
   }
 
-  async function view(
-    arg1?: string | Record<string, string>,
-    arg2?: Record<string, string>
-  ) {
-    let options: {
+  async function view(arg1?: string | Record<string, string>, arg2?: Record<string, string>) {
+    const options: {
       path?: string;
       props?: Record<string, string>;
     } = {};
@@ -185,16 +164,13 @@ import { parseProps } from "./utils/props-parser";
     trackPageView(
       {
         path: options?.path,
-        props: options?.props,
+        props: options?.props
       },
       false
     );
   }
 
-  async function trackPageView(
-    data: ViewArguments,
-    checkBlock: boolean = true
-  ) {
+  async function trackPageView(data: ViewArguments, checkBlock: boolean = true) {
     if (checkBlock && shouldBlockEvent()) return;
 
     const urlParams = new URLSearchParams(location.search);
@@ -203,11 +179,7 @@ import { parseProps } from "./utils/props-parser";
     let path: string | undefined = data?.path || undefined;
 
     if (!path) {
-      const newPath =
-        document.body?.getAttribute("data-s:path") ||
-        document
-          .querySelector('meta[name="stonks-path"]')
-          ?.getAttribute("content");
+      const newPath = document.body?.getAttribute("data-s:path") || document.querySelector('meta[name="stonks-path"]')?.getAttribute("content");
 
       if (newPath) {
         path = newPath;
@@ -231,14 +203,12 @@ import { parseProps } from "./utils/props-parser";
       type: "PageView",
       props: Object.keys(props).length > 0 ? props : undefined,
       path: path,
-      utm,
+      utm
     });
   }
 
   async function triggerPageView(): Promise<void> {
-    const shouldCollectPage1 = document
-      .querySelector('meta[name="stonks-collect"]')
-      ?.getAttribute("content");
+    const shouldCollectPage1 = document.querySelector('meta[name="stonks-collect"]')?.getAttribute("content");
 
     const shouldCollectPage2 = document.body?.getAttribute("data-s:collect");
 
@@ -246,14 +216,9 @@ import { parseProps } from "./utils/props-parser";
       lastPage = null;
       return;
     }
-    const isAutocollect =
-      stonksScript?.getAttribute("data-autocollect") === "false" ? false : true;
+    const isAutocollect = stonksScript?.getAttribute("data-autocollect") === "false" ? false : true;
 
-    if (
-      !isAutocollect &&
-      shouldCollectPage1 !== "true" &&
-      shouldCollectPage2 !== "true"
-    ) {
+    if (!isAutocollect && shouldCollectPage1 !== "true" && shouldCollectPage2 !== "true") {
       lastPage = null;
       return;
     }
@@ -279,7 +244,7 @@ import { parseProps } from "./utils/props-parser";
 
     trackPageView(
       {
-        props: Object.keys(props).length > 0 ? props : undefined,
+        props: Object.keys(props).length > 0 ? props : undefined
       },
       false
     );
@@ -299,11 +264,7 @@ import { parseProps } from "./utils/props-parser";
 
   if (window.history.pushState) {
     const originalPushState = window.history.pushState;
-    window.history.pushState = function (
-      data: unknown,
-      unused: string,
-      url?: string | URL | null | undefined
-    ) {
+    window.history.pushState = function (data: unknown, unused: string, url?: string | URL | null | undefined) {
       originalPushState.apply(this, [data, unused, url]);
       window.requestAnimationFrame(() => {
         triggerPageView();
