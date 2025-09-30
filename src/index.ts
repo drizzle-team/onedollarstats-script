@@ -85,7 +85,8 @@ import { parseProps } from "./utils/props-parser";
 
     // Prepare the event payload
     const stringifiedBody = JSON.stringify(body);
-    const payload = encodeURIComponent(stringifiedBody); // Encode for safe inclusion in query string
+    // Encode for safe inclusion in query string using Base64
+    const payload = btoa(stringifiedBody);
 
     // Create a 1x1 pixel image beacon
     const img = new Image(1, 1);
