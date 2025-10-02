@@ -141,14 +141,33 @@ import { parseProps } from "./utils/props-parser";
   function handleTaggedElementClickEvent(clickEvent: MouseEvent) {
     if (clickEvent.type === "auxclick" && clickEvent.button !== 1) return;
 
-    const target = clickEvent.target as Element;
-    const eventName = target.getAttribute("data-s:event");
-    if (!eventName) return;
-    const propsAttr = target.getAttribute("data-s:event-props");
-    const props = propsAttr ? parseProps(propsAttr) : undefined;
-    const path = target.getAttribute("data-s:event-path") || undefined;
+    const target = clickEvent.target as Element | null;
+    if (!target) return;
 
-    event(eventName, path, props);
+    // Check if inside <a> or <button>
+    const insideInteractive = !!target.closest("a, button");
+
+    let el: Element | null = target;
+    let depth = 0;
+
+    while (el) {
+      const eventName = el.getAttribute("data-s:event") ?? el.getAttribute("data-s-event");
+      if (eventName) {
+        const propsAttr = el.getAttribute("data-s:event-props") ?? el.getAttribute("data-s-event-props");
+        const props = propsAttr ? parseProps(propsAttr) : undefined;
+        const path = el.getAttribute("data-s:event-path") || el.getAttribute("data-s-event-path") || undefined;
+
+        event(eventName, path, props);
+
+        return;
+      }
+
+      el = el.parentElement;
+      depth++;
+
+      // If not in <a>/<button>, stop after 3 levels
+      if (!insideInteractive && depth >= 3) break;
+    }
   }
 
   async function view(arg1?: string | Record<string, string>, arg2?: Record<string, string>) {
