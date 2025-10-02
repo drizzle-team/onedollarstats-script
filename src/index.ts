@@ -25,6 +25,19 @@ import { parseProps } from "./utils/props-parser";
     isHeadlessBrowser: !!(window._phantom || window.__nightmare || window.navigator.webdriver || window.Cypress)
   };
 
+  async function sendWithBeaconOrFetch(analyticsUrl: string, stringifiedBody: string): Promise<void> {
+    // First fallback: try sendBeacon
+    if (navigator.sendBeacon?.(analyticsUrl, stringifiedBody)) return;
+
+    // Second fallback: use fetch() with keepalive
+    fetch(analyticsUrl, {
+      method: "POST",
+      body: stringifiedBody,
+      headers: { "Content-Type": "application/json" },
+      keepalive: true
+    }).catch((err: Error) => console.error("[onedollarstats] fetch() failed:", err.message));
+  }
+
   async function send(data: Event): Promise<void> {
     const analyticsUrl = stonksScript?.getAttribute("data-url") || "https://collector.onedollarstats.com/events";
 
@@ -86,27 +99,23 @@ import { parseProps } from "./utils/props-parser";
     // Prepare the event payload
     const stringifiedBody = JSON.stringify(body);
     // Encode for safe inclusion in query string using Base64
-    const payload = btoa(stringifiedBody);
+    const payloadBase64 = btoa(stringifiedBody);
 
-    // Create a 1x1 pixel image beacon
-    const img = new Image(1, 1);
+    const safeGetThreshold = 1500; // limit for query-string-containing URLs
+    const tryImageBeacon = payloadBase64.length <= safeGetThreshold;
 
-    // If loading image fails (server unavailable, blocked, etc.)
-    img.onerror = () => {
-      // First fallback: try sendBeacon
-      if (navigator.sendBeacon?.(analyticsUrl, stringifiedBody)) return;
+    if (tryImageBeacon) {
+      // Send via image beacon
+      const img = new Image(1, 1);
 
-      // Second fallback: use fetch() with keepalive
-      fetch(analyticsUrl, {
-        method: "POST",
-        body: stringifiedBody,
-        headers: { "Content-Type": "application/json" },
-        keepalive: true
-      }).catch((err: Error) => console.error("[onedollarstats] fetch() failed:", err.message));
-    };
+      // If loading image fails (server unavailable, blocked, etc.)
+      img.onerror = () => sendWithBeaconOrFetch(analyticsUrl, stringifiedBody);
 
-    // Primary attempt: send data via image beacon (GET request with query string)
-    img.src = `${analyticsUrl}?data=${payload}`;
+      // Primary attempt: send data via image beacon (GET request with query string)
+      img.src = `${analyticsUrl}?data=${payloadBase64}`;
+    }
+
+    await sendWithBeaconOrFetch(analyticsUrl, stringifiedBody);
   }
 
   async function event(name: string, arg2?: string | Record<string, string>, props?: Record<string, string>) {
