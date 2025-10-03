@@ -133,7 +133,10 @@ import { parseProps } from "./utils/props-parser";
 
     let path: string | undefined = options?.path || undefined;
     if (!path) {
-      const newPath = document.body?.getAttribute("data-s:path") || document.querySelector('meta[name="stonks-path"]')?.getAttribute("content");
+      const newPath =
+        document.body?.getAttribute("data-s-path") ||
+        document.body?.getAttribute("data-s:path") ||
+        document.querySelector('meta[name="stonks-path"]')?.getAttribute("content");
 
       if (newPath) {
         path = newPath;
@@ -160,11 +163,11 @@ import { parseProps } from "./utils/props-parser";
     let depth = 0;
 
     while (el) {
-      const eventName = el.getAttribute("data-s:event") ?? el.getAttribute("data-s-event");
+      const eventName = el.getAttribute("data-s-event") || el.getAttribute("data-s:event");
       if (eventName) {
-        const propsAttr = el.getAttribute("data-s:event-props") ?? el.getAttribute("data-s-event-props");
+        const propsAttr = el.getAttribute("data-s-event-props") || el.getAttribute("data-s:event-props");
         const props = propsAttr ? parseProps(propsAttr) : undefined;
-        const path = el.getAttribute("data-s:event-path") || el.getAttribute("data-s-event-path") || undefined;
+        const path = el.getAttribute("data-s-event-path") || el.getAttribute("data-s:event-path") || undefined;
 
         event(eventName, path, props);
 
@@ -208,7 +211,10 @@ import { parseProps } from "./utils/props-parser";
     let path: string | undefined = data?.path || undefined;
 
     if (!path) {
-      const newPath = document.body?.getAttribute("data-s:path") || document.querySelector('meta[name="stonks-path"]')?.getAttribute("content");
+      const newPath =
+        document.body?.getAttribute("data-s-path") ||
+        document.body?.getAttribute("data-s:path") ||
+        document.querySelector('meta[name="stonks-path"]')?.getAttribute("content");
 
       if (newPath) {
         path = newPath;
@@ -219,9 +225,9 @@ import { parseProps } from "./utils/props-parser";
     if (!props) {
       const pageViewProps = stonksScript?.getAttribute("data-props");
       const newProps = pageViewProps ? parseProps(pageViewProps) || {} : {};
-      const elements = document.querySelectorAll("[data-s\\:view-props]");
+      const elements = document.querySelectorAll("[data-s\\:view-props], [data-s-view-props]");
       for (const el of Array.from(elements)) {
-        const propsString = el.getAttribute("data-s:view-props");
+        const propsString = el.getAttribute("data-s-view-props") || el.getAttribute("data-s:view-props");
         if (!propsString) continue;
         const parsedProps = parseProps(propsString);
         Object.assign(newProps, parsedProps);
@@ -239,7 +245,7 @@ import { parseProps } from "./utils/props-parser";
   async function triggerPageView(): Promise<void> {
     const shouldCollectPage1 = document.querySelector('meta[name="stonks-collect"]')?.getAttribute("content");
 
-    const shouldCollectPage2 = document.body?.getAttribute("data-s:collect");
+    const shouldCollectPage2 = document.body?.getAttribute("data-s-collect") || document.body?.getAttribute("data-s:collect");
 
     if (shouldCollectPage1 === "false" || shouldCollectPage2 === "false") {
       lastPage = null;
@@ -263,9 +269,9 @@ import { parseProps } from "./utils/props-parser";
 
     const pageViewProps = stonksScript?.getAttribute("data-props");
     const props = pageViewProps ? parseProps(pageViewProps) || {} : {};
-    const elements = document.querySelectorAll("[data-s\\:view-props]");
+    const elements = document.querySelectorAll("[data-s\\:view-props], [data-s-view-props]");
     for (const el of Array.from(elements)) {
-      const propsString = el.getAttribute("data-s:view-props");
+      const propsString = el.getAttribute("data-s-view-props") || el.getAttribute("data-s:view-props");
       if (!propsString) continue;
       const parsedProps = parseProps(propsString);
       Object.assign(props, parsedProps);
