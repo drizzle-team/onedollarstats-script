@@ -113,9 +113,7 @@ import { parseProps } from "./utils/props-parser";
 
       // Primary attempt: send data via image beacon (GET request with query string)
       img.src = `${analyticsUrl}?data=${payloadBase64}`;
-    }
-
-    await sendWithBeaconOrFetch(analyticsUrl, stringifiedBody);
+    } else await sendWithBeaconOrFetch(analyticsUrl, stringifiedBody);
   }
 
   async function event(name: string, arg2?: string | Record<string, string>, props?: Record<string, string>) {
