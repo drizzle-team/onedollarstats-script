@@ -25,6 +25,11 @@ import { parseProps } from "./utils/props-parser";
     isHeadlessBrowser: !!(window._phantom || window.__nightmare || window.navigator.webdriver || window.Cypress)
   };
 
+  const debugUrl = stonksScript?.getAttribute("data-debug");
+  if (environment.isLocalhost && debugUrl) {
+    console.log(`[onedollarstats]\nScript successfully connected! Tracking your localhost as ${debugUrl}`);
+  }
+
   async function sendWithBeaconOrFetch(analyticsUrl: string, stringifiedBody: string): Promise<void> {
     // First fallback: try sendBeacon
     if (navigator.sendBeacon?.(analyticsUrl, stringifiedBody)) return;
@@ -89,11 +94,20 @@ import { parseProps } from "./utils/props-parser";
         }
       ]
     };
-    if (isDebug) {
-      body.debug = isDebug;
-    }
+
     if (data.utm && Object.keys(data.utm).length > 0) {
       body.qs = data.utm; // ToDo
+    }
+
+    if (isDebug) {
+      body.debug = isDebug;
+      let logMessage = `[onedollarstats]\nEvent name: ${data.type}\nEvent collected from: ${cleanUrl}`;
+      if (data.props && Object.keys(data.props).length > 0) logMessage += `\nProps: ${JSON.stringify(data.props, null, 2)}`;
+      if (referrer) logMessage += `\nReferrer: ${referrer}`;
+      if (useHashRouting) logMessage += `\nHashRouting: ${useHashRouting}`;
+      if (data.utm && Object.keys(data.utm).length > 0) logMessage += `\nUTM: ${data.utm}`;
+
+      console.log(logMessage);
     }
 
     // Prepare the event payload
@@ -118,10 +132,12 @@ import { parseProps } from "./utils/props-parser";
 
   async function event(name: string, arg2?: string | Record<string, string>, props?: Record<string, string>) {
     if (shouldBlockEvent()) return;
+
     const options: {
       path?: string;
       props?: Record<string, string>;
     } = {};
+
     if (typeof arg2 === "string") {
       options.path = arg2;
       if (props) options.props = props;
@@ -141,11 +157,7 @@ import { parseProps } from "./utils/props-parser";
       }
     }
 
-    send({
-      type: name,
-      props: options?.props,
-      path: path
-    });
+    send({ type: name, props: options?.props, path });
   }
 
   function handleTaggedElementClickEvent(clickEvent: MouseEvent) {
@@ -167,7 +179,7 @@ import { parseProps } from "./utils/props-parser";
         const props = propsAttr ? parseProps(propsAttr) : undefined;
         const path = el.getAttribute("data-s-event-path") || el.getAttribute("data-s:event-path") || undefined;
 
-        event(eventName, path, props);
+        event(eventName, path ?? props, props);
 
         return;
       }
@@ -185,12 +197,14 @@ import { parseProps } from "./utils/props-parser";
       path?: string;
       props?: Record<string, string>;
     } = {};
+
     if (typeof arg1 === "string") {
       options.path = arg1;
       if (arg2) options.props = arg2;
     } else if (typeof arg1 === "object") {
       options.props = arg1;
     }
+
     trackPageView(
       {
         path: options?.path,
@@ -249,7 +263,7 @@ import { parseProps } from "./utils/props-parser";
       lastPage = null;
       return;
     }
-    const isAutocollect = stonksScript?.getAttribute("data-autocollect") === "false" ? false : true;
+    const isAutocollect = stonksScript?.getAttribute("data-autocollect") !== "false";
 
     if (!isAutocollect && shouldCollectPage1 !== "true" && shouldCollectPage2 !== "true") {
       lastPage = null;
