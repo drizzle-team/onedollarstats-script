@@ -1,4 +1,5 @@
 import type { BodyToSend, Event, ViewArguments } from "./types";
+import { createDebugModal } from "./utils/create-modal";
 import { parseUtmParams } from "./utils/parse-utm-params";
 import { parseProps } from "./utils/props-parser";
 
@@ -25,9 +26,12 @@ import { parseProps } from "./utils/props-parser";
     isHeadlessBrowser: !!(window._phantom || window.__nightmare || window.navigator.webdriver || window.Cypress)
   };
 
-  const debugUrl = stonksScript?.getAttribute("data-debug");
-  if (environment.isLocalhost && debugUrl) {
-    console.log(`[onedollarstats]\nScript successfully connected! Tracking your localhost as ${debugUrl}`);
+  if (environment.isLocalhost) {
+    const debugUrl = stonksScript?.getAttribute("data-debug");
+
+    console.log(`[onedollarstats]\nScript successfully connected! ${debugUrl ? `Tracking your localhost as ${debugUrl}` : "Debug domain not set"}`);
+
+    createDebugModal(debugUrl);
   }
 
   async function sendWithBeaconOrFetch(analyticsUrl: string, stringifiedBody: string): Promise<void> {
@@ -122,9 +126,15 @@ import { parseProps } from "./utils/props-parser";
       // Send via image beacon
       const img = new Image(1, 1);
 
-      // If loading image fails (server unavailable, blocked, etc.)
-      img.onerror = () => sendWithBeaconOrFetch(analyticsUrl, stringifiedBody);
+      img.onload = () => {
+        if (window.__stonksModalLog) window.__stonksModalLog(`Event sent: ${data.type}`, true);
+      };
 
+      // If loading image fails (server unavailable, blocked, etc.)
+      img.onerror = () => {
+        sendWithBeaconOrFetch(analyticsUrl, stringifiedBody);
+        if (window.__stonksModalLog) window.__stonksModalLog(`Event failed: ${data.type}`, false);
+      };
       // Primary attempt: send data via image beacon (GET request with query string)
       img.src = `${analyticsUrl}?data=${payloadBase64}`;
     } else await sendWithBeaconOrFetch(analyticsUrl, stringifiedBody);
