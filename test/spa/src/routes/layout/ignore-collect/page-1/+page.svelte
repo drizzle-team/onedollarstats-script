@@ -1,12 +1,5 @@
-<script>
-  import { onMount } from 'svelte';
+<svelte:head>
+  <meta name="stonks-collect" content="false" />
+</svelte:head>
 
-  
-  onMount(() => {
-    document.body.setAttribute('data-s-collect', 'false');
-  });
-</script>
-
-
-  <a href="/layout/ignore-collect" class="link-2">Home</a>
-
+<a href="/layout/ignore-collect" class="link-2">Home</a>

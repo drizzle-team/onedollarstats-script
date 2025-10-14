@@ -77,10 +77,28 @@ test("View: autocollect disabled", async ({ reqs, goto }: Context) => {
   expect(reqs).toStrictEqual([]);
 });
 
+test("View: ignored by meta tag", async ({ reqs, goto }: Context) => {
+  await goto(`${MPA_URL}/view-ignore-collection-via-meta`);
+
+  expect(reqs).toStrictEqual([]);
+});
+
 test("View: ignored by body tag", async ({ reqs, goto }: Context) => {
   await goto(`${MPA_URL}/view-ignore-collection-via-body`);
 
   expect(reqs).toStrictEqual([]);
+});
+
+test("View: collect page via meta even if autocollect disabled", async ({ reqs, goto }: Context) => {
+  await goto(`${MPA_URL}/view-collect-via-meta-if-autocollect-disabled`);
+
+  expect(reqs).toStrictEqual([
+    {
+      u: `${DEBUG_DOMAIN}/view-collect-via-meta-if-autocollect-disabled`,
+      e: [{ t: "PageView", h: false }],
+      debug: true
+    }
+  ]);
 });
 
 test("View: collect page via body tag even if autocollect disabled", async ({ reqs, goto }: Context) => {
@@ -89,6 +107,18 @@ test("View: collect page via body tag even if autocollect disabled", async ({ re
   expect(reqs).toStrictEqual([
     {
       u: `${DEBUG_DOMAIN}/view-collect-via-body-if-autocollect-disabled`,
+      e: [{ t: "PageView", h: false }],
+      debug: true
+    }
+  ]);
+});
+
+test("View: path via meta tag", async ({ reqs, goto }: Context) => {
+  await goto("http://localhost:4321/view-with-path-via-meta");
+
+  expect(reqs).toStrictEqual([
+    {
+      u: "https://example.com/new-path",
       e: [{ t: "PageView", h: false }],
       debug: true
     }
@@ -199,6 +229,18 @@ test("View: manually with path", async ({ reqs, goto }: Context) => {
   ]);
 });
 
+test("View: manually with path via meta tag", async ({ reqs, goto }: Context) => {
+  await goto(`${MPA_URL}/manually-view-with-path-via-meta`);
+
+  expect(reqs).toStrictEqual([
+    {
+      u: `${DEBUG_DOMAIN}/new-path`,
+      e: [{ t: "PageView", h: false }],
+      debug: true
+    }
+  ]);
+});
+
 test("View: manually with path via body tag", async ({ reqs, goto }: Context) => {
   await goto("http://localhost:4321/manually-view-with-path-via-body");
 
@@ -249,6 +291,18 @@ test("View: manually with props via dom attributes - 'data-s:view-props'", async
 
 test("View: manually with path and props", async ({ reqs, goto }: Context) => {
   await goto("http://localhost:4321/manually-view-with-path-and-props");
+
+  expect(reqs).toStrictEqual([
+    {
+      u: `${DEBUG_DOMAIN}/new-path`,
+      e: [{ t: "PageView", h: false, p: { key1: "value1", key2: "value2" } }],
+      debug: true
+    }
+  ]);
+});
+
+test("View: manually with path via meta and props", async ({ reqs, goto }: Context) => {
+  await goto("http://localhost:4321/manually-view-with-path-via-meta-and-props");
 
   expect(reqs).toStrictEqual([
     {
@@ -313,6 +367,26 @@ test("Event: via dom", async ({ reqs, page }: Context) => {
 
 test("Event: via dom with path", async ({ reqs, page }: Context) => {
   await page.goto("http://localhost:4321/event-with-path");
+  await page.click(".event-button");
+  await page.waitForNetworkIdle({
+    idleTime: 100
+  });
+
+  expect(reqs).toStrictEqual([
+    {
+      u: `${DEBUG_DOMAIN}/new-path`,
+      e: [{ t: "Event", h: false }],
+      debug: true
+    }
+  ]);
+});
+
+test("Event: via dom with path via meta tag", async ({
+  reqs,
+
+  page
+}: Context) => {
+  await page.goto("http://localhost:4321/event-with-path-via-meta");
   await page.click(".event-button");
   await page.waitForNetworkIdle({
     idleTime: 100
@@ -463,6 +537,18 @@ test("Event: manually with path", async ({ reqs, goto }: Context) => {
   ]);
 });
 
+test("Event: manually with path via meta tag", async ({ reqs, goto }: Context) => {
+  await goto("http://localhost:4321/event-manually-with-path-via-meta");
+
+  expect(reqs).toStrictEqual([
+    {
+      u: `${DEBUG_DOMAIN}/new-path`,
+      e: [{ t: "Event", h: false }],
+      debug: true
+    }
+  ]);
+});
+
 test("Event: manually with path via body", async ({ reqs, goto }: Context) => {
   await goto("http://localhost:4321/event-manually-with-path-via-body");
 
@@ -585,45 +671,73 @@ test("SPA: page to page navigation inside of layout, with autocollect disabled",
   expect(reqs).toStrictEqual([]);
 });
 
-// TODO fix switch to body attr
-// test("SPA: ignore collect", async ({ reqs, page }: Context) => {
-//   await page.goto(`${SPA_URL}/layout/ignore-collect`);
-//   await page.waitForNetworkIdle({
-//     idleTime: 100
-//   });
-//   await page.click(".link");
-//   await page.waitForNetworkIdle({
-//     idleTime: 100
-//   });
+test("SPA: collect even if autocollect is disabled", async ({ reqs, page }: Context) => {
+  await page.goto(`${SPA_URL}/layout-autocollect-disabled/collect-via-meta`);
+  await page.waitForNetworkIdle({
+    idleTime: 100
+  });
+  await page.click(".link");
+  await page.waitForNetworkIdle({
+    idleTime: 100
+  });
 
-//   await page.click(".link-2");
-//   await page.waitForNetworkIdle({
-//     idleTime: 100
-//   });
+  await page.click(".link-2");
+  await page.waitForNetworkIdle({
+    idleTime: 100
+  });
 
-//   expect(reqs).toStrictEqual([
-//     {
-//       e: [
-//         {
-//           h: false,
-//           t: "PageView"
-//         }
-//       ],
-//       u: `${DEBUG_DOMAIN}/layout/ignore-collect`,
-//       debug: true
-//     },
-//     {
-//       e: [
-//         {
-//           h: false,
-//           t: "PageView"
-//         }
-//       ],
-//       u: `${DEBUG_DOMAIN}/layout/ignore-collect`,
-//       debug: true
-//     }
-//   ]);
-// });
+  expect(reqs).toStrictEqual([
+    {
+      e: [
+        {
+          h: false,
+          t: "PageView"
+        }
+      ],
+      u: `${DEBUG_DOMAIN}/layout-autocollect-disabled/collect-via-meta/page-1`,
+      debug: true
+    }
+  ]);
+});
+
+test("SPA: ignore collect", async ({ reqs, page }: Context) => {
+  await page.goto(`${SPA_URL}/layout/ignore-collect`);
+  await page.waitForNetworkIdle({
+    idleTime: 100
+  });
+  await page.click(".link");
+  await page.waitForNetworkIdle({
+    idleTime: 100
+  });
+
+  await page.click(".link-2");
+  await page.waitForNetworkIdle({
+    idleTime: 100
+  });
+
+  expect(reqs).toStrictEqual([
+    {
+      e: [
+        {
+          h: false,
+          t: "PageView"
+        }
+      ],
+      u: `${DEBUG_DOMAIN}/layout/ignore-collect`,
+      debug: true
+    },
+    {
+      e: [
+        {
+          h: false,
+          t: "PageView"
+        }
+      ],
+      u: `${DEBUG_DOMAIN}/layout/ignore-collect`,
+      debug: true
+    }
+  ]);
+});
 
 test("SPA: navigate with props", async ({ reqs, page }: Context) => {
   await page.goto(`${SPA_URL}/navigation-with-props`);
@@ -731,15 +845,15 @@ test("View: UTM params", async ({ reqs, goto }: Context) => {
     }
   ]);
 });
-// test("No single-letter global variables in window", async ({ page, goto }: Context) => {
-//   await goto(MPA_URL); // замени на свой путь при необходимости
+test("No single-letter global variables in window", async ({ page, goto }: Context) => {
+  await goto(MPA_URL); // замени на свой путь при необходимости
 
-//   const singleLetterGlobals = await page.evaluate(() => {
-//     return Object.getOwnPropertyNames(window).filter((k) => /^[a-zA-Z]$/.test(k));
-//   });
+  const singleLetterGlobals = await page.evaluate(() => {
+    return Object.getOwnPropertyNames(window).filter((k) => /^[a-zA-Z]$/.test(k));
+  });
 
-//   expect(singleLetterGlobals).toStrictEqual([]);
-// });
+  expect(singleLetterGlobals).toStrictEqual([]);
+});
 // ToDo:
 // shouldBlockEvent(headless browser)
 // --- Release
