@@ -147,10 +147,7 @@ import { parseProps } from "./utils/props-parser";
 
     let path: string | undefined = options?.path || undefined;
     if (!path) {
-      const newPath =
-        document.body?.getAttribute("data-s-path") ||
-        document.body?.getAttribute("data-s:path") ||
-        document.querySelector('meta[name="stonks-path"]')?.getAttribute("content");
+      const newPath = document.body?.getAttribute("data-s-path") || document.body?.getAttribute("data-s:path");
 
       if (newPath) {
         path = newPath;
@@ -223,10 +220,7 @@ import { parseProps } from "./utils/props-parser";
     let path: string | undefined = data?.path || undefined;
 
     if (!path) {
-      const newPath =
-        document.body?.getAttribute("data-s-path") ||
-        document.body?.getAttribute("data-s:path") ||
-        document.querySelector('meta[name="stonks-path"]')?.getAttribute("content");
+      const newPath = document.body?.getAttribute("data-s-path") || document.body?.getAttribute("data-s:path");
 
       if (newPath) {
         path = newPath;
@@ -255,17 +249,15 @@ import { parseProps } from "./utils/props-parser";
   }
 
   async function triggerPageView(): Promise<void> {
-    const shouldCollectPage1 = document.querySelector('meta[name="stonks-collect"]')?.getAttribute("content");
+    const shouldCollectPage = document.body?.getAttribute("data-s-collect") || document.body?.getAttribute("data-s:collect");
 
-    const shouldCollectPage2 = document.body?.getAttribute("data-s-collect") || document.body?.getAttribute("data-s:collect");
-
-    if (shouldCollectPage1 === "false" || shouldCollectPage2 === "false") {
+    if (shouldCollectPage === "false") {
       lastPage = null;
       return;
     }
     const isAutocollect = stonksScript?.getAttribute("data-autocollect") !== "false";
 
-    if (!isAutocollect && shouldCollectPage1 !== "true" && shouldCollectPage2 !== "true") {
+    if (!isAutocollect && shouldCollectPage !== "true") {
       lastPage = null;
       return;
     }
