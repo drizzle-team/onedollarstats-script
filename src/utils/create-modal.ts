@@ -1,4 +1,6 @@
-export const createDebugModal = (debugUrl: string | null) => {
+import { defaultCollectorUrl } from "./default-collector-url";
+
+export const createDebugModal = (debugUrl: string | null, analyticsUrl: string) => {
   const style = document.createElement("style");
   style.textContent = `
       .dev-modal {
@@ -66,22 +68,38 @@ export const createDebugModal = (debugUrl: string | null) => {
 
   modal.querySelector(".close-btn")?.addEventListener("click", () => modal.remove(), { once: true });
 
-  // Logging fn
+  // "Logging" fn
   window.__stonksModalLog = (message: string, success?: boolean) => {
     const logContainer = modal.querySelector("#event-log");
     if (!logContainer) return;
 
+    // Check if ad blocker warning exists
+    const adBlockerWarning = modal.querySelector("#ad-blocker-warning");
+    if (adBlockerWarning) return;
+
     const entry = document.createElement("p");
-    let iconSvg = "";
-    if (success) {
-      iconSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="green" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-check-icon lucide-circle-check"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>`;
-    } else {
-      iconSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="red" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-x-icon lucide-circle-x"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg>`;
-    }
+    const iconSvg = success
+      ? `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="green" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-check-icon lucide-circle-check"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>`
+      : `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="red" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-x-icon lucide-circle-x"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg>`;
 
     entry.innerHTML = `<span>${iconSvg}</span> ${message}`;
     logContainer.appendChild(entry);
-
     logContainer.scrollTop = logContainer.scrollHeight;
   };
+
+  if (analyticsUrl === defaultCollectorUrl) {
+    const img = new Image(1, 1);
+    img.onerror = () => {
+      const titleEl = modal.querySelector(".title");
+
+      const adBlockWarning = document.createElement("p");
+      adBlockWarning.id = "ad-blocker-warning";
+      adBlockWarning.innerHTML = `
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="orange" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-triangle-alert-icon lucide-triangle-alert"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>Helth check failed - ad blocker might be interfering.`;
+
+      if (titleEl) titleEl.insertAdjacentElement("afterend", adBlockWarning);
+      else modal.appendChild(adBlockWarning); // fallback
+    };
+    img.src = "https://collector.onedollarstats.com/pixel-health";
+  }
 };

@@ -1,5 +1,6 @@
 import type { BodyToSend, Event, ViewArguments } from "./types";
 import { createDebugModal } from "./utils/create-modal";
+import { defaultCollectorUrl } from "./utils/default-collector-url";
 import { parseUtmParams } from "./utils/parse-utm-params";
 import { parseProps } from "./utils/props-parser";
 
@@ -31,7 +32,7 @@ import { parseProps } from "./utils/props-parser";
 
     console.log(`[onedollarstats]\nScript successfully connected! ${debugUrl ? `Tracking your localhost as ${debugUrl}` : "Debug domain not set"}`);
 
-    createDebugModal(debugUrl);
+    createDebugModal(debugUrl, stonksScript?.getAttribute("data-url") || defaultCollectorUrl);
   }
 
   async function sendWithBeaconOrFetch(analyticsUrl: string, stringifiedBody: string, callback: (success: boolean) => void): Promise<void> {
@@ -56,7 +57,7 @@ import { parseProps } from "./utils/props-parser";
   }
 
   async function send(data: Event): Promise<void> {
-    const analyticsUrl = stonksScript?.getAttribute("data-url") || "https://collector.onedollarstats.com/events";
+    const analyticsUrl = stonksScript?.getAttribute("data-url") || defaultCollectorUrl;
 
     let urlToSend: URL = new URL(location.href);
     const debugAttribute = stonksScript.getAttribute("data-debug");
