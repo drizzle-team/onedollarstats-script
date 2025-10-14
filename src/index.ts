@@ -32,6 +32,31 @@ import { parseProps } from "./utils/props-parser";
     console.log(`[onedollarstats]\nScript successfully connected! ${debugUrl ? `Tracking your localhost as ${debugUrl}` : "Debug domain not set"}`);
 
     createDebugModal(debugUrl);
+
+    const img = new Image(1, 1);
+
+    const body: BodyToSend = {
+      u: "https://test-check.com",
+      e: [
+        {
+          t: "Health check"
+        }
+      ]
+    };
+    // Prepare the event payload
+    const stringifiedBody = JSON.stringify(body);
+    // Encode for safe inclusion in query string using Base64
+    const payloadBase64 = btoa(stringifiedBody);
+    img.onload = () => {
+      if (window.__stonksModalLog) window.__stonksModalLog("Health check passed", true);
+    };
+
+    // If loading image fails (server unavailable, blocked, etc.)
+    img.onerror = () => {
+      if (window.__stonksModalLog) window.__stonksModalLog("Health check failed - ad blocker may be active", false);
+    };
+    // Primary attempt: send data via image beacon (GET request with query string)
+    img.src = `https://collector.onedollarstats.com/events?data=${payloadBase64}`;
   }
 
   async function sendWithBeaconOrFetch(analyticsUrl: string, stringifiedBody: string): Promise<void> {
