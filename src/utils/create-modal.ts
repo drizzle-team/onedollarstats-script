@@ -16,12 +16,12 @@ export const createDebugModal = (debugUrl: string | null) => {
         z-index: 99999;
         animation: slideIn 0.3s ease-out;
       }
-      .dev-modal h3 { 
-        margin:0 0 8px 0; 
-        font-size:16px; 
-        display:flex; 
-        gap:6px; 
-        align-items:center; 
+      .dev-modal .title {
+        text-transform: uppercase;
+        font-size: 11px;
+        font-weight: 500;
+        margin: 0 0 6px 0;
+        letter-spacing: 0.5px;
       }
       .dev-modal p { 
         margin:4px 0; 
@@ -52,9 +52,9 @@ export const createDebugModal = (debugUrl: string | null) => {
   modal.className = "dev-modal";
   modal.innerHTML = `
       <button class="close-btn">&times;</button>
-      <h3>
-        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-trending-up"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"></polyline><polyline points="16 7 22 7 22 13"></polyline></svg>  OneDollarStats
-      </h3>
+      <p class="title">
+        onedollarstats debug window
+      </p>
       <p>
        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="gray" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-info-icon lucide-info"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg> ${
          debugUrl ? `Tracking localhost as ${debugUrl}` : "Debug URL not set"
