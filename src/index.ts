@@ -47,21 +47,21 @@ import { parseProps } from "./utils/props-parser";
     const stringifiedBody = JSON.stringify(body);
     // Encode for safe inclusion in query string using Base64
     const payloadBase64 = btoa(stringifiedBody);
-    img.onload = () => {
-      if (window.__stonksModalLog) window.__stonksModalLog("Health check passed", true);
-    };
+    img.onload = () => window.__stonksModalLog?.("Health check passed", true);
 
     // If loading image fails (server unavailable, blocked, etc.)
-    img.onerror = () => {
-      if (window.__stonksModalLog) window.__stonksModalLog("Health check failed - ad blocker may be active", false);
-    };
+    img.onerror = () => window.__stonksModalLog?.("Health check failed - ad blocker may be active", false);
+
     // Primary attempt: send data via image beacon (GET request with query string)
     img.src = `https://collector.onedollarstats.com/events?data=${payloadBase64}`;
   }
 
-  async function sendWithBeaconOrFetch(analyticsUrl: string, stringifiedBody: string): Promise<void> {
+  async function sendWithBeaconOrFetch(analyticsUrl: string, stringifiedBody: string, callback: (success: boolean) => void): Promise<void> {
     // First fallback: try sendBeacon
-    if (navigator.sendBeacon?.(analyticsUrl, stringifiedBody)) return;
+    if (navigator.sendBeacon?.(analyticsUrl, stringifiedBody)) {
+      callback(true);
+      return;
+    }
 
     // Second fallback: use fetch() with keepalive
     fetch(analyticsUrl, {
@@ -69,7 +69,12 @@ import { parseProps } from "./utils/props-parser";
       body: stringifiedBody,
       headers: { "Content-Type": "application/json" },
       keepalive: true
-    }).catch((err: Error) => console.error("[onedollarstats] fetch() failed:", err.message));
+    })
+      .then(() => callback(true))
+      .catch((err: Error) => {
+        console.error("[onedollarstats] fetch() failed:", err.message);
+        callback(false);
+      });
   }
 
   async function send(data: Event): Promise<void> {
@@ -139,6 +144,7 @@ import { parseProps } from "./utils/props-parser";
       console.log(logMessage);
     }
 
+    const onComplete = (success: boolean) => window.__stonksModalLog?.(`${data.type} ${success ? "sent" : "failed to send"}`, success);
     // Prepare the event payload
     const stringifiedBody = JSON.stringify(body);
     // Encode for safe inclusion in query string using Base64
@@ -151,18 +157,13 @@ import { parseProps } from "./utils/props-parser";
       // Send via image beacon
       const img = new Image(1, 1);
 
-      img.onload = () => {
-        if (window.__stonksModalLog) window.__stonksModalLog(`${data.type} sent`, true);
-      };
-
+      img.onload = () => onComplete(true);
       // If loading image fails (server unavailable, blocked, etc.)
-      img.onerror = () => {
-        sendWithBeaconOrFetch(analyticsUrl, stringifiedBody);
-        if (window.__stonksModalLog) window.__stonksModalLog(`${data.type} failed`, false);
-      };
+      img.onerror = () => sendWithBeaconOrFetch(analyticsUrl, stringifiedBody, onComplete);
+
       // Primary attempt: send data via image beacon (GET request with query string)
       img.src = `${analyticsUrl}?data=${payloadBase64}`;
-    } else await sendWithBeaconOrFetch(analyticsUrl, stringifiedBody);
+    } else await sendWithBeaconOrFetch(analyticsUrl, stringifiedBody, onComplete);
   }
 
   async function event(name: string, arg2?: string | Record<string, string>, props?: Record<string, string>) {
