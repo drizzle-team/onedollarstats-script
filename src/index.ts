@@ -127,13 +127,13 @@ import { parseProps } from "./utils/props-parser";
       const img = new Image(1, 1);
 
       img.onload = () => {
-        if (window.__stonksModalLog) window.__stonksModalLog(`Event sent: ${data.type}`, true);
+        if (window.__stonksModalLog) window.__stonksModalLog(`${data.type} sent`, true);
       };
 
       // If loading image fails (server unavailable, blocked, etc.)
       img.onerror = () => {
         sendWithBeaconOrFetch(analyticsUrl, stringifiedBody);
-        if (window.__stonksModalLog) window.__stonksModalLog(`Event failed: ${data.type}`, false);
+        if (window.__stonksModalLog) window.__stonksModalLog(`${data.type} failed`, false);
       };
       // Primary attempt: send data via image beacon (GET request with query string)
       img.src = `${analyticsUrl}?data=${payloadBase64}`;

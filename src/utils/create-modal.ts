@@ -1,6 +1,4 @@
-// Debug modal with SVG icons
 export const createDebugModal = (debugUrl: string | null) => {
-  // Styles
   const style = document.createElement("style");
   style.textContent = `
       .dev-modal {
@@ -11,8 +9,8 @@ export const createDebugModal = (debugUrl: string | null) => {
         padding: 14px;
         border-radius: 8px;
         max-width: 340px;
-        max-height: 200px;
-        overflow-y: auto;
+        max-height: 180px;
+        overflow-y: none;
         box-shadow: 0 5px 20px rgba(0,0,0,0.3);
         font-family: sans-serif;
         z-index: 99999;
@@ -34,7 +32,7 @@ export const createDebugModal = (debugUrl: string | null) => {
       }
       .dev-modal .close-btn { 
         position:absolute; 
-        top:5px; 
+        top:2px; 
         right:8px; 
         background:transparent; 
         border:none; 
@@ -50,31 +48,25 @@ export const createDebugModal = (debugUrl: string | null) => {
     `;
   document.head.appendChild(style);
 
-  // Modal
   const modal = document.createElement("div");
   modal.className = "dev-modal";
   modal.innerHTML = `
       <button class="close-btn">&times;</button>
       <h3>
-        <svg width="14" height="14" viewBox="0 0 16 16" fill="green" xmlns="http://www.w3.org/2000/svg">
-          <circle cx="8" cy="8" r="7" stroke="green" stroke-width="2" fill="none"/>
-          <path d="M5 8.5l2 2 4-4" stroke="green" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg> OneDollarStats connected
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-trending-up"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"></polyline><polyline points="16 7 22 7 22 13"></polyline></svg>  OneDollarStats
       </h3>
       <p>
-        <svg width="14" height="14" viewBox="0 0 16 16" fill="gray" xmlns="http://www.w3.org/2000/svg">
-          <circle cx="8" cy="8" r="7" stroke="gray" stroke-width="2" fill="none"/>
-          <text x="8" y="12" text-anchor="middle" font-size="10" font-weight="800" fill="gray" font-family="Arial, sans-serif">i</text>
-          <circle cx="8" cy="11" r="1" fill="gray"/>
-        </svg> ${debugUrl ? `Tracking your localhost as ${debugUrl}` : "Debug URL not set"}
+       <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="gray" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-info-icon lucide-info"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg> ${
+         debugUrl ? `Tracking localhost as ${debugUrl}` : "Debug URL not set"
+       }
       </p>
-      <div id="event-log" style="max-height: 100px; overflow-y: auto;"></div>
+      <div id="event-log" style="max-height: 100px; overflow-y: auto;" />
     `;
   document.body.appendChild(modal);
 
   modal.querySelector(".close-btn")?.addEventListener("click", () => modal.remove(), { once: true });
 
-  // Logging function
+  // Logging fn
   window.__stonksModalLog = (message: string, success?: boolean) => {
     const logContainer = modal.querySelector("#event-log");
     if (!logContainer) return;
@@ -82,16 +74,9 @@ export const createDebugModal = (debugUrl: string | null) => {
     const entry = document.createElement("p");
     let iconSvg = "";
     if (success) {
-      iconSvg = `<svg width="14" height="14" viewBox="0 0 16 16" fill="green" xmlns="http://www.w3.org/2000/svg">
-          <circle cx="8" cy="8" r="7" stroke="green" stroke-width="2" fill="none"/>
-          <path d="M5 8.5l2 2 4-4" stroke="green" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>`;
+      iconSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="green" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-check-icon lucide-circle-check"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>`;
     } else {
-      iconSvg = `<svg width="14" height="14" viewBox="0 0 16 16" fill="red" xmlns="http://www.w3.org/2000/svg">
-        <circle cx="8" cy="8" r="7" stroke="red" stroke-width="2" fill="none"/>
-        <line x1="5" y1="5" x2="11" y2="11" stroke="red" stroke-width="2" stroke-linecap="round"/>
-        <line x1="11" y1="5" x2="5" y2="11" stroke="red" stroke-width="2" stroke-linecap="round"/>
-      </svg>`;
+      iconSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="red" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-x-icon lucide-circle-x"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg>`;
     }
 
     entry.innerHTML = `<span>${iconSvg}</span> ${message}`;
