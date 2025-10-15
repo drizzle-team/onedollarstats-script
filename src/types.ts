@@ -14,22 +14,13 @@ declare global {
     //   key1: "props1",
     // });
     // window.stonks.event("click button", "/path");
-    trackCustomEvent: (
-      name: string,
-      data: Record<string, string>
-    ) => Promise<void>;
+    trackCustomEvent: (name: string, data: Record<string, string>) => Promise<void>;
     trackPageViewEvent: (data: Record<string, string>) => Promise<void>;
     stonks: {
-      event: (
-        name: string,
-        arg2?: Record<string, string> | string,
-        props?: Record<string, string>
-      ) => Promise<void>;
-      view: (
-        arg1?: string | Record<string, string>,
-        arg2?: Record<string, string>
-      ) => Promise<void>;
+      event: (name: string, arg2?: Record<string, string> | string, props?: Record<string, string>) => Promise<void>;
+      view: (arg1?: string | Record<string, string>, arg2?: Record<string, string>) => Promise<void>;
     };
+    __stonksModalLog?: (message: string, success?: boolean) => void;
   }
 }
 

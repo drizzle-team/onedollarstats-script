@@ -1,4 +1,6 @@
 import type { BodyToSend, Event, ViewArguments } from "./types";
+import { createDebugModal } from "./utils/create-modal";
+import { defaultCollectorUrl } from "./utils/default-collector-url";
 import { parseUtmParams } from "./utils/parse-utm-params";
 import { parseProps } from "./utils/props-parser";
 
@@ -25,14 +27,20 @@ import { parseProps } from "./utils/props-parser";
     isHeadlessBrowser: !!(window._phantom || window.__nightmare || window.navigator.webdriver || window.Cypress)
   };
 
-  const debugUrl = stonksScript?.getAttribute("data-debug");
-  if (environment.isLocalhost && debugUrl) {
-    console.log(`[onedollarstats]\nScript successfully connected! Tracking your localhost as ${debugUrl}`);
+  if (environment.isLocalhost) {
+    const debugUrl = stonksScript?.getAttribute("data-debug");
+
+    console.log(`[onedollarstats]\nScript successfully connected! ${debugUrl ? `Tracking your localhost as ${debugUrl}` : "Debug domain not set"}`);
+
+    if(debugUrl) createDebugModal(debugUrl, stonksScript?.getAttribute("data-url") || defaultCollectorUrl);
   }
 
-  async function sendWithBeaconOrFetch(analyticsUrl: string, stringifiedBody: string): Promise<void> {
+  async function sendWithBeaconOrFetch(analyticsUrl: string, stringifiedBody: string, callback: (success: boolean) => void): Promise<void> {
     // First fallback: try sendBeacon
-    if (navigator.sendBeacon?.(analyticsUrl, stringifiedBody)) return;
+    if (navigator.sendBeacon?.(analyticsUrl, stringifiedBody)) {
+      callback(true);
+      return;
+    }
 
     // Second fallback: use fetch() with keepalive
     fetch(analyticsUrl, {
@@ -40,11 +48,16 @@ import { parseProps } from "./utils/props-parser";
       body: stringifiedBody,
       headers: { "Content-Type": "application/json" },
       keepalive: true
-    }).catch((err: Error) => console.error("[onedollarstats] fetch() failed:", err.message));
+    })
+      .then(() => callback(true))
+      .catch((err: Error) => {
+        console.error("[onedollarstats] fetch() failed:", err.message);
+        callback(false);
+      });
   }
 
   async function send(data: Event): Promise<void> {
-    const analyticsUrl = stonksScript?.getAttribute("data-url") || "https://collector.onedollarstats.com/events";
+    const analyticsUrl = stonksScript?.getAttribute("data-url") || defaultCollectorUrl;
 
     let urlToSend: URL = new URL(location.href);
     const debugAttribute = stonksScript.getAttribute("data-debug");
@@ -110,6 +123,7 @@ import { parseProps } from "./utils/props-parser";
       console.log(logMessage);
     }
 
+    const onComplete = (success: boolean) => window.__stonksModalLog?.(`${data.type} ${success ? "sent" : "failed to send"}`, success);
     // Prepare the event payload
     const stringifiedBody = JSON.stringify(body);
     // Encode for safe inclusion in query string using Base64
@@ -122,12 +136,13 @@ import { parseProps } from "./utils/props-parser";
       // Send via image beacon
       const img = new Image(1, 1);
 
+      img.onload = () => onComplete(true);
       // If loading image fails (server unavailable, blocked, etc.)
-      img.onerror = () => sendWithBeaconOrFetch(analyticsUrl, stringifiedBody);
+      img.onerror = () => sendWithBeaconOrFetch(analyticsUrl, stringifiedBody, onComplete);
 
       // Primary attempt: send data via image beacon (GET request with query string)
       img.src = `${analyticsUrl}?data=${payloadBase64}`;
-    } else await sendWithBeaconOrFetch(analyticsUrl, stringifiedBody);
+    } else await sendWithBeaconOrFetch(analyticsUrl, stringifiedBody, onComplete);
   }
 
   async function event(name: string, arg2?: string | Record<string, string>, props?: Record<string, string>) {
