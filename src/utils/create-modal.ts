@@ -29,8 +29,17 @@ export const createDebugModal = (debugUrl: string | null, analyticsUrl: string) 
         margin:4px 0; 
         font-size:14px; 
         display:flex; 
-        align-items:center; 
-        gap:6px; 
+        align-items:flex-start; 
+        gap:4px; 
+      }
+      .dev-modal .text {
+        word-break: break-word;
+      }
+      .dev-modal p svg {
+        flex-shrink: 0;
+        width: 18px;
+        height: 18px;
+        margin-top: 1px;
       }
       .dev-modal .close-btn { 
         position:absolute; 
@@ -58,9 +67,8 @@ export const createDebugModal = (debugUrl: string | null, analyticsUrl: string) 
         onedollarstats debug window
       </p>
       <p>
-       <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="gray" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-info-icon lucide-info"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg> ${
-         debugUrl ? `Tracking localhost as ${debugUrl}` : "Debug URL not set"
-       }
+       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="gray" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-info-icon lucide-info"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+       <span class="text">${debugUrl ? `Tracking localhost as ${debugUrl}` : "Debug URL not set"}</span>
       </p>
       <div id="event-log" style="max-height: 100px; overflow-y: auto;" />
     `;
@@ -79,10 +87,10 @@ export const createDebugModal = (debugUrl: string | null, analyticsUrl: string) 
 
     const entry = document.createElement("p");
     const iconSvg = success
-      ? `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="green" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-check-icon lucide-circle-check"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>`
-      : `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="red" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-x-icon lucide-circle-x"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg>`;
+      ? `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="green" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-check-icon lucide-circle-check"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>`
+      : `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="red" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-x-icon lucide-circle-x"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg>`;
 
-    entry.innerHTML = `<span>${iconSvg}</span> ${message}`;
+    entry.innerHTML = `${iconSvg} <span class="text">${message}</span>`;
     logContainer.appendChild(entry);
     logContainer.scrollTop = logContainer.scrollHeight;
   };
@@ -95,11 +103,12 @@ export const createDebugModal = (debugUrl: string | null, analyticsUrl: string) 
       const adBlockWarning = document.createElement("p");
       adBlockWarning.id = "ad-blocker-warning";
       adBlockWarning.innerHTML = `
-        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="orange" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-triangle-alert-icon lucide-triangle-alert"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>Helth check failed - ad blocker might be interfering.`;
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="orange" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-triangle-alert-icon lucide-triangle-alert"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+        <span class="text">Health check failed - ad blocker might be interfering.</span>`;
 
       if (titleEl) titleEl.insertAdjacentElement("afterend", adBlockWarning);
       else modal.appendChild(adBlockWarning); // fallback
     };
     img.src = "https://collector.onedollarstats.com/pixel-health";
   }
-};
+};  
