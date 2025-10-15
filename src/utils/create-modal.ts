@@ -1,6 +1,6 @@
 import { defaultCollectorUrl } from "./default-collector-url";
 
-export const createDebugModal = (debugUrl: string | null, analyticsUrl: string) => {
+export const createDebugModal = (debugUrl: string, analyticsUrl: string) => {
   const style = document.createElement("style");
   style.textContent = `
       .dev-modal {
@@ -68,7 +68,7 @@ export const createDebugModal = (debugUrl: string | null, analyticsUrl: string) 
       </p>
       <p>
        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="gray" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-info-icon lucide-info"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
-       <span class="text">${debugUrl ? `Tracking localhost as ${debugUrl}` : "Debug URL not set"}</span>
+       <span class="text">${`Tracking localhost as ${debugUrl}`}</span>
       </p>
       <div id="event-log" style="max-height: 100px; overflow-y: auto;" />
     `;

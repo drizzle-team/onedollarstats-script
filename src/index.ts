@@ -32,7 +32,7 @@ import { parseProps } from "./utils/props-parser";
 
     console.log(`[onedollarstats]\nScript successfully connected! ${debugUrl ? `Tracking your localhost as ${debugUrl}` : "Debug domain not set"}`);
 
-    createDebugModal(debugUrl, stonksScript?.getAttribute("data-url") || defaultCollectorUrl);
+    if(debugUrl) createDebugModal(debugUrl, stonksScript?.getAttribute("data-url") || defaultCollectorUrl);
   }
 
   async function sendWithBeaconOrFetch(analyticsUrl: string, stringifiedBody: string, callback: (success: boolean) => void): Promise<void> {
