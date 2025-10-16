@@ -1,58 +1,70 @@
 "use strict";(()=>{var y="https://collector.onedollarstats.com/events";var L=(u,l)=>{let d=document.createElement("style");d.textContent=`
-      .dev-modal {
-        position: fixed;
-        bottom: 20px;
-        right: 20px;
-        background: #fff;
-        padding: 14px;
-        border-radius: 8px;
-        max-width: 340px;
-        max-height: 180px;
-        overflow-y: none;
-        box-shadow: 0 5px 20px rgba(0,0,0,0.3);
-        font-family: sans-serif;
-        z-index: 99999;
-        animation: slideIn 0.3s ease-out;
-      }
-      .dev-modal .title {
-        text-transform: uppercase;
-        font-size: 11px;
-        font-weight: 500;
-        margin: 0 0 6px 0;
-        letter-spacing: 0.5px;
-      }
-      .dev-modal p { 
-        margin:4px 0; 
-        font-size:14px; 
-        display:flex; 
-        align-items:flex-start; 
-        gap:4px; 
-      }
-      .dev-modal .text {
-        word-break: break-word;
-      }
-      .dev-modal p svg {
-        flex-shrink: 0;
-        width: 18px;
-        height: 18px;
-        margin-top: 1px;
-      }
-      .dev-modal .close-btn { 
-        position:absolute; 
-        top:2px; 
-        right:8px; 
-        background:transparent; 
-        border:none; 
-        cursor:pointer; 
-        font-size:14px; 
-        font-weight:bold; 
-        color:#333; 
-      }
-      @keyframes slideIn { 
-        from { opacity:0; transform:translateX(100%); } 
-        to { opacity:1; transform:translateX(0); } 
-      }
-    `,document.head.appendChild(d);let r=document.createElement("div");if(r.className="dev-modal",r.innerHTML=`
+  .dev-modal {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: #f6f6f7;
+    color: #21272F;
+    padding: 14px;
+    border-radius: 8px;
+    max-width: 340px;
+    max-height: 180px;
+    overflow-y: none;
+    box-shadow: 0 5px 20px rgba(0,0,0,0.3);
+    font-family: sans-serif;
+    z-index: 99999;
+    animation: slideIn 0.3s ease-out;
+  }
+
+  .dev-modal .title {
+    text-transform: uppercase;
+    font-size: 11px;
+    font-weight: 500;
+    margin: 0 0 6px 0;
+    letter-spacing: 0.5px;
+  }
+
+  .dev-modal p {
+    margin: 4px 0;
+    font-size: 14px;
+    display: flex;
+    align-items: flex-start;
+    gap: 4px;
+  }
+
+  .dev-modal .text {
+    word-break: break-word;
+  }
+
+  .dev-modal p svg {
+    flex-shrink: 0;
+    width: 18px;
+    height: 18px;
+    margin-top: 1px;
+  }
+
+  .dev-modal .close-btn {
+    position: absolute;
+    top: 2px;
+    right: 8px;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: bold;
+    color: #333;
+  }
+
+  @keyframes slideIn {
+    from {
+      opacity: 0;
+      transform: translateX(100%);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }`,document.head.appendChild(d);let r=document.createElement("div");if(r.className="dev-modal",r.innerHTML=`
       <button class="close-btn">&times;</button>
       <p class="title">
         onedollarstats debug window
