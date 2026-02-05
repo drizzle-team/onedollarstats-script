@@ -21,6 +21,10 @@ declare global {
       view: (arg1?: string | Record<string, string>, arg2?: Record<string, string>) => Promise<void>;
     };
     __stonksModalLog?: (message: string, success?: boolean) => void;
+    __stonksModalInit?: {
+      debugUrl: string;
+      analyticsUrl?: string;
+    };
   }
 }
 
