@@ -16,6 +16,7 @@
     "web-vitals": "^4.1.1"
   },
   "devDependencies": {
+    "@types/jsdom": "^27.0.0",
     "esbuild": "^0.23.0",
     "typescript": "^5.5.4"
   }

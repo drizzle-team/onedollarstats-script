@@ -1,6 +1,7 @@
 import type { BodyToSend, Event, ViewArguments } from "./types";
 import { createDebugModal } from "./utils/create-modal";
 import { defaultCollectorUrl } from "./utils/default-collector-url";
+import { extractHostName } from "./utils/extract-hostname";
 import { parseUtmParams } from "./utils/parse-utm-params";
 import { parseProps } from "./utils/props-parser";
 
@@ -23,16 +24,20 @@ import { parseProps } from "./utils/props-parser";
   const stonksScript = <HTMLScriptElement>document.currentScript; // ToDo
   const useHashRouting = stonksScript?.getAttribute("data-hash-routing") !== null; // ToDo
   const environment = {
-    isLocalhost: /^localhost$|^127(\.[0-9]+){0,2}\.[0-9]+$|^\[::1?\]$/.test(location.hostname) || location.protocol === "file:",
+    isLocalhost:
+      (/^localhost$|^127(\.[0-9]+){0,2}\.[0-9]+$|^\[::1?\]$/.test(location.hostname) &&
+        // Protocol check prevents desktop app schemes 'tauri://localhost' being treated as localhost
+        (location.protocol === "http:" || location.protocol === "https:")) ||
+      location.protocol === "file:",
     isHeadlessBrowser: !!(window._phantom || window.__nightmare || window.navigator.webdriver || window.Cypress)
   };
 
   if (environment.isLocalhost) {
-    const debugUrl = stonksScript?.getAttribute("data-debug");
+    const { hostname, devmode } = extractHostName(stonksScript, environment.isLocalhost);
 
-    console.log(`[onedollarstats]\nScript successfully connected! ${debugUrl ? `Tracking your localhost as ${debugUrl}` : "Debug domain not set"}`);
+    console.log(`[onedollarstats]\nScript successfully connected! ${hostname ? `Tracking your localhost as ${hostname}` : "Debug domain not set"}`);
 
-    if (debugUrl) createDebugModal(debugUrl, stonksScript?.getAttribute("data-url") || defaultCollectorUrl);
+    if (devmode && hostname) createDebugModal(hostname, stonksScript?.getAttribute("data-url") || defaultCollectorUrl);
   }
 
   async function sendWithBeaconOrFetch(analyticsUrl: string, stringifiedBody: string, callback: (success: boolean) => void): Promise<void> {
@@ -59,21 +64,9 @@ import { parseProps } from "./utils/props-parser";
   async function send(data: Event): Promise<void> {
     const analyticsUrl = stonksScript?.getAttribute("data-url") || defaultCollectorUrl;
 
-    let urlToSend: URL = new URL(location.href);
-    const debugAttribute = stonksScript.getAttribute("data-debug");
+    const { hostname, devmode } = extractHostName(stonksScript, environment.isLocalhost);
 
-    let isDebug: boolean = false;
-    if (debugAttribute) {
-      try {
-        const debugUrl = new URL(`https://${debugAttribute}${urlToSend.pathname}`);
-        if (urlToSend.hostname !== debugUrl.hostname) {
-          isDebug = true;
-          urlToSend = debugUrl;
-        }
-      } catch {
-        return;
-      }
-    }
+    const urlToSend: URL = new URL(hostname ? `https://${hostname}${location.pathname}` : location.href);
 
     urlToSend.search = "";
     if ("path" in data && data.path) {
@@ -105,15 +98,15 @@ import { parseProps } from "./utils/props-parser";
           r: referrer,
           p: data.props
         }
-      ]
+      ],
+      debug: devmode
     };
 
     if (data.utm && Object.keys(data.utm).length > 0) {
       body.qs = data.utm; // ToDo
     }
 
-    if (isDebug) {
-      body.debug = isDebug;
+    if (body.debug) {
       let logMessage = `[onedollarstats]\nEvent name: ${data.type}\nEvent collected from: ${cleanUrl}`;
       if (data.props && Object.keys(data.props).length > 0) logMessage += `\nProps: ${JSON.stringify(data.props, null, 2)}`;
       if (referrer) logMessage += `\nReferrer: ${referrer}`;
@@ -316,7 +309,9 @@ import { parseProps } from "./utils/props-parser";
   }
 
   function shouldBlockEvent(): boolean {
-    if (environment.isLocalhost && !stonksScript?.getAttribute("data-debug")) {
+    const { hostname, devmode } = extractHostName(stonksScript, environment.isLocalhost);
+
+    if (environment.isLocalhost && (!devmode || !hostname)) {
       return true;
     }
 
