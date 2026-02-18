@@ -5,6 +5,6 @@ export function parseUtmParams(urlSearchParams: URLSearchParams) {
     if (value) {
       utm[key] = value;
     }
-  }); // ToDo: should work with array
+  });
   return utm;
 }
