@@ -81,3 +81,19 @@ test("UTM trim test 3", () => {
     utm_source: "source"
   });
 });
+
+test("UTM decode test 1", () => {
+  const urlParams = new URLSearchParams("?utm_source=%252520source");
+
+  expect(parseUtmParams(urlParams)).toEqual({
+    utm_source: "source"
+  });
+});
+
+test("UTM decode test 2", () => {
+  const urlParams = new URLSearchParams("?utm_campaign=%20 campaign");
+
+  expect(parseUtmParams(urlParams)).toEqual({
+    utm_campaign: "campaign"
+  });
+});
