@@ -1,4 +1,5 @@
 import type { BodyToSend, Event, ViewArguments } from "./types";
+import { detectBot } from "./utils/bot";
 import { createDebugModal } from "./utils/create-modal";
 import { defaultCollectorUrl } from "./utils/default-collector-url";
 import { extractHostName } from "./utils/extract-hostname";
@@ -23,17 +24,14 @@ import { parseProps } from "./utils/props-parser";
 
   const stonksScript = <HTMLScriptElement>document.currentScript; // ToDo
   const useHashRouting = stonksScript?.getAttribute("data-hash-routing") !== null; // ToDo
-  const environment = {
-    isLocalhost:
+  const isLocalEnviroment = 
       (/^localhost$|^127(\.[0-9]+){0,2}\.[0-9]+$|^\[::1?\]$/.test(location.hostname) &&
         // Protocol check prevents desktop app schemes 'tauri://localhost' being treated as localhost
         (location.protocol === "http:" || location.protocol === "https:")) ||
-      location.protocol === "file:",
-    isHeadlessBrowser: !!(window._phantom || window.__nightmare || window.navigator.webdriver || window.Cypress)
-  };
+      location.protocol === "file:"
 
-  if (environment.isLocalhost) {
-    const { hostname, devmode } = extractHostName(stonksScript, environment.isLocalhost);
+  if (isLocalEnviroment) {
+    const { hostname, devmode } = extractHostName(stonksScript, isLocalEnviroment);
 
     console.log(`[onedollarstats]\nScript successfully connected! ${hostname ? `Tracking your localhost as ${hostname}` : "Debug domain not set"}`);
 
@@ -64,7 +62,7 @@ import { parseProps } from "./utils/props-parser";
   async function send(data: Event): Promise<void> {
     const analyticsUrl = stonksScript?.getAttribute("data-url") || defaultCollectorUrl;
 
-    const { hostname, devmode } = extractHostName(stonksScript, environment.isLocalhost);
+    const { hostname, devmode } = extractHostName(stonksScript, isLocalEnviroment);
 
     const urlToSend: URL = new URL(hostname ? `https://${hostname}${location.pathname}` : location.href);
 
@@ -309,13 +307,15 @@ import { parseProps } from "./utils/props-parser";
   }
 
   function shouldBlockEvent(): boolean {
-    const { hostname, devmode } = extractHostName(stonksScript, environment.isLocalhost);
+    const { hostname, devmode } = extractHostName(stonksScript, isLocalEnviroment);
 
-    if (environment.isLocalhost && (!devmode || !hostname)) {
+    if (isLocalEnviroment && (!devmode || !hostname)) {
       return true;
     }
 
-    if (environment.isHeadlessBrowser) {
+    const {isBot, botKind} = detectBot()
+    
+    if (isBot && botKind !== "human") {
       return true;
     } // ToDo: create env var to allow headless browsers, need it for tests, so put to env var.
 
