@@ -3,7 +3,8 @@
   "scripts": {
     "bundle": "npx esbuild ./src/index.ts --bundle --minify --format=iife --outfile=./build/stonks.js",
     "bundle:test": "npx esbuild ./src/index.ts --bundle --format=cjs --outfile=./build/stonks.js",
-    "test": "pnpm vitest run"
+    "test": "vitest run",
+    "test:full": "pnpm bundle:test && FORCE_BUILD=1 COPY_TRACKER=1 vitest run"
   },
   "dependencies": {
     "@fingerprintjs/fingerprintjs": "^4.4.1",

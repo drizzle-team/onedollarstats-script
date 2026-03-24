@@ -1,4 +1,12 @@
-"use strict";(()=>{var v="https://collector.onedollarstats.com/events";var R=(u,l)=>{let d=document.createElement("style");d.textContent=`
+"use strict";
+
+// src/utils/default-collector-url.ts
+var defaultCollectorUrl = "https://collector.onedollarstats.com/events";
+
+// src/utils/create-modal.ts
+var createDebugModal = (debugUrl, analyticsUrl) => {
+  const style = document.createElement("style");
+  style.textContent = `
   .dev-modal {
     position: fixed;
     bottom: 20px;
@@ -64,23 +72,373 @@
       opacity: 1;
       transform: translateX(0);
     }
-  }`,document.head.appendChild(d);let r=document.createElement("div");if(r.className="dev-modal",r.innerHTML=`
+  }`;
+  document.head.appendChild(style);
+  const modal = document.createElement("div");
+  modal.className = "dev-modal";
+  modal.innerHTML = `
       <button class="close-btn">&times;</button>
       <p class="title">
         onedollarstats debug window
       </p>
       <p>
        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="gray" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-info-icon lucide-info"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
-       <span class="text">${`Tracking localhost as ${u}`}</span>
+       <span class="text">${`Tracking localhost as ${debugUrl}`}</span>
       </p>
       <div id="event-log" style="max-height: 100px; overflow-y: auto;" />
-    `,document.body.appendChild(r),r.querySelector(".close-btn")?.addEventListener("click",()=>r.remove(),{once:!0}),window.__stonksModalLog=(p,m)=>{let g=r.querySelector("#event-log");if(!g||r.querySelector("#ad-blocker-warning"))return;let y=document.createElement("p"),x=m?'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="green" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-check-icon lucide-circle-check"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>':'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="red" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-x-icon lucide-circle-x"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg>';y.innerHTML=`${x} <span class="text">${p}</span>`,g.appendChild(y),g.scrollTop=g.scrollHeight},l===v){let p=new Image(1,1);p.onerror=()=>{let m=r.querySelector(".title"),g=document.createElement("p");g.id="ad-blocker-warning",g.innerHTML=`
+    `;
+  document.body.appendChild(modal);
+  modal.querySelector(".close-btn")?.addEventListener("click", () => modal.remove(), { once: true });
+  window.__stonksModalLog = (message, success) => {
+    const logContainer = modal.querySelector("#event-log");
+    if (!logContainer) return;
+    const adBlockerWarning = modal.querySelector("#ad-blocker-warning");
+    if (adBlockerWarning) return;
+    const entry = document.createElement("p");
+    const iconSvg = success ? `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="green" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-check-icon lucide-circle-check"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>` : `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="red" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-x-icon lucide-circle-x"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg>`;
+    entry.innerHTML = `${iconSvg} <span class="text">${message}</span>`;
+    logContainer.appendChild(entry);
+    logContainer.scrollTop = logContainer.scrollHeight;
+  };
+  if (analyticsUrl === defaultCollectorUrl) {
+    const img = new Image(1, 1);
+    img.onerror = () => {
+      const titleEl = modal.querySelector(".title");
+      const adBlockWarning = document.createElement("p");
+      adBlockWarning.id = "ad-blocker-warning";
+      adBlockWarning.innerHTML = `
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="orange" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-triangle-alert-icon lucide-triangle-alert"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
-        <span class="text">Health check failed - ad blocker might be interfering.</span>`,m?m.insertAdjacentElement("afterend",g):r.appendChild(g)},p.src="https://collector.onedollarstats.com/pixel-health"}};function j(u){let l={};return["utm_campaign","utm_source","utm_medium","utm_term","utm_content"].forEach(d=>{let r=u.get(d);r&&(l[d]=r)}),l}function b(u){if(!u)return;let l=u.split(";"),d={};for(let r of l){let p=r.split("=").map(m=>m.trim());p.length!==2||p[0]===""||p[1]===""||(d[p[0]]=p[1])}return Object.keys(d).length===0?void 0:d}(()=>{if(!document)return;let u=null;window.stonks={event:g,view:y};let l=document.currentScript,d=l?.getAttribute("data-hash-routing")!==null,r={isLocalhost:/^localhost$|^127(\.[0-9]+){0,2}\.[0-9]+$|^\[::1?\]$/.test(location.hostname)||location.protocol==="file:",isHeadlessBrowser:!!(window._phantom||window.__nightmare||window.navigator.webdriver||window.Cypress)};if(r.isLocalhost){let e=l?.getAttribute("data-debug");console.log(`[onedollarstats]
-Script successfully connected! ${e?`Tracking your localhost as ${e}`:"Debug domain not set"}`),e&&R(e,l?.getAttribute("data-url")||v)}async function p(e,o,t){if(navigator.sendBeacon?.(e,o)){t(!0);return}fetch(e,{method:"POST",body:o,headers:{"Content-Type":"application/json"},keepalive:!0}).then(()=>t(!0)).catch(n=>{console.error("[onedollarstats] fetch() failed:",n.message),t(!1)})}async function m(e){let o=l?.getAttribute("data-url")||v,t=new URL(location.href),n=l.getAttribute("data-debug"),s=!1;if(n)try{let i=new URL(`https://${n}${t.pathname}`);t.hostname!==i.hostname&&(s=!0,t=i)}catch{return}t.search="","path"in e&&e.path&&(t.pathname=e.path);let c=t.href.replace(/\/$/,""),a=e.referrer??void 0;if(!a){let i=document.referrer&&document.referrer!=="null"?document.referrer:void 0;if(i){let L=new URL(i);L.hostname!==t.hostname&&(a=L.href)}}let f={u:c,e:[{t:e.type,h:d,r:a,p:e.props}]};if(e.utm&&Object.keys(e.utm).length>0&&(f.qs=e.utm),s){f.debug=s;let i=`[onedollarstats]
-Event name: ${e.type}
-Event collected from: ${c}`;e.props&&Object.keys(e.props).length>0&&(i+=`
-Props: ${JSON.stringify(e.props,null,2)}`),a&&(i+=`
-Referrer: ${a}`),d&&(i+=`
-HashRouting: ${d}`),e.utm&&Object.keys(e.utm).length>0&&(i+=`
-UTM: ${e.utm}`),console.log(i)}let h=i=>window.__stonksModalLog?.(`${e.type} ${i?"sent":"failed to send"}`,i),w=JSON.stringify(f),A=new TextEncoder().encode(w),P=String.fromCharCode(...A),$=btoa(P);if($.length<=1500){let i=new Image(1,1);i.onload=()=>h(!0),i.onerror=()=>p(o,w,h),i.src=`${o}?data=${$}`}else await p(o,w,h)}async function g(e,o,t){if(S())return;let n={};typeof o=="string"?(n.path=o,t&&(n.props=t)):typeof o=="object"&&(n.props=o);let s=n?.path||void 0;if(!s){let c=document.body?.getAttribute("data-s-path")||document.body?.getAttribute("data-s:path")||document.querySelector('meta[name="stonks-path"]')?.getAttribute("content");c&&(s=c)}m({type:e,props:n?.props,path:s})}function E(e){if(e.type==="auxclick"&&e.button!==1)return;let o=e.target;if(!o)return;let t=!!o.closest("a, button"),n=o,s=0;for(;n;){let c=n.getAttribute("data-s-event")||n.getAttribute("data-s:event");if(c){let a=n.getAttribute("data-s-event-props")||n.getAttribute("data-s:event-props"),f=a?b(a):void 0,h=n.getAttribute("data-s-event-path")||n.getAttribute("data-s:event-path")||void 0;g(c,h??f,f);return}if(n=n.parentElement,s++,!t&&s>=3)break}}async function y(e,o){let t={};typeof e=="string"?(t.path=e,o&&(t.props=o)):typeof e=="object"&&(t.props=e),x({path:t?.path,props:t?.props},!1)}async function x(e,o=!0){if(o&&S())return;let t=new URLSearchParams(location.search),n=j(t),s=e?.path||void 0;if(!s){let a=document.body?.getAttribute("data-s-path")||document.body?.getAttribute("data-s:path")||document.querySelector('meta[name="stonks-path"]')?.getAttribute("content");a&&(s=a)}let c=e.props||void 0;if(!c){let a=l?.getAttribute("data-props"),f=a?b(a)||{}:{},h=document.querySelectorAll("[data-s\\:view-props], [data-s-view-props]");for(let w of Array.from(h)){let A=w.getAttribute("data-s-view-props")||w.getAttribute("data-s:view-props");if(!A)continue;let P=b(A);Object.assign(f,P)}c=f}m({type:"PageView",props:Object.keys(c).length>0?c:void 0,path:s,utm:n})}async function k(){let e=document.querySelector('meta[name="stonks-collect"]')?.getAttribute("content"),o=document.body?.getAttribute("data-s-collect")||document.body?.getAttribute("data-s:collect");if(e==="false"||o==="false"){u=null;return}if(!(l?.getAttribute("data-autocollect")!=="false")&&e!=="true"&&o!=="true"){u=null;return}if(!d&&u===location.pathname){console.warn("Ignoring event PageView - pathname has not changed");return}if(S())return;u=location.pathname;let n=l?.getAttribute("data-props"),s=n?b(n)||{}:{},c=document.querySelectorAll("[data-s\\:view-props], [data-s-view-props]");for(let a of Array.from(c)){let f=a.getAttribute("data-s-view-props")||a.getAttribute("data-s:view-props");if(!f)continue;let h=b(f);Object.assign(s,h)}x({props:Object.keys(s).length>0?s:void 0},!1)}function S(){return!!(r.isLocalhost&&!l?.getAttribute("data-debug")||r.isHeadlessBrowser)}if(window.history.pushState){let e=window.history.pushState;window.history.pushState=function(o,t,n){e.apply(this,[o,t,n]),window.requestAnimationFrame(()=>{k()})},window.addEventListener("popstate",()=>{window.requestAnimationFrame(()=>{k()})})}document.visibilityState!=="visible"?document.addEventListener("visibilitychange",()=>{!u&&document.visibilityState==="visible"&&k()}):k(),document.addEventListener("click",E)})();})();
+        <span class="text">Health check failed - ad blocker might be interfering.</span>`;
+      if (titleEl) titleEl.insertAdjacentElement("afterend", adBlockWarning);
+      else modal.appendChild(adBlockWarning);
+    };
+    img.src = "https://collector.onedollarstats.com/pixel-health";
+  }
+};
+
+// src/utils/parse-utm-params.ts
+function parseUtmParams(urlSearchParams) {
+  const utm = {};
+  [
+    "utm_campaign",
+    "utm_source",
+    "utm_medium",
+    "utm_term",
+    "utm_content"
+  ].forEach((key) => {
+    const value = urlSearchParams.get(key);
+    if (value) {
+      utm[key] = value;
+    }
+  });
+  return utm;
+}
+
+// src/utils/props-parser.ts
+function parseProps(propsString) {
+  if (!propsString) return void 0;
+  const splittedProps = propsString.split(";");
+  const propsObj = {};
+  for (const keyValueString of splittedProps) {
+    const keyValuePair = keyValueString.split("=").map((el) => el.trim());
+    if (keyValuePair.length !== 2 || keyValuePair[0] === "" || keyValuePair[1] === "")
+      continue;
+    propsObj[keyValuePair[0]] = keyValuePair[1];
+  }
+  return Object.keys(propsObj).length === 0 ? void 0 : propsObj;
+}
+
+// src/index.ts
+(() => {
+  if (!document) {
+    return;
+  }
+  let lastPage = null;
+  window.stonks = {
+    event,
+    view
+  };
+  const stonksScript = document.currentScript;
+  const useHashRouting = stonksScript?.getAttribute("data-hash-routing") !== null;
+  const environment = {
+    isLocalhost: /^localhost$|^127(\.[0-9]+){0,2}\.[0-9]+$|^\[::1?\]$/.test(
+      location.hostname
+    ) || location.protocol === "file:",
+    isHeadlessBrowser: !!(window._phantom || window.__nightmare || window.navigator.webdriver || window.Cypress)
+  };
+  if (environment.isLocalhost) {
+    const debugUrl = stonksScript?.getAttribute("data-debug");
+    console.log(
+      `[onedollarstats]
+Script successfully connected! ${debugUrl ? `Tracking your localhost as ${debugUrl}` : "Debug domain not set"}`
+    );
+    if (debugUrl)
+      createDebugModal(
+        debugUrl,
+        stonksScript?.getAttribute("data-url") || defaultCollectorUrl
+      );
+  }
+  async function sendWithBeaconOrFetch(analyticsUrl, stringifiedBody, callback) {
+    if (navigator.sendBeacon?.(analyticsUrl, stringifiedBody)) {
+      callback(true);
+      return;
+    }
+    fetch(analyticsUrl, {
+      method: "POST",
+      body: stringifiedBody,
+      headers: { "Content-Type": "application/json" },
+      keepalive: true
+    }).then(() => callback(true)).catch((err) => {
+      console.error("[onedollarstats] fetch() failed:", err.message);
+      callback(false);
+    });
+  }
+  async function send(data) {
+    const analyticsUrl = stonksScript?.getAttribute("data-url") || defaultCollectorUrl;
+    let urlToSend = new URL(location.href);
+    const debugAttribute = stonksScript.getAttribute("data-debug");
+    const hostnameAttribute = stonksScript?.getAttribute("data-hostname");
+    let isDebug = false;
+    if (debugAttribute) {
+      try {
+        const debugUrl = new URL(
+          `https://${debugAttribute}${urlToSend.pathname}`
+        );
+        if (urlToSend.hostname !== debugUrl.hostname) {
+          isDebug = true;
+          urlToSend = debugUrl;
+        }
+      } catch {
+        return;
+      }
+    } else if (hostnameAttribute) {
+      try {
+        urlToSend = new URL(
+          `https://${hostnameAttribute}${urlToSend.pathname}`
+        );
+      } catch {
+      }
+    }
+    urlToSend.search = "";
+    if ("path" in data && data.path) {
+      urlToSend.pathname = data.path;
+    }
+    const cleanUrl = urlToSend.href.replace(/\/$/, "");
+    let referrer = data.referrer ?? void 0;
+    if (!referrer) {
+      const docReferrer = document.referrer && document.referrer !== "null" ? document.referrer : void 0;
+      if (docReferrer) {
+        const referrerURL = new URL(docReferrer);
+        if (referrerURL.hostname !== urlToSend.hostname) {
+          referrer = referrerURL.href;
+        }
+      }
+    }
+    const body = {
+      u: cleanUrl,
+      e: [
+        {
+          t: data.type,
+          h: useHashRouting,
+          // ToDo: why we send hash routing
+          r: referrer,
+          p: data.props
+        }
+      ]
+    };
+    if (data.utm && Object.keys(data.utm).length > 0) {
+      body.qs = data.utm;
+    }
+    if (isDebug) {
+      body.debug = isDebug;
+      let logMessage = `[onedollarstats]
+Event name: ${data.type}
+Event collected from: ${cleanUrl}`;
+      if (data.props && Object.keys(data.props).length > 0)
+        logMessage += `
+Props: ${JSON.stringify(data.props, null, 2)}`;
+      if (referrer) logMessage += `
+Referrer: ${referrer}`;
+      if (useHashRouting) logMessage += `
+HashRouting: ${useHashRouting}`;
+      if (data.utm && Object.keys(data.utm).length > 0)
+        logMessage += `
+UTM: ${data.utm}`;
+      console.log(logMessage);
+    }
+    const onComplete = (success) => window.__stonksModalLog?.(
+      `${data.type} ${success ? "sent" : "failed to send"}`,
+      success
+    );
+    const stringifiedBody = JSON.stringify(body);
+    const bytes = new TextEncoder().encode(stringifiedBody);
+    const bin = String.fromCharCode(...bytes);
+    const payloadBase64 = btoa(bin);
+    const safeGetThreshold = 1500;
+    const tryImageBeacon = payloadBase64.length <= safeGetThreshold;
+    if (tryImageBeacon) {
+      const img = new Image(1, 1);
+      img.onload = () => onComplete(true);
+      img.onerror = () => sendWithBeaconOrFetch(analyticsUrl, stringifiedBody, onComplete);
+      img.src = `${analyticsUrl}?data=${payloadBase64}`;
+    } else
+      await sendWithBeaconOrFetch(analyticsUrl, stringifiedBody, onComplete);
+  }
+  async function event(name, arg2, props) {
+    if (shouldBlockEvent()) return;
+    const options = {};
+    if (typeof arg2 === "string") {
+      options.path = arg2;
+      if (props) options.props = props;
+    } else if (typeof arg2 === "object") {
+      options.props = arg2;
+    }
+    let path = options?.path || void 0;
+    if (!path) {
+      const newPath = document.body?.getAttribute("data-s-path") || document.body?.getAttribute("data-s:path") || document.querySelector('meta[name="stonks-path"]')?.getAttribute("content");
+      if (newPath) {
+        path = newPath;
+      }
+    }
+    send({ type: name, props: options?.props, path });
+  }
+  function handleTaggedElementClickEvent(clickEvent) {
+    if (clickEvent.type === "auxclick" && clickEvent.button !== 1) return;
+    const target = clickEvent.target;
+    if (!target) return;
+    const insideInteractive = !!target.closest("a, button");
+    let el = target;
+    let depth = 0;
+    while (el) {
+      const eventName = el.getAttribute("data-s-event") || el.getAttribute("data-s:event");
+      if (eventName) {
+        const propsAttr = el.getAttribute("data-s-event-props") || el.getAttribute("data-s:event-props");
+        const props = propsAttr ? parseProps(propsAttr) : void 0;
+        const path = el.getAttribute("data-s-event-path") || el.getAttribute("data-s:event-path") || void 0;
+        event(eventName, path ?? props, props);
+        return;
+      }
+      el = el.parentElement;
+      depth++;
+      if (!insideInteractive && depth >= 3) break;
+    }
+  }
+  async function view(arg1, arg2) {
+    const options = {};
+    if (typeof arg1 === "string") {
+      options.path = arg1;
+      if (arg2) options.props = arg2;
+    } else if (typeof arg1 === "object") {
+      options.props = arg1;
+    }
+    trackPageView(
+      {
+        path: options?.path,
+        props: options?.props
+      },
+      false
+    );
+  }
+  async function trackPageView(data, checkBlock = true) {
+    if (checkBlock && shouldBlockEvent()) return;
+    const urlParams = new URLSearchParams(location.search);
+    const utm = parseUtmParams(urlParams);
+    let path = data?.path || void 0;
+    if (!path) {
+      const newPath = document.body?.getAttribute("data-s-path") || document.body?.getAttribute("data-s:path") || document.querySelector('meta[name="stonks-path"]')?.getAttribute("content");
+      if (newPath) {
+        path = newPath;
+      }
+    }
+    let props = data.props || void 0;
+    if (!props) {
+      const pageViewProps = stonksScript?.getAttribute("data-props");
+      const newProps = pageViewProps ? parseProps(pageViewProps) || {} : {};
+      const elements = document.querySelectorAll(
+        "[data-s\\:view-props], [data-s-view-props]"
+      );
+      for (const el of Array.from(elements)) {
+        const propsString = el.getAttribute("data-s-view-props") || el.getAttribute("data-s:view-props");
+        if (!propsString) continue;
+        const parsedProps = parseProps(propsString);
+        Object.assign(newProps, parsedProps);
+      }
+      props = newProps;
+    }
+    send({
+      type: "PageView",
+      props: Object.keys(props).length > 0 ? props : void 0,
+      path,
+      utm
+    });
+  }
+  async function triggerPageView() {
+    const shouldCollectPage1 = document.querySelector('meta[name="stonks-collect"]')?.getAttribute("content");
+    const shouldCollectPage2 = document.body?.getAttribute("data-s-collect") || document.body?.getAttribute("data-s:collect");
+    if (shouldCollectPage1 === "false" || shouldCollectPage2 === "false") {
+      lastPage = null;
+      return;
+    }
+    const isAutocollect = stonksScript?.getAttribute("data-autocollect") !== "false";
+    if (!isAutocollect && shouldCollectPage1 !== "true" && shouldCollectPage2 !== "true") {
+      lastPage = null;
+      return;
+    }
+    if (!useHashRouting && lastPage === location.pathname) {
+      console.warn(`Ignoring event PageView - pathname has not changed`);
+      return;
+    }
+    if (shouldBlockEvent()) return;
+    lastPage = location.pathname;
+    const pageViewProps = stonksScript?.getAttribute("data-props");
+    const props = pageViewProps ? parseProps(pageViewProps) || {} : {};
+    const elements = document.querySelectorAll(
+      "[data-s\\:view-props], [data-s-view-props]"
+    );
+    for (const el of Array.from(elements)) {
+      const propsString = el.getAttribute("data-s-view-props") || el.getAttribute("data-s:view-props");
+      if (!propsString) continue;
+      const parsedProps = parseProps(propsString);
+      Object.assign(props, parsedProps);
+    }
+    trackPageView(
+      {
+        props: Object.keys(props).length > 0 ? props : void 0
+      },
+      false
+    );
+  }
+  function shouldBlockEvent() {
+    if (environment.isLocalhost && !stonksScript?.getAttribute("data-debug")) {
+      return true;
+    }
+    if (environment.isHeadlessBrowser) {
+      return true;
+    }
+    return false;
+  }
+  if (window.history.pushState) {
+    const originalPushState = window.history.pushState;
+    window.history.pushState = function(data, unused, url) {
+      originalPushState.apply(this, [data, unused, url]);
+      window.requestAnimationFrame(() => {
+        triggerPageView();
+      });
+    };
+    window.addEventListener("popstate", () => {
+      window.requestAnimationFrame(() => {
+        triggerPageView();
+      });
+    });
+  }
+  if (document.visibilityState !== "visible") {
+    document.addEventListener("visibilitychange", () => {
+      if (!lastPage && document.visibilityState === "visible") {
+        triggerPageView();
+      }
+    });
+  } else {
+    triggerPageView();
+  }
+  document.addEventListener("click", handleTaggedElementClickEvent);
+})();
