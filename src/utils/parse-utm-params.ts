@@ -6,7 +6,7 @@ export function parseUtmParams(urlSearchParams: URLSearchParams) {
     const raw = urlSearchParams.get(key);
     if (!raw) continue;
 
-    const decoded = recursiveDecode(raw).trim();
+    const decoded = decodeAndTrim(raw);
     if (decoded) {
       utm[key] = decoded;
     }
@@ -15,20 +15,18 @@ export function parseUtmParams(urlSearchParams: URLSearchParams) {
   return utm;
 }
 
-const recursiveDecode = (value: string): string => {
-  let current = value;
+function decodeAndTrim(value: string): string {
+  let decoded = value;
+  let previous = "";
 
-  try {
-    let decoded = decodeURIComponent(current);
-
-    while (decoded !== current) {
-      current = decoded;
-      decoded = decodeURIComponent(current);
+  while (decoded !== previous) {
+    previous = decoded;
+    try {
+      decoded = decodeURIComponent(decoded);
+    } catch {
+      return decoded.trim();
     }
-
-    return current;
-  } catch {
-    return value;
   }
-};
 
+  return decoded.trim();
+}
