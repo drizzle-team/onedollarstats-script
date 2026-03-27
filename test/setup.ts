@@ -60,9 +60,7 @@ function computeSourceHash(srcDir: string): string {
  * Check if app needs to be rebuilt based on source hash
  */
 function needsRebuild(appName: string, srcDir: string): boolean {
-  const forceBuild = process.env.FORCE_BUILD === "1";
-  if (forceBuild) {
-    console.log(`[${appName}] Force rebuild requested`);
+  if (process.env.FORCE_BUILD === "1") {
     return true;
   }
 
@@ -70,18 +68,11 @@ function needsRebuild(appName: string, srcDir: string): boolean {
   const currentHash = computeSourceHash(srcDir);
 
   if (!existsSync(hashFile)) {
-    console.log(`[${appName}] No previous build hash found, will build`);
     return true;
   }
 
   const previousHash = readFileSync(hashFile, "utf-8").trim();
-  if (currentHash !== previousHash) {
-    console.log(`[${appName}] Source files changed, will rebuild`);
-    return true;
-  }
-
-  console.log(`[${appName}] No changes detected, skipping build`);
-  return false;
+  return currentHash !== previousHash;
 }
 
 /**
@@ -100,7 +91,6 @@ function copyTracker(): void {
   const trackerSrc = join(ROOT_DIR, "build", "stonks.js");
 
   if (!existsSync(trackerSrc)) {
-    console.warn("[tracker] build/stonks.js not found, skipping copy");
     return;
   }
 
@@ -114,25 +104,31 @@ function copyTracker(): void {
   copyFileSync(trackerSrc, mpaDest);
   copyFileSync(trackerSrc, spaDest);
 
-  console.log("[tracker] Copied stonks.js to MPA and SPA static directories");
+  console.log("Copying tracker to test apps");
 }
 
 /**
  * Run a command in a directory and wait for it to complete
  */
-function runCommand(command: string, args: string[], cwd: string): Promise<void> {
+function runCommand(cmd: string, cwd: string): Promise<void> {
   return new Promise((resolve, reject) => {
-    const proc = spawn(command, args, {
+    let stderr = "";
+
+    const proc = spawn(cmd, {
       cwd,
-      stdio: "inherit",
+      stdio: "pipe",
       shell: true,
+    });
+
+    proc.stderr?.on("data", (data) => {
+      stderr += data.toString();
     });
 
     proc.on("close", (code) => {
       if (code === 0) {
         resolve();
       } else {
-        reject(new Error(`Command "${command} ${args.join(" ")}" failed with code ${code}`));
+        reject(new Error(`Command "${cmd}" failed with code ${code}\n${stderr}`));
       }
     });
 
@@ -145,21 +141,20 @@ function runCommand(command: string, args: string[], cwd: string): Promise<void>
  */
 async function buildAppIfNeeded(appName: string, appDir: string): Promise<void> {
   const srcDir = join(appDir, "src");
+  const label = appName.toUpperCase();
 
   if (!needsRebuild(appName, srcDir)) {
     // Check if dist exists even if hash matches
     const distDir = appName === "mpa" ? join(appDir, "dist") : join(appDir, "build");
-    if (!existsSync(distDir)) {
-      console.log(`[${appName}] Build output missing, will build`);
-    } else {
+    if (existsSync(distDir)) {
       return;
     }
   }
 
-  console.log(`[${appName}] Building...`);
-  await runCommand("pnpm", ["build"], appDir);
+  console.log(`${label}: building`);
+  await runCommand("pnpm build", appDir);
   saveSourceHash(appName, srcDir);
-  console.log(`[${appName}] Build complete`);
+  console.log(`${label}: built`);
 }
 
 /**
@@ -187,31 +182,11 @@ async function waitForServer(url: string, timeout: number): Promise<void> {
 /**
  * Start a preview server
  */
-function startPreviewServer(appName: string, appDir: string, port: number): ChildProcess {
-  console.log(`[${appName}] Starting preview server on port ${port}...`);
-
-  const proc = spawn("pnpm", ["preview"], {
+function startPreviewServer(appDir: string): ChildProcess {
+  const proc = spawn("pnpm preview", {
     cwd: appDir,
     stdio: "pipe",
     shell: true,
-  });
-
-  proc.stdout?.on("data", (data) => {
-    const output = data.toString().trim();
-    if (output) {
-      console.log(`[${appName}] ${output}`);
-    }
-  });
-
-  proc.stderr?.on("data", (data) => {
-    const output = data.toString().trim();
-    if (output) {
-      console.error(`[${appName}] ${output}`);
-    }
-  });
-
-  proc.on("error", (err) => {
-    console.error(`[${appName}] Process error:`, err);
   });
 
   return proc;
@@ -225,7 +200,6 @@ function killPort(port: number): void {
     // Works on macOS and Linux
     const pid = execSync(`lsof -ti :${port} 2>/dev/null || true`, { encoding: "utf-8" }).trim();
     if (pid) {
-      console.log(`[setup] Killing existing process on port ${port} (PID: ${pid})`);
       execSync(`kill -9 ${pid} 2>/dev/null || true`);
     }
   } catch {
@@ -236,10 +210,8 @@ function killPort(port: number): void {
 /**
  * Kill a process and its children
  */
-function killProcess(proc: ChildProcess | null, name: string): void {
+function killProcess(proc: ChildProcess | null): void {
   if (!proc || proc.killed) return;
-
-  console.log(`[${name}] Stopping server...`);
 
   try {
     // On Unix, kill the process group
@@ -256,8 +228,6 @@ function killProcess(proc: ChildProcess | null, name: string): void {
  * Vitest globalSetup - runs before all tests
  */
 export default async function setup(): Promise<() => Promise<void>> {
-  console.log("\n--- Test Setup ---\n");
-
   // Ensure cache directory exists
   mkdirSync(CACHE_DIR, { recursive: true });
 
@@ -275,24 +245,23 @@ export default async function setup(): Promise<() => Promise<void>> {
   killPort(SPA_PORT);
 
   // Start preview servers
-  mpaProcess = startPreviewServer("mpa", MPA_DIR, MPA_PORT);
-  spaProcess = startPreviewServer("spa", SPA_DIR, SPA_PORT);
+  console.log("Starting servers...");
+  mpaProcess = startPreviewServer(MPA_DIR);
+  spaProcess = startPreviewServer(SPA_DIR);
 
   // Wait for servers to be ready
-  console.log("\nWaiting for servers to be ready...\n");
-
   await Promise.all([
     waitForServer(`http://localhost:${MPA_PORT}`, SERVER_STARTUP_TIMEOUT),
     waitForServer(`http://localhost:${SPA_PORT}`, SERVER_STARTUP_TIMEOUT),
   ]);
 
-  console.log("\n--- Servers ready, running tests ---\n");
+  console.log("Servers ready");
 
   // Return teardown function
   return async () => {
-    console.log("\n--- Test Teardown ---\n");
-    killProcess(mpaProcess, "mpa");
-    killProcess(spaProcess, "spa");
+    console.log("Stopping servers...");
+    killProcess(mpaProcess);
+    killProcess(spaProcess);
 
     // Give processes time to clean up
     await new Promise((r) => setTimeout(r, 500));

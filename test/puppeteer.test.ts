@@ -21,10 +21,21 @@ beforeEach(async (ctx: Context) => {
   const page = await browser.newPage();
   await page.setRequestInterception(true);
   page.on("request", (interceptedRequest) => {
-    if (interceptedRequest.url() === "https://collector.onedollarstats.com/events") {
-      const body = interceptedRequest.postData();
-      if (body) {
-        reqs.push(JSON.parse(body));
+    const url = interceptedRequest.url();
+    if (url.includes("https://collector.onedollarstats.com/events")) {
+      try {
+        const body = interceptedRequest.postData();
+        if (body) {
+          reqs.push(JSON.parse(body));
+        } else {
+          const dataParam = new URL(url).searchParams.get("data");
+          if (dataParam) {
+            const json = Buffer.from(dataParam, "base64").toString("utf-8");
+            reqs.push(JSON.parse(json));
+          }
+        }
+      } catch (e) {
+        console.error(`[test] Failed to parse tracker request: ${e}`);
       }
     }
     if (interceptedRequest.isInterceptResolutionHandled()) return;
@@ -52,6 +63,37 @@ afterEach(async (ctx: Context) => {
 afterAll(async () => {
   await browser.close();
 });
+
+/** Wait for reqs array to grow by at least 1. Polls every 50ms, times out at 5s. */
+function waitForRequest(reqs: any[], timeout = 5000): Promise<void> {
+  const initialLength = reqs.length;
+  return new Promise((resolve, reject) => {
+    const interval = setInterval(() => {
+      if (reqs.length > initialLength) {
+        clearInterval(interval);
+        clearTimeout(timer);
+        resolve();
+      }
+    }, 50);
+    const timer = setTimeout(() => {
+      clearInterval(interval);
+      reject(new Error(`Timed out waiting for tracker request (had ${initialLength}, still ${reqs.length})`));
+    }, timeout);
+  });
+}
+
+/** Click and wait for the tracker beacon to fire. Use when the click WILL produce a request. */
+async function clickAndWaitForPageView(page: Page, reqs: any[], selector: string): Promise<void> {
+  const promise = waitForRequest(reqs);
+  await page.click(selector);
+  await promise;
+}
+
+/** Click and settle. Use when the click will NOT produce a tracker request. */
+async function clickAndSettle(page: Page, selector: string): Promise<void> {
+  await page.click(selector);
+  await page.waitForNetworkIdle({ idleTime: 300 });
+}
 
 test("View: default page view", async ({ reqs, goto }: Context) => {
   await goto(MPA_URL);
@@ -114,11 +156,11 @@ test("View: collect page via body tag even if autocollect disabled", async ({ re
 });
 
 test("View: path via meta tag", async ({ reqs, goto }: Context) => {
-  await goto("http://localhost:4321/view-with-path-via-meta");
+  await goto(`${MPA_URL}/view-with-path-via-meta`);
 
   expect(reqs).toStrictEqual([
     {
-      u: "https://example.com/new-path",
+      u: `${DEBUG_DOMAIN}/new-path`,
       e: [{ t: "PageView", h: false }],
       debug: true
     }
@@ -242,7 +284,7 @@ test("View: manually with path via meta tag", async ({ reqs, goto }: Context) =>
 });
 
 test("View: manually with path via body tag", async ({ reqs, goto }: Context) => {
-  await goto("http://localhost:4321/manually-view-with-path-via-body");
+  await goto(`${MPA_URL}/manually-view-with-path-via-body`);
 
   expect(reqs).toStrictEqual([
     {
@@ -254,7 +296,7 @@ test("View: manually with path via body tag", async ({ reqs, goto }: Context) =>
 });
 
 test("View: manually with props", async ({ reqs, goto }: Context) => {
-  await goto("http://localhost:4321/manually-view-with-props");
+  await goto(`${MPA_URL}/manually-view-with-props`);
 
   expect(reqs).toStrictEqual([
     {
@@ -266,7 +308,7 @@ test("View: manually with props", async ({ reqs, goto }: Context) => {
 });
 
 test("View: manually with props via script", async ({ reqs, goto }: Context) => {
-  await goto("http://localhost:4321/manually-view-with-props-via-script");
+  await goto(`${MPA_URL}/manually-view-with-props-via-script`);
 
   expect(reqs).toStrictEqual([
     {
@@ -278,7 +320,7 @@ test("View: manually with props via script", async ({ reqs, goto }: Context) => 
 });
 
 test("View: manually with props via dom attributes - 'data-s:view-props'", async ({ reqs, goto }: Context) => {
-  await goto("http://localhost:4321/manually-view-with-props-via-dom-attributes");
+  await goto(`${MPA_URL}/manually-view-with-props-via-dom-attributes`);
 
   expect(reqs).toStrictEqual([
     {
@@ -290,7 +332,7 @@ test("View: manually with props via dom attributes - 'data-s:view-props'", async
 });
 
 test("View: manually with path and props", async ({ reqs, goto }: Context) => {
-  await goto("http://localhost:4321/manually-view-with-path-and-props");
+  await goto(`${MPA_URL}/manually-view-with-path-and-props`);
 
   expect(reqs).toStrictEqual([
     {
@@ -302,7 +344,7 @@ test("View: manually with path and props", async ({ reqs, goto }: Context) => {
 });
 
 test("View: manually with path via meta and props", async ({ reqs, goto }: Context) => {
-  await goto("http://localhost:4321/manually-view-with-path-via-meta-and-props");
+  await goto(`${MPA_URL}/manually-view-with-path-via-meta-and-props`);
 
   expect(reqs).toStrictEqual([
     {
@@ -314,7 +356,7 @@ test("View: manually with path via meta and props", async ({ reqs, goto }: Conte
 });
 
 test("View: manually with path via body attribute and props", async ({ reqs, goto }: Context) => {
-  await goto("http://localhost:4321/manually-view-with-path-via-body-and-props");
+  await goto(`${MPA_URL}/manually-view-with-path-via-body-and-props`);
 
   expect(reqs).toStrictEqual([
     {
@@ -326,7 +368,7 @@ test("View: manually with path via body attribute and props", async ({ reqs, got
 });
 
 test("View: manually with path and props via script attribute", async ({ reqs, goto }: Context) => {
-  await goto("http://localhost:4321/manually-view-with-path-and-props-via-script");
+  await goto(`${MPA_URL}/manually-view-with-path-and-props-via-script`);
 
   expect(reqs).toStrictEqual([
     {
@@ -338,7 +380,7 @@ test("View: manually with path and props via script attribute", async ({ reqs, g
 });
 
 test("View: manually with path and props via DOM attributes - 'data-s:view-props'", async ({ reqs, goto }: Context) => {
-  await goto("http://localhost:4321/manually-view-with-path-and-props-via-dom-attributes");
+  await goto(`${MPA_URL}/manually-view-with-path-and-props-via-dom-attributes`);
 
   expect(reqs).toStrictEqual([
     {
@@ -350,7 +392,7 @@ test("View: manually with path and props via DOM attributes - 'data-s:view-props
 });
 
 test("Event: via dom", async ({ reqs, page }: Context) => {
-  await page.goto("http://localhost:4321/event");
+  await page.goto(`${MPA_URL}/event`);
   await page.click(".event-button");
   await page.waitForNetworkIdle({
     idleTime: 100
@@ -366,7 +408,7 @@ test("Event: via dom", async ({ reqs, page }: Context) => {
 });
 
 test("Event: via dom with path", async ({ reqs, page }: Context) => {
-  await page.goto("http://localhost:4321/event-with-path");
+  await page.goto(`${MPA_URL}/event-with-path`);
   await page.click(".event-button");
   await page.waitForNetworkIdle({
     idleTime: 100
@@ -386,7 +428,7 @@ test("Event: via dom with path via meta tag", async ({
 
   page
 }: Context) => {
-  await page.goto("http://localhost:4321/event-with-path-via-meta");
+  await page.goto(`${MPA_URL}/event-with-path-via-meta`);
   await page.click(".event-button");
   await page.waitForNetworkIdle({
     idleTime: 100
@@ -402,7 +444,7 @@ test("Event: via dom with path via meta tag", async ({
 });
 
 test("Event: via dom with path via body tag", async ({ reqs, page }: Context) => {
-  await page.goto("http://localhost:4321/event-with-path-via-body");
+  await page.goto(`${MPA_URL}/event-with-path-via-body`);
   await page.click(".event-button");
   await page.waitForNetworkIdle({
     idleTime: 100
@@ -418,7 +460,7 @@ test("Event: via dom with path via body tag", async ({ reqs, page }: Context) =>
 });
 
 test("Event: via dom with path and props", async ({ reqs, page }: Context) => {
-  await page.goto("http://localhost:4321/event-with-path-and-props");
+  await page.goto(`${MPA_URL}/event-with-path-and-props`);
   await page.click(".event-button");
   await page.waitForNetworkIdle({
     idleTime: 100
@@ -434,7 +476,7 @@ test("Event: via dom with path and props", async ({ reqs, page }: Context) => {
 });
 
 test("Event: via dom with path and props through dash and colon", async ({ reqs, page }: Context) => {
-  await page.goto("http://localhost:4321/event-with-path-and-props-dash-and-colon");
+  await page.goto(`${MPA_URL}/event-with-path-and-props-dash-and-colon`);
   await page.click(".event-button");
   await page.waitForNetworkIdle({
     idleTime: 100
@@ -450,7 +492,7 @@ test("Event: via dom with path and props through dash and colon", async ({ reqs,
 });
 
 test("Event: via dom with path and props through dash not colon", async ({ reqs, page }: Context) => {
-  await page.goto("http://localhost:4321/event-with-path-and-props-dash");
+  await page.goto(`${MPA_URL}/event-with-path-and-props-dash`);
   await page.click(".event-button");
   await page.waitForNetworkIdle({
     idleTime: 100
@@ -466,7 +508,7 @@ test("Event: via dom with path and props through dash not colon", async ({ reqs,
 });
 
 test("Event: via dom with path and props on 2 parent", async ({ reqs, page }: Context) => {
-  await page.goto("http://localhost:4321/event-with-path-and-props-on-2-parent");
+  await page.goto(`${MPA_URL}/event-with-path-and-props-on-2-parent`);
   await page.click(".event-button");
   await page.waitForNetworkIdle({
     idleTime: 100
@@ -482,7 +524,7 @@ test("Event: via dom with path and props on 2 parent", async ({ reqs, page }: Co
 });
 
 test("Event: via dom with path and props on 4 parent, but a tag", async ({ reqs, page }: Context) => {
-  await page.goto("http://localhost:4321/event-with-path-and-props-on-2-parent");
+  await page.goto(`${MPA_URL}/event-with-path-and-props-on-4-parent-but-a`);
   await page.click(".event-button");
   await page.waitForNetworkIdle({
     idleTime: 100
@@ -498,23 +540,17 @@ test("Event: via dom with path and props on 4 parent, but a tag", async ({ reqs,
 });
 
 test("Event: via dom with path and props on 4 parent", async ({ reqs, page }: Context) => {
-  await page.goto("http://localhost:4321/event-with-path-and-props-on-4-parent-but-a");
+  await page.goto(`${MPA_URL}/event-with-path-and-props-on-4-parent`);
   await page.click(".event-button");
   await page.waitForNetworkIdle({
     idleTime: 100
   });
 
-  expect(reqs).toStrictEqual([
-    {
-      u: `${DEBUG_DOMAIN}/new-path`,
-      e: [{ t: "Event", h: false, p: { key1: "value1", key2: "value2" } }],
-      debug: true
-    }
-  ]);
+  expect(reqs).toStrictEqual([]);
 });
 
 test("Event: manually", async ({ reqs, goto }: Context) => {
-  await goto("http://localhost:4321/event-manually");
+  await goto(`${MPA_URL}/event-manually`);
 
   expect(reqs).toStrictEqual([
     {
@@ -526,7 +562,7 @@ test("Event: manually", async ({ reqs, goto }: Context) => {
 });
 
 test("Event: manually with path", async ({ reqs, goto }: Context) => {
-  await goto("http://localhost:4321/event-manually-with-path");
+  await goto(`${MPA_URL}/event-manually-with-path`);
 
   expect(reqs).toStrictEqual([
     {
@@ -538,7 +574,7 @@ test("Event: manually with path", async ({ reqs, goto }: Context) => {
 });
 
 test("Event: manually with path via meta tag", async ({ reqs, goto }: Context) => {
-  await goto("http://localhost:4321/event-manually-with-path-via-meta");
+  await goto(`${MPA_URL}/event-manually-with-path-via-meta`);
 
   expect(reqs).toStrictEqual([
     {
@@ -550,7 +586,7 @@ test("Event: manually with path via meta tag", async ({ reqs, goto }: Context) =
 });
 
 test("Event: manually with path via body", async ({ reqs, goto }: Context) => {
-  await goto("http://localhost:4321/event-manually-with-path-via-body");
+  await goto(`${MPA_URL}/event-manually-with-path-via-body`);
 
   expect(reqs).toStrictEqual([
     {
@@ -596,7 +632,7 @@ test("Event: dom event with referrer", async ({ reqs, page }: Context) => {
 });
 
 test("Event: manually with props", async ({ reqs, goto }: Context) => {
-  await goto("http://localhost:4321/event-manually-with-props");
+  await goto(`${MPA_URL}/event-manually-with-props`);
 
   expect(reqs).toStrictEqual([
     {
@@ -608,7 +644,7 @@ test("Event: manually with props", async ({ reqs, goto }: Context) => {
 });
 
 test("Event: manually with path and props", async ({ reqs, goto }: Context) => {
-  await goto("http://localhost:4321/event-manually-with-path-and-props");
+  await goto(`${MPA_URL}/event-manually-with-path-and-props`);
 
   expect(reqs).toStrictEqual([
     {
@@ -622,13 +658,8 @@ test("Event: manually with path and props", async ({ reqs, goto }: Context) => {
 //SPA
 test("SPA: page to page navigation", async ({ reqs, page }: Context) => {
   await page.goto(`${SPA_URL}/layout`);
-  await page.waitForNetworkIdle({
-    idleTime: 100
-  });
-  await page.click(".link");
-  await page.waitForNetworkIdle({
-    idleTime: 100
-  });
+  await page.waitForNetworkIdle({ idleTime: 100 });
+  await clickAndWaitForPageView(page, reqs, ".link");
 
   expect(reqs).toStrictEqual([
     {
@@ -656,35 +687,18 @@ test("SPA: page to page navigation", async ({ reqs, page }: Context) => {
 
 test("SPA: page to page navigation inside of layout, with autocollect disabled", async ({ reqs, page }: Context) => {
   await page.goto(`${SPA_URL}/layout-autocollect-disabled`);
-  await page.waitForNetworkIdle({
-    idleTime: 100
-  });
-  await page.click(".link");
-  await page.waitForNetworkIdle({
-    idleTime: 100
-  });
-  await page.click(".link-2");
-  await page.waitForNetworkIdle({
-    idleTime: 100
-  });
+  await page.waitForNetworkIdle({ idleTime: 100 });
+  await clickAndSettle(page, ".link");
+  await clickAndSettle(page, ".link-2");
 
   expect(reqs).toStrictEqual([]);
 });
 
 test("SPA: collect even if autocollect is disabled", async ({ reqs, page }: Context) => {
   await page.goto(`${SPA_URL}/layout-autocollect-disabled/collect-via-meta`);
-  await page.waitForNetworkIdle({
-    idleTime: 100
-  });
-  await page.click(".link");
-  await page.waitForNetworkIdle({
-    idleTime: 100
-  });
-
-  await page.click(".link-2");
-  await page.waitForNetworkIdle({
-    idleTime: 100
-  });
+  await page.waitForNetworkIdle({ idleTime: 100 });
+  await clickAndWaitForPageView(page, reqs, ".link");
+  await clickAndSettle(page, ".link-2");
 
   expect(reqs).toStrictEqual([
     {
@@ -702,18 +716,9 @@ test("SPA: collect even if autocollect is disabled", async ({ reqs, page }: Cont
 
 test("SPA: ignore collect", async ({ reqs, page }: Context) => {
   await page.goto(`${SPA_URL}/layout/ignore-collect`);
-  await page.waitForNetworkIdle({
-    idleTime: 100
-  });
-  await page.click(".link");
-  await page.waitForNetworkIdle({
-    idleTime: 100
-  });
-
-  await page.click(".link-2");
-  await page.waitForNetworkIdle({
-    idleTime: 100
-  });
+  await page.waitForNetworkIdle({ idleTime: 100 });
+  await clickAndSettle(page, ".link");
+  await clickAndWaitForPageView(page, reqs, ".link-2");
 
   expect(reqs).toStrictEqual([
     {
@@ -741,18 +746,9 @@ test("SPA: ignore collect", async ({ reqs, page }: Context) => {
 
 test("SPA: navigate with props", async ({ reqs, page }: Context) => {
   await page.goto(`${SPA_URL}/navigation-with-props`);
-  await page.waitForNetworkIdle({
-    idleTime: 100
-  });
-  await page.click(".link");
-  await page.waitForNetworkIdle({
-    idleTime: 100
-  });
-
-  await page.click(".link-2");
-  await page.waitForNetworkIdle({
-    idleTime: 100
-  });
+  await page.waitForNetworkIdle({ idleTime: 100 });
+  await clickAndWaitForPageView(page, reqs, ".link");
+  await clickAndWaitForPageView(page, reqs, ".link-2");
 
   expect(reqs).toStrictEqual([
     {
@@ -794,14 +790,14 @@ test("SPA: navigate with props", async ({ reqs, page }: Context) => {
 test("SPA: popstate event inside of layout", async ({ reqs, page }: Context) => {
   await page.goto(`${SPA_URL}/layout/popstate`);
   await page.waitForNetworkIdle({ idleTime: 100 });
+  await clickAndWaitForPageView(page, reqs, ".link");
 
-  await page.click(".link");
-  await page.waitForNetworkIdle({ idleTime: 100 });
+  const popstatePromise = waitForRequest(reqs);
   await page.evaluate(() => {
     window.history.back();
     window.dispatchEvent(new PopStateEvent("popstate", { state: null }));
   });
-  await page.waitForNetworkIdle({ idleTime: 100 });
+  await popstatePromise;
   expect(reqs).toStrictEqual([
     {
       u: `${DEBUG_DOMAIN}/layout/popstate`,

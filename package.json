@@ -4,7 +4,11 @@
     "bundle": "npx esbuild ./src/index.ts --bundle --minify --format=iife --outfile=./build/stonks.js",
     "bundle:test": "npx esbuild ./src/index.ts --bundle --format=cjs --outfile=./build/stonks.js",
     "test": "vitest run",
-    "test:full": "pnpm bundle:test && FORCE_BUILD=1 COPY_TRACKER=1 vitest run"
+    "test:units": "vitest run --project 'Unit Tests'",
+    "test:e2e": "vitest run --project 'Integration Tests'",
+    "test:build&e2e": "pnpm bundle:test && FORCE_BUILD=1 COPY_TRACKER=1 vitest run --project 'Integration Tests'",
+    "test:all": "pnpm bundle:test && FORCE_BUILD=1 COPY_TRACKER=1 vitest run",
+    "prepare": "simple-git-hooks"
   },
   "dependencies": {
     "@fingerprintjs/fingerprintjs": "^4.4.1",
@@ -18,6 +22,10 @@
   },
   "devDependencies": {
     "esbuild": "^0.23.0",
+    "simple-git-hooks": "^2.13.1",
     "typescript": "^5.5.4"
+  },
+  "simple-git-hooks": {
+    "pre-commit": "if [ \"$(git branch --show-current)\" = \"master\" ]; then pnpm bundle && pnpm test:all; fi"
   }
 }
