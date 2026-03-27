@@ -15,14 +15,20 @@ export function parseUtmParams(urlSearchParams: URLSearchParams) {
   return utm;
 }
 
-function recursiveDecode(value: string): string {
+const recursiveDecode = (value: string): string => {
   let current = value;
-  let decoded = decodeURIComponent(current);
 
-  while (decoded !== current) {
-    current = decoded;
-    decoded = decodeURIComponent(current);
+  try {
+    let decoded = decodeURIComponent(current);
+
+    while (decoded !== current) {
+      current = decoded;
+      decoded = decodeURIComponent(current);
+    }
+
+    return current;
+  } catch {
+    return value;
   }
+};
 
-  return current;
-}

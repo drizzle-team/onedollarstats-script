@@ -97,3 +97,19 @@ test("UTM decode test 2", () => {
     utm_campaign: "campaign"
   });
 });
+
+test("UTM decode test 3", () => {
+  const urlParams = new URLSearchParams("?utm_campaign=70%campaign");
+
+  expect(parseUtmParams(urlParams)).toEqual({
+    utm_campaign: "70�mpaign"
+  });
+});
+
+test("UTM decode test 4", () => {
+  const urlParams = new URLSearchParams("?utm_campaign=0");
+
+  expect(parseUtmParams(urlParams)).toEqual({
+    utm_campaign: "0"
+  });
+});
