@@ -869,7 +869,10 @@ test("No single-letter global variables in window", async ({ page, goto }: Conte
 });
 
 test("shouldBlockEvent: blocks events in headless browser", async () => {
-  const headlessBrowser = await puppeteer.launch({ headless: true });
+  const headlessBrowser = await puppeteer.launch({
+    headless: true,
+    args: [...(process.env.CI ? ["--no-sandbox"] : [])],
+  });
   const headlessPage = await headlessBrowser.newPage();
 
   const headlessReqs: unknown[] = [];
@@ -895,7 +898,10 @@ test("shouldBlockEvent: blocks events in headless browser", async () => {
 });
 
 async function createBotPage(userAgent?: string, extraCdpCommands?: (page: any) => Promise<void>) {
-  const browser = await puppeteer.launch({ headless: true });
+  const browser = await puppeteer.launch({
+    headless: true,
+    args: [...(process.env.CI ? ["--no-sandbox"] : [])],
+  });
   const page = await browser.newPage();
 
   if (userAgent) {
