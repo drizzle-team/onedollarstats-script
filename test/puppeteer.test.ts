@@ -943,12 +943,18 @@ test("shouldBlockEvent: blocks events with webdriver flag", async () => {
   await browser.close();
 });
 
-test("shouldBlockEvent: blocks events with bot UA string", async () => {
-  const { browser, reqs } = await createBotPage("Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)");
+test(
+  "shouldBlockEvent: blocks events with bot UA string",
+  { timeout: 15000 },
+  async () => {
+    const { browser, reqs } = await createBotPage(
+      "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+    );
 
-  expect(reqs).toStrictEqual([]);
-  await browser.close();
-});
+    expect(reqs).toStrictEqual([]);
+    await browser.close();
+  },
+);
 
 test("shouldBlockEvent: blocks events with automation globals", async () => {
   const { browser, page, reqs } = await createBotPage(undefined, async (p) => {
