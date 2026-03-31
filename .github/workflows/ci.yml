@@ -62,16 +62,11 @@ jobs:
       - name: Install Chromium for Puppeteer
         run: npx puppeteer browsers install chrome
 
-      - name: Start MPA preview server
-        run: pnpm preview &
-        working-directory: test/mpa
-
-      - name: Start SPA preview server
-        run: pnpm preview &
-        working-directory: test/spa
-
-      - name: Wait for servers to be ready
+      - name: Start servers and wait for readiness
         run: |
+          (cd test/mpa && pnpm preview --host 0.0.0.0) &
+          (cd test/spa && pnpm preview --host 0.0.0.0) &
+
           echo "Waiting for MPA server (port 4321)..."
           timeout 30 bash -c 'until curl -sf http://127.0.0.1:4321 > /dev/null 2>&1; do sleep 1; done'
           echo "MPA server is ready"
