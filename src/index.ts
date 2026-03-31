@@ -278,26 +278,35 @@ import { parseProps } from "./utils/props-parser";
       }
     }
 
-    let props = data.props || undefined;
-    if (!props) {
-      const pageViewProps = stonksScript?.getAttribute("data-props");
-      const newProps = pageViewProps ? parseProps(pageViewProps) || {} : {};
-      const elements = document.querySelectorAll(
-        "[data-s\\:view-props], [data-s-view-props]",
-      );
-      for (const el of Array.from(elements)) {
-        const propsString =
-          el.getAttribute("data-s-view-props") ||
-          el.getAttribute("data-s:view-props");
-        if (!propsString) continue;
-        const parsedProps = parseProps(propsString);
-        Object.assign(newProps, parsedProps);
-      }
-      props = newProps;
+    const pageViewProps = stonksScript?.getAttribute("data-props");
+    const collectedProps: Record<string, string> = pageViewProps
+      ? parseProps(pageViewProps) || {}
+      : {};
+    const elements = document.querySelectorAll(
+      "[data-s\\:view-props], [data-s-view-props]",
+    );
+    for (const el of Array.from(elements)) {
+      const propsString =
+        el.getAttribute("data-s-view-props") ||
+        el.getAttribute("data-s:view-props");
+      if (!propsString) continue;
+      const parsedProps = parseProps(propsString);
+      Object.assign(collectedProps, parsedProps);
     }
+    const metaViewProps = document
+      .querySelector('meta[name="stonks-props"]')
+      ?.getAttribute("content");
+    if (metaViewProps) {
+      Object.assign(collectedProps, parseProps(metaViewProps));
+    }
+    if (data.props) {
+      Object.assign(collectedProps, data.props);
+    }
+    const props =
+      Object.keys(collectedProps).length > 0 ? collectedProps : undefined;
     send({
       type: "PageView",
-      props: Object.keys(props).length > 0 ? props : undefined,
+      props,
       path: path,
       utm,
     });
@@ -349,6 +358,12 @@ import { parseProps } from "./utils/props-parser";
       if (!propsString) continue;
       const parsedProps = parseProps(propsString);
       Object.assign(props, parsedProps);
+    }
+    const metaViewProps = document
+      .querySelector('meta[name="stonks-props"]')
+      ?.getAttribute("content");
+    if (metaViewProps) {
+      Object.assign(props, parseProps(metaViewProps));
     }
 
     trackPageView(

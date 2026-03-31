@@ -219,6 +219,42 @@ test("View: props via 'data-s:view-props' attributes", async ({ reqs, goto }: Co
   ]);
 });
 
+test("View: props via meta tag 'stonks-props'", async ({ reqs, goto }: Context) => {
+  await goto(`${MPA_URL}/view-with-props-via-meta`);
+
+  expect(reqs).toStrictEqual([
+    {
+      u: `${DEBUG_DOMAIN}/view-with-props-via-meta`,
+      e: [{ t: "PageView", h: false, p: { key1: "value1", key2: "value2" } }],
+      debug: true
+    }
+  ]);
+});
+
+test("View: props via meta tag merged with script 'data-props'", async ({ reqs, goto }: Context) => {
+  await goto(`${MPA_URL}/view-with-props-via-meta-and-script`);
+
+  expect(reqs).toStrictEqual([
+    {
+      u: `${DEBUG_DOMAIN}/view-with-props-via-meta-and-script`,
+      e: [{ t: "PageView", h: false, p: { key1: "script1", key2: "meta2", key3: "meta3" } }],
+      debug: true
+    }
+  ]);
+});
+
+test("View: props via meta tag merged with dom attributes", async ({ reqs, goto }: Context) => {
+  await goto(`${MPA_URL}/view-with-props-via-meta-and-dom-attributes`);
+
+  expect(reqs).toStrictEqual([
+    {
+      u: `${DEBUG_DOMAIN}/view-with-props-via-meta-and-dom-attributes`,
+      e: [{ t: "PageView", h: false, p: { key1: "dom1", key2: "meta2", key3: "meta3" } }],
+      debug: true
+    }
+  ]);
+});
+
 test("View: referrer", async ({ reqs, page }: Context) => {
   // await page.goto("http://google.com");
   await page.goto(MPA_URL, { referer: "http://google.com/" });
@@ -343,6 +379,30 @@ test("View: manually with props via dom attributes - 'data-s:view-props'", async
     {
       u: `${DEBUG_DOMAIN}/manually-view-with-props-via-dom-attributes`,
       e: [{ t: "PageView", h: false, p: { key1: "value1", key2: "value2" } }],
+      debug: true
+    }
+  ]);
+});
+
+test("View: manually with props via meta tag", async ({ reqs, goto }: Context) => {
+  await goto(`${MPA_URL}/manually-view-with-props-via-meta`);
+
+  expect(reqs).toStrictEqual([
+    {
+      u: `${DEBUG_DOMAIN}/manually-view-with-props-via-meta`,
+      e: [{ t: "PageView", h: false, p: { key1: "value1", key2: "value2" } }],
+      debug: true
+    }
+  ]);
+});
+
+test("View: manually with explicit props merged with meta tag", async ({ reqs, goto }: Context) => {
+  await goto(`${MPA_URL}/manually-view-with-explicit-and-meta-props`);
+
+  expect(reqs).toStrictEqual([
+    {
+      u: `${DEBUG_DOMAIN}/manually-view-with-explicit-and-meta-props`,
+      e: [{ t: "PageView", h: false, p: { key1: "meta1", key2: "explicit2", key3: "explicit3" } }],
       debug: true
     }
   ]);
@@ -799,6 +859,49 @@ test("SPA: navigate with props", async ({ reqs, page }: Context) => {
         }
       ],
       u: `${DEBUG_DOMAIN}/navigation-with-props`,
+      debug: true
+    }
+  ]);
+});
+
+test("SPA: navigate with meta tag props", async ({ reqs, page }: Context) => {
+  await page.goto(`${SPA_URL}/navigation-with-meta-props`);
+  await page.waitForNetworkIdle({ idleTime: 100 });
+  await clickAndWaitForPageView(page, reqs, ".link");
+  await clickAndWaitForPageView(page, reqs, ".link-2");
+
+  expect(reqs).toStrictEqual([
+    {
+      e: [
+        {
+          h: false,
+          t: "PageView"
+        }
+      ],
+      u: `${DEBUG_DOMAIN}/navigation-with-meta-props`,
+      debug: true
+    },
+    {
+      e: [
+        {
+          h: false,
+          t: "PageView",
+          p: {
+            prop1: "value1"
+          }
+        }
+      ],
+      u: `${DEBUG_DOMAIN}/navigation-with-meta-props/page-1`,
+      debug: true
+    },
+    {
+      e: [
+        {
+          h: false,
+          t: "PageView"
+        }
+      ],
+      u: `${DEBUG_DOMAIN}/navigation-with-meta-props`,
       debug: true
     }
   ]);
