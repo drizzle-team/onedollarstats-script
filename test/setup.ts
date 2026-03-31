@@ -226,44 +226,63 @@ function killProcess(proc: ChildProcess | null): void {
 
 /**
  * Vitest globalSetup - runs before all tests
+ *
+ * Environment variables for CI pipeline control:
+ * - SKIP_BUILD=1: Skip copying tracker and building test apps (handled externally by CI)
+ * - SKIP_SERVERS=1: Skip starting/stopping preview servers (handled externally by CI)
+ * - COPY_TRACKER=1: Copy built tracker to test app directories before building
+ * - FORCE_BUILD=1: Force rebuild of test apps regardless of source hash
  */
 export default async function setup(): Promise<() => Promise<void>> {
-  // Ensure cache directory exists
-  mkdirSync(CACHE_DIR, { recursive: true });
+  const skipBuild = process.env.SKIP_BUILD === "1";
+  const skipServers = process.env.SKIP_SERVERS === "1";
 
-  // Copy tracker if requested (must happen BEFORE build so it's included in dist)
-  if (process.env.COPY_TRACKER === "1") {
-    copyTracker();
+  if (!skipBuild) {
+    // Ensure cache directory exists
+    mkdirSync(CACHE_DIR, { recursive: true });
+
+    // Copy tracker if requested (must happen BEFORE build so it's included in dist)
+    if (process.env.COPY_TRACKER === "1") {
+      copyTracker();
+    }
+
+    // Build apps if needed
+    await buildAppIfNeeded("mpa", MPA_DIR);
+    await buildAppIfNeeded("spa", SPA_DIR);
+  } else {
+    console.log("Skipping build (SKIP_BUILD=1)");
   }
 
-  // Build apps if needed
-  await buildAppIfNeeded("mpa", MPA_DIR);
-  await buildAppIfNeeded("spa", SPA_DIR);
+  if (!skipServers) {
+    // Kill any processes using our ports before starting
+    killPort(MPA_PORT);
+    killPort(SPA_PORT);
 
-  // Kill any processes using our ports before starting
-  killPort(MPA_PORT);
-  killPort(SPA_PORT);
+    // Start preview servers
+    console.log("Starting servers...");
+    mpaProcess = startPreviewServer(MPA_DIR);
+    spaProcess = startPreviewServer(SPA_DIR);
 
-  // Start preview servers
-  console.log("Starting servers...");
-  mpaProcess = startPreviewServer(MPA_DIR);
-  spaProcess = startPreviewServer(SPA_DIR);
+    // Wait for servers to be ready
+    await Promise.all([
+      waitForServer(`http://localhost:${MPA_PORT}`, SERVER_STARTUP_TIMEOUT),
+      waitForServer(`http://localhost:${SPA_PORT}`, SERVER_STARTUP_TIMEOUT),
+    ]);
 
-  // Wait for servers to be ready
-  await Promise.all([
-    waitForServer(`http://localhost:${MPA_PORT}`, SERVER_STARTUP_TIMEOUT),
-    waitForServer(`http://localhost:${SPA_PORT}`, SERVER_STARTUP_TIMEOUT),
-  ]);
-
-  console.log("Servers ready");
+    console.log("Servers ready");
+  } else {
+    console.log("Skipping server start (SKIP_SERVERS=1)");
+  }
 
   // Return teardown function
   return async () => {
-    console.log("Stopping servers...");
-    killProcess(mpaProcess);
-    killProcess(spaProcess);
+    if (!skipServers) {
+      console.log("Stopping servers...");
+      killProcess(mpaProcess);
+      killProcess(spaProcess);
 
-    // Give processes time to clean up
-    await new Promise((r) => setTimeout(r, 500));
+      // Give processes time to clean up
+      await new Promise((r) => setTimeout(r, 500));
+    }
   };
 }
