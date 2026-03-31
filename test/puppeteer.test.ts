@@ -12,7 +12,10 @@ const DEBUG_DOMAIN = "https://example.com";
 
 const browser = await puppeteer.launch({
   // headless: false,
-  args: ["--disable-blink-features=AutomationControlled"] // show for the tracker that browser is not headless
+  args: [
+    "--disable-blink-features=AutomationControlled", // show for the tracker that browser is not headless
+    ...(process.env.CI ? ["--no-sandbox"] : []),
+  ],
 });
 
 beforeEach(async (ctx: Context) => {
