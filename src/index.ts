@@ -1,6 +1,8 @@
 import type { BodyToSend, Event, ViewArguments } from "./types";
+import { detectBot } from "./utils/bot";
 import { createDebugModal } from "./utils/create-modal";
 import { defaultCollectorUrl } from "./utils/default-collector-url";
+import { extractHostName } from "./utils/extract-hostname";
 import { parseUtmParams } from "./utils/parse-utm-params";
 import { parseProps } from "./utils/props-parser";
 
@@ -21,33 +23,19 @@ import { parseProps } from "./utils/props-parser";
   };
 
   const stonksScript = <HTMLScriptElement>document.currentScript; // ToDo
-  const useHashRouting =
-    stonksScript?.getAttribute("data-hash-routing") !== null; // ToDo
-  const environment = {
-    isLocalhost:
-      /^localhost$|^127(\.[0-9]+){0,2}\.[0-9]+$|^\[::1?\]$/.test(
-        location.hostname,
-      ) || location.protocol === "file:",
-    isHeadlessBrowser: !!(
-      window._phantom ||
-      window.__nightmare ||
-      window.navigator.webdriver ||
-      window.Cypress
-    ),
-  };
+  const useHashRouting = stonksScript?.getAttribute("data-hash-routing") !== null; // ToDo
+  const isLocalEnviroment = 
+      (/^localhost$|^127(\.[0-9]+){0,2}\.[0-9]+$|^\[::1?\]$/.test(location.hostname) &&
+        // Protocol check prevents desktop app schemes 'tauri://localhost' being treated as localhost
+        (location.protocol === "http:" || location.protocol === "https:")) ||
+      location.protocol === "file:"
 
-  if (environment.isLocalhost) {
-    const debugUrl = stonksScript?.getAttribute("data-debug");
+  if (isLocalEnviroment) {
+    const { hostname, devmode } = extractHostName(stonksScript, isLocalEnviroment);
 
-    console.log(
-      `[onedollarstats]\nScript successfully connected! ${debugUrl ? `Tracking your localhost as ${debugUrl}` : "Debug domain not set"}`,
-    );
+    console.log(`[onedollarstats]\nScript successfully connected! ${hostname ? `Tracking your localhost as ${hostname}` : "Debug domain not set"}`);
 
-    if (debugUrl)
-      createDebugModal(
-        debugUrl,
-        stonksScript?.getAttribute("data-url") || defaultCollectorUrl,
-      );
+    if (devmode && hostname) createDebugModal(hostname, stonksScript?.getAttribute("data-url") || defaultCollectorUrl);
   }
 
   async function sendWithBeaconOrFetch(
@@ -79,32 +67,9 @@ import { parseProps } from "./utils/props-parser";
     const analyticsUrl =
       stonksScript?.getAttribute("data-url") || defaultCollectorUrl;
 
-    let urlToSend: URL = new URL(location.href);
-    const debugAttribute = stonksScript.getAttribute("data-debug");
-    const hostnameAttribute = stonksScript?.getAttribute("data-hostname");
+    const { hostname, devmode } = extractHostName(stonksScript, isLocalEnviroment);
 
-    let isDebug: boolean = false;
-    if (debugAttribute) {
-      try {
-        const debugUrl = new URL(
-          `https://${debugAttribute}${urlToSend.pathname}`,
-        );
-        if (urlToSend.hostname !== debugUrl.hostname) {
-          isDebug = true;
-          urlToSend = debugUrl;
-        }
-      } catch {
-        return;
-      }
-    } else if (hostnameAttribute) {
-      try {
-        urlToSend = new URL(
-          `https://${hostnameAttribute}${urlToSend.pathname}`,
-        );
-      } catch {
-        // Invalid hostname, silently fall back to default (location.hostname)
-      }
-    }
+    const urlToSend: URL = new URL(hostname ? `https://${hostname}${location.pathname}` : location.href);
 
     urlToSend.search = "";
     if ("path" in data && data.path) {
@@ -137,17 +102,17 @@ import { parseProps } from "./utils/props-parser";
           t: data.type,
           h: useHashRouting, // ToDo: why we send hash routing
           r: referrer,
-          p: data.props,
-        },
+          p: data.props
+        }
       ],
+      debug: devmode
     };
 
     if (data.utm && Object.keys(data.utm).length > 0) {
       body.qs = data.utm; // ToDo
     }
 
-    if (isDebug) {
-      body.debug = isDebug;
+    if (body.debug) {
       let logMessage = `[onedollarstats]\nEvent name: ${data.type}\nEvent collected from: ${cleanUrl}`;
       if (data.props && Object.keys(data.props).length > 0)
         logMessage += `\nProps: ${JSON.stringify(data.props, null, 2)}`;
@@ -395,11 +360,15 @@ import { parseProps } from "./utils/props-parser";
   }
 
   function shouldBlockEvent(): boolean {
-    if (environment.isLocalhost && !stonksScript?.getAttribute("data-debug")) {
+    const { hostname, devmode } = extractHostName(stonksScript, isLocalEnviroment);
+
+    if (isLocalEnviroment && (!devmode || !hostname)) {
       return true;
     }
 
-    if (environment.isHeadlessBrowser) {
+    const {isBot, botKind} = detectBot()
+    
+    if (isBot && botKind !== "human") {
       return true;
     } // ToDo: create env var to allow headless browsers, need it for tests, so put to env var.
 

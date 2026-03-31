@@ -22,6 +22,20 @@ beforeEach(async (ctx: Context) => {
   const reqs: any[] = [];
 
   const page = await browser.newPage();
+  // Make Puppeteer look like a normal browser so the tracker's detectBot()
+  // doesn't block events during tests. Suppresses bot signals:
+  // 1. "HeadlessChrome" in UA  — detectHeadless() checks /HeadlessChrome/.test(ua)
+  // 2. window.chrome missing   — detectHeadless() checks /Chrome/.test(ua) && !window.chrome
+  // 3. navigator.webdriver     — detectWebdriver() checks navigator.webdriver
+  const defaultUA = await browser.userAgent();
+  await page.setUserAgent(defaultUA.replace("HeadlessChrome", "Chrome"));
+  await page.evaluateOnNewDocument(() => {
+    (window as any).chrome = { runtime: {} };
+    Object.defineProperty(Navigator.prototype, "webdriver", {
+      get: () => false,
+      configurable: true,
+    });
+  });
   await page.setRequestInterception(true);
   page.on("request", (interceptedRequest) => {
     const url = interceptedRequest.url();
@@ -853,8 +867,109 @@ test("No single-letter global variables in window", async ({ page, goto }: Conte
 
   expect(singleLetterGlobals).toStrictEqual([]);
 });
-// ToDo:
-// shouldBlockEvent(headless browser)
+
+test("shouldBlockEvent: blocks events in headless browser", async () => {
+  const headlessBrowser = await puppeteer.launch({ headless: true });
+  const headlessPage = await headlessBrowser.newPage();
+
+  const headlessReqs: unknown[] = [];
+  await headlessPage.setRequestInterception(true);
+  headlessPage.on("request", (interceptedRequest) => {
+    if (interceptedRequest.url() === "https://collector.onedollarstats.com/events") {
+      const body = interceptedRequest.postData();
+      if (body) {
+        headlessReqs.push(JSON.parse(body));
+      }
+    }
+    if (interceptedRequest.isInterceptResolutionHandled()) return;
+    if (interceptedRequest.url().endsWith(".png") || interceptedRequest.url().endsWith(".jpg")) interceptedRequest.abort();
+    else interceptedRequest.continue();
+  });
+
+  await headlessPage.goto(MPA_URL);
+  await headlessPage.waitForNetworkIdle({ idleTime: 100 });
+
+  expect(headlessReqs).toStrictEqual([]);
+
+  await headlessBrowser.close();
+});
+
+async function createBotPage(userAgent?: string, extraCdpCommands?: (page: any) => Promise<void>) {
+  const browser = await puppeteer.launch({ headless: true });
+  const page = await browser.newPage();
+
+  if (userAgent) {
+    await page.setUserAgent(userAgent);
+  }
+
+  if (extraCdpCommands) {
+    await extraCdpCommands(page);
+  }
+
+  const reqs: unknown[] = [];
+  await page.setRequestInterception(true);
+  page.on("request", (interceptedRequest) => {
+    if (interceptedRequest.url() === "https://collector.onedollarstats.com/events") {
+      const body = interceptedRequest.postData();
+      if (body) {
+        reqs.push(JSON.parse(body));
+      }
+    }
+    if (interceptedRequest.isInterceptResolutionHandled()) return;
+    if (interceptedRequest.url().endsWith(".png") || interceptedRequest.url().endsWith(".jpg")) interceptedRequest.abort();
+    else interceptedRequest.continue();
+  });
+
+  await page.goto(MPA_URL);
+  await page.waitForNetworkIdle({ idleTime: 100 });
+
+  return { browser, page, reqs };
+}
+
+test("shouldBlockEvent: blocks events with webdriver flag", async () => {
+  const { browser, page, reqs } = await createBotPage(undefined, async (p) => {
+    await p.evaluateOnNewDocument(() => {
+      Object.defineProperty(navigator, "webdriver", { get: () => true });
+    });
+  });
+
+  expect(reqs).toStrictEqual([]);
+  await browser.close();
+});
+
+test("shouldBlockEvent: blocks events with bot UA string", async () => {
+  const { browser, reqs } = await createBotPage("Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)");
+
+  expect(reqs).toStrictEqual([]);
+  await browser.close();
+});
+
+test("shouldBlockEvent: blocks events with automation globals", async () => {
+  const { browser, page, reqs } = await createBotPage(undefined, async (p) => {
+    await p.evaluateOnNewDocument(() => {
+      (window as any).__webdriver_evaluate = true;
+      (window as any).__selenium_evaluate = true;
+    });
+  });
+
+  expect(reqs).toStrictEqual([]);
+  await browser.close();
+});
+
+test("shouldBlockEvent: blocks events with Chrome runtime missing", async () => {
+  const { browser, page, reqs } = await createBotPage(
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    async (p) => {
+      await p.evaluateOnNewDocument(() => {
+        delete (window as any).chrome;
+      });
+    }
+  );
+
+  expect(reqs).toStrictEqual([]);
+  await browser.close();
+});
+// --- Release
 // --- Release
 // ToDo:
 // - Hash Routing

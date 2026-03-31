@@ -1,5 +1,243 @@
 "use strict";
 
+// src/utils/bot.ts
+var BOT_PATTERNS = [
+  // Search engines
+  { pattern: /Googlebot/i, kind: "search_engine", name: "Googlebot" },
+  { pattern: /Google-InspectionTool/i, kind: "search_engine", name: "Googlebot" },
+  { pattern: /Storebot-Google/i, kind: "search_engine", name: "Googlebot" },
+  { pattern: /AdsBot-Google/i, kind: "search_engine", name: "Google Ads" },
+  { pattern: /Mediapartners-Google/i, kind: "search_engine", name: "Google Adsense" },
+  { pattern: /bingbot/i, kind: "search_engine", name: "Bingbot" },
+  { pattern: /msnbot/i, kind: "search_engine", name: "MSNBot" },
+  { pattern: /YandexBot/i, kind: "search_engine", name: "YandexBot" },
+  { pattern: /YandexAccessibilityBot/i, kind: "search_engine", name: "YandexBot" },
+  { pattern: /Baiduspider/i, kind: "search_engine", name: "Baidu" },
+  { pattern: /DuckDuckBot/i, kind: "search_engine", name: "DuckDuckBot" },
+  { pattern: /Sogou/i, kind: "search_engine", name: "Sogou" },
+  { pattern: /Exabot/i, kind: "search_engine", name: "Exabot" },
+  { pattern: /ia_archiver/i, kind: "search_engine", name: "Alexa" },
+  { pattern: /SemrushBot/i, kind: "search_engine", name: "SemrushBot" },
+  { pattern: /AhrefsBot/i, kind: "search_engine", name: "AhrefsBot" },
+  { pattern: /MJ12bot/i, kind: "search_engine", name: "MJ12bot" },
+  { pattern: /DotBot/i, kind: "search_engine", name: "DotBot" },
+  { pattern: /PetalBot/i, kind: "search_engine", name: "PetalBot" },
+  { pattern: /Applebot/i, kind: "search_engine", name: "Applebot" },
+  { pattern: /GPTBot/i, kind: "search_engine", name: "GPTBot" },
+  { pattern: /ChatGPT-User/i, kind: "search_engine", name: "ChatGPT" },
+  { pattern: /ClaudeBot/i, kind: "search_engine", name: "ClaudeBot" },
+  { pattern: /CCBot/i, kind: "search_engine", name: "Common Crawl" },
+  { pattern: /anthropic-ai/i, kind: "search_engine", name: "Anthropic" },
+  { pattern: /PerplexityBot/i, kind: "search_engine", name: "PerplexityBot" },
+  // Social crawlers
+  { pattern: /facebookexternalhit/i, kind: "social_crawler", name: "Facebook" },
+  { pattern: /Facebot/i, kind: "social_crawler", name: "Facebook" },
+  { pattern: /Twitterbot/i, kind: "social_crawler", name: "Twitter" },
+  { pattern: /LinkedInBot/i, kind: "social_crawler", name: "LinkedIn" },
+  { pattern: /Slackbot/i, kind: "social_crawler", name: "Slack" },
+  { pattern: /Discordbot/i, kind: "social_crawler", name: "Discord" },
+  { pattern: /TelegramBot/i, kind: "social_crawler", name: "Telegram" },
+  { pattern: /WhatsApp/i, kind: "social_crawler", name: "WhatsApp" },
+  { pattern: /Pinterestbot/i, kind: "social_crawler", name: "Pinterest" },
+  { pattern: /Snapchat/i, kind: "social_crawler", name: "Snapchat" },
+  // Headless / automation
+  { pattern: /HeadlessChrome/i, kind: "headless", name: "Headless Chrome" },
+  { pattern: /PhantomJS/i, kind: "headless", name: "PhantomJS" },
+  { pattern: /Selenium/i, kind: "automation", name: "Selenium" },
+  { pattern: /Puppeteer/i, kind: "automation", name: "Puppeteer" },
+  // HTTP libraries
+  { pattern: /curl\//i, kind: "library", name: "curl" },
+  { pattern: /Wget\//i, kind: "library", name: "Wget" },
+  { pattern: /python-requests/i, kind: "library", name: "Python Requests" },
+  { pattern: /python-urllib/i, kind: "library", name: "Python urllib" },
+  { pattern: /node-fetch/i, kind: "library", name: "node-fetch" },
+  { pattern: /axios\//i, kind: "library", name: "Axios" },
+  { pattern: /Go-http-client/i, kind: "library", name: "Go HTTP" },
+  { pattern: /Java\//i, kind: "library", name: "Java HTTP" },
+  { pattern: /libwww-perl/i, kind: "library", name: "Perl LWP" },
+  { pattern: /Apache-HttpClient/i, kind: "library", name: "Apache HttpClient" },
+  { pattern: /okhttp/i, kind: "library", name: "OkHttp" },
+  { pattern: /Scrapy/i, kind: "library", name: "Scrapy" },
+  // Generic catch-all (must be last)
+  { pattern: /bot|crawl|spider|slurp|fetch|archiver/i, kind: "unknown_bot", name: "generic" }
+];
+var AUTOMATION_GLOBALS = [
+  // Selenium
+  "__selenium_unwrapped",
+  "__selenium_evaluate",
+  "__webdriver_evaluate",
+  "__webdriver_script_fn",
+  "__webdriver_script_func",
+  "__webdriver_script_function",
+  "__fxdriver_evaluate",
+  "__fxdriver_unwrapped",
+  "_Selenium_IDE_Recorder",
+  // Puppeteer / CDP
+  "__puppeteer_evaluation_script__",
+  // PhantomJS
+  "callPhantom",
+  "_phantom",
+  "phantom",
+  // Nightmare.js
+  "__nightmare",
+  // Playwright (injects page.exposeFunction bindings)
+  "__playwright",
+  "__pw_manual",
+  // CasperJS
+  "__casper",
+  // TestCafe
+  "__testcafe",
+  // WebDriver (generic)
+  "webdriver",
+  "domAutomation",
+  "domAutomationController"
+];
+function detectBot() {
+  const signals = collectBotSignals();
+  const isBot = signals.userAgentBot !== null || signals.webdriver || signals.headless || signals.automationGlobals.length > 0 || signals.liesDetected > 2 || signals.liesDetected > 0 && signals.hasProxy;
+  let botKind = "human";
+  if (isBot) {
+    if (signals.userAgentBot !== null) {
+      const ua = navigator.userAgent || "";
+      const match = BOT_PATTERNS.find((p) => p.pattern.test(ua));
+      botKind = match?.kind ?? "unknown_bot";
+    } else if (signals.headless) {
+      botKind = "headless";
+    } else if (signals.webdriver || signals.automationGlobals.length > 0) {
+      botKind = "automation";
+    } else {
+      botKind = "unknown_bot";
+    }
+  }
+  return { isBot, botKind, signals };
+}
+function collectBotSignals() {
+  return {
+    userAgentBot: detectUserAgentBot(),
+    webdriver: detectWebdriver(),
+    headless: detectHeadless(),
+    automationGlobals: detectAutomationGlobals(),
+    ...detectLies(),
+    missingLanguages: detectMissingLanguages(),
+    missingPlugins: detectMissingPlugins()
+  };
+}
+function detectUserAgentBot() {
+  const ua = navigator.userAgent || "";
+  if (!ua) return "empty-ua";
+  for (const { pattern, name } of BOT_PATTERNS) {
+    if (pattern.test(ua)) return name;
+  }
+  return null;
+}
+function detectWebdriver() {
+  return !!navigator.webdriver;
+}
+function detectHeadless() {
+  const w = window;
+  const n = navigator;
+  if (/Chrome/.test(n.userAgent) && !w.chrome) return true;
+  if (/HeadlessChrome/.test(n.userAgent)) return true;
+  try {
+    if (Notification.permission === "denied" && n.permissions) {
+      if ((!n.plugins || n.plugins.length === 0) && !/Mobile|Android/i.test(n.userAgent)) {
+        return true;
+      }
+    }
+  } catch {
+  }
+  return false;
+}
+function detectAutomationGlobals() {
+  const w = window;
+  return AUTOMATION_GLOBALS.filter((key) => {
+    try {
+      return key in w && w[key] !== void 0;
+    } catch {
+      return false;
+    }
+  });
+}
+function detectLies() {
+  let liesDetected = 0;
+  let hasProxy = false;
+  const apisToTest = [
+    ["Navigator.prototype.userAgent", () => desc(Navigator.prototype, "userAgent")],
+    ["Navigator.prototype.languages", () => desc(Navigator.prototype, "languages")],
+    ["Navigator.prototype.platform", () => desc(Navigator.prototype, "platform")],
+    ["Navigator.prototype.hardwareConcurrency", () => desc(Navigator.prototype, "hardwareConcurrency")],
+    ["Navigator.prototype.webdriver", () => desc(Navigator.prototype, "webdriver")],
+    ["HTMLCanvasElement.prototype.toDataURL", () => HTMLCanvasElement.prototype.toDataURL],
+    ["CanvasRenderingContext2D.prototype.fillText", () => CanvasRenderingContext2D.prototype.fillText],
+    ["Date.prototype.getTimezoneOffset", () => Date.prototype.getTimezoneOffset]
+  ];
+  for (const [name, accessor] of apisToTest) {
+    try {
+      const val = accessor();
+      if (val === void 0 || val === null) continue;
+      if (typeof val === "function") {
+        const str = Function.prototype.toString.call(val);
+        if (!isNativeToString(str)) liesDetected++;
+      }
+      if (name.includes(".prototype.") && typeof val !== "function") {
+        const parts = name.split(".");
+        const proto = safeProto(parts[0]);
+        const prop = parts[parts.length - 1];
+        if (proto) {
+          const d = Object.getOwnPropertyDescriptor(proto, prop);
+          if (d?.get) {
+            const gs = Function.prototype.toString.call(d.get);
+            if (!isNativeToString(gs)) liesDetected++;
+          }
+        }
+      }
+      if (typeof val === "function") {
+        if (val.toString !== Function.prototype.toString) {
+          try {
+            const native = Function.prototype.toString.call(val);
+            const custom = val.toString();
+            if (native !== custom) {
+              liesDetected++;
+              hasProxy = true;
+            }
+          } catch {
+            liesDetected++;
+            hasProxy = true;
+          }
+        }
+      }
+    } catch {
+    }
+  }
+  try {
+    const s = Function.prototype.toString.call(Function.prototype.toString);
+    if (!isNativeToString(s)) liesDetected++;
+  } catch {
+  }
+  return { liesDetected, hasProxy };
+}
+function detectMissingLanguages() {
+  const langs = navigator.languages;
+  return !langs || langs.length === 0;
+}
+function detectMissingPlugins() {
+  if (/Mobile|Android/i.test(navigator.userAgent)) return false;
+  return !navigator.plugins || navigator.plugins.length === 0;
+}
+function isNativeToString(str) {
+  return /^function\s[^{]*\{\s*\[native code\]\s*\}$/.test(str) || str === "function () { [native code] }" || /^\(\)\s*=>\s*\{\s*\[native code\]\s*\}$/.test(str);
+}
+function desc(proto, prop) {
+  return Object.getOwnPropertyDescriptor(proto, prop);
+}
+function safeProto(name) {
+  try {
+    return window[name]?.prototype ?? null;
+  } catch {
+    return null;
+  }
+}
+
 // src/utils/default-collector-url.ts
 var defaultCollectorUrl = "https://collector.onedollarstats.com/events";
 
@@ -116,22 +354,60 @@ var createDebugModal = (debugUrl, analyticsUrl) => {
   }
 };
 
+// src/utils/extract-hostname.ts
+var extractHostName = (script, isLocalhost) => {
+  const debugAttr = script.getAttribute("data-debug");
+  const hostnameAttr = script.getAttribute("data-hostname");
+  const devmodeAttr = script.getAttribute("data-devmode");
+  let devmode;
+  if (!isLocalhost) {
+    devmode = false;
+  } else if (devmodeAttr !== null) {
+    const normalized = devmodeAttr.toLowerCase().trim();
+    devmode = normalized === "" || normalized === "true" || normalized === "1";
+  } else if (debugAttr !== null) {
+    devmode = true;
+  } else {
+    devmode = false;
+  }
+  let hostname;
+  if (hostnameAttr !== null) {
+    const trimmed = hostnameAttr.trim();
+    hostname = trimmed || null;
+  } else if (devmode && debugAttr !== null) {
+    hostname = debugAttr;
+  } else {
+    hostname = null;
+  }
+  return { hostname, devmode };
+};
+
 // src/utils/parse-utm-params.ts
 function parseUtmParams(urlSearchParams) {
   const utm = {};
-  [
-    "utm_campaign",
-    "utm_source",
-    "utm_medium",
-    "utm_term",
-    "utm_content"
-  ].forEach((key) => {
-    const value = urlSearchParams.get(key);
-    if (value) {
-      utm[key] = value;
+  const keys = ["utm_campaign", "utm_source", "utm_medium", "utm_term", "utm_content"];
+  for (const key of keys) {
+    const raw = urlSearchParams.get(key);
+    if (!raw) continue;
+    const decoded = decodeAndTrim(raw);
+    if (decoded) {
+      utm[key] = decoded;
     }
-  });
+  }
   return utm;
+}
+function decodeAndTrim(value) {
+  let decoded = value;
+  let previous = "";
+  while (decoded !== previous) {
+    previous = decoded;
+    try {
+      decoded = decodeURIComponent(decoded);
+    } catch {
+      return decoded.trim();
+    }
+  }
+  return decoded.trim();
 }
 
 // src/utils/props-parser.ts
@@ -160,23 +436,13 @@ function parseProps(propsString) {
   };
   const stonksScript = document.currentScript;
   const useHashRouting = stonksScript?.getAttribute("data-hash-routing") !== null;
-  const environment = {
-    isLocalhost: /^localhost$|^127(\.[0-9]+){0,2}\.[0-9]+$|^\[::1?\]$/.test(
-      location.hostname
-    ) || location.protocol === "file:",
-    isHeadlessBrowser: !!(window._phantom || window.__nightmare || window.navigator.webdriver || window.Cypress)
-  };
-  if (environment.isLocalhost) {
-    const debugUrl = stonksScript?.getAttribute("data-debug");
-    console.log(
-      `[onedollarstats]
-Script successfully connected! ${debugUrl ? `Tracking your localhost as ${debugUrl}` : "Debug domain not set"}`
-    );
-    if (debugUrl)
-      createDebugModal(
-        debugUrl,
-        stonksScript?.getAttribute("data-url") || defaultCollectorUrl
-      );
+  const isLocalEnviroment = /^localhost$|^127(\.[0-9]+){0,2}\.[0-9]+$|^\[::1?\]$/.test(location.hostname) && // Protocol check prevents desktop app schemes 'tauri://localhost' being treated as localhost
+  (location.protocol === "http:" || location.protocol === "https:") || location.protocol === "file:";
+  if (isLocalEnviroment) {
+    const { hostname, devmode } = extractHostName(stonksScript, isLocalEnviroment);
+    console.log(`[onedollarstats]
+Script successfully connected! ${hostname ? `Tracking your localhost as ${hostname}` : "Debug domain not set"}`);
+    if (devmode && hostname) createDebugModal(hostname, stonksScript?.getAttribute("data-url") || defaultCollectorUrl);
   }
   async function sendWithBeaconOrFetch(analyticsUrl, stringifiedBody, callback) {
     if (navigator.sendBeacon?.(analyticsUrl, stringifiedBody)) {
@@ -195,30 +461,8 @@ Script successfully connected! ${debugUrl ? `Tracking your localhost as ${debugU
   }
   async function send(data) {
     const analyticsUrl = stonksScript?.getAttribute("data-url") || defaultCollectorUrl;
-    let urlToSend = new URL(location.href);
-    const debugAttribute = stonksScript.getAttribute("data-debug");
-    const hostnameAttribute = stonksScript?.getAttribute("data-hostname");
-    let isDebug = false;
-    if (debugAttribute) {
-      try {
-        const debugUrl = new URL(
-          `https://${debugAttribute}${urlToSend.pathname}`
-        );
-        if (urlToSend.hostname !== debugUrl.hostname) {
-          isDebug = true;
-          urlToSend = debugUrl;
-        }
-      } catch {
-        return;
-      }
-    } else if (hostnameAttribute) {
-      try {
-        urlToSend = new URL(
-          `https://${hostnameAttribute}${urlToSend.pathname}`
-        );
-      } catch {
-      }
-    }
+    const { hostname, devmode } = extractHostName(stonksScript, isLocalEnviroment);
+    const urlToSend = new URL(hostname ? `https://${hostname}${location.pathname}` : location.href);
     urlToSend.search = "";
     if ("path" in data && data.path) {
       urlToSend.pathname = data.path;
@@ -244,13 +488,13 @@ Script successfully connected! ${debugUrl ? `Tracking your localhost as ${debugU
           r: referrer,
           p: data.props
         }
-      ]
+      ],
+      debug: devmode
     };
     if (data.utm && Object.keys(data.utm).length > 0) {
       body.qs = data.utm;
     }
-    if (isDebug) {
-      body.debug = isDebug;
+    if (body.debug) {
       let logMessage = `[onedollarstats]
 Event name: ${data.type}
 Event collected from: ${cleanUrl}`;
@@ -409,10 +653,12 @@ UTM: ${data.utm}`;
     );
   }
   function shouldBlockEvent() {
-    if (environment.isLocalhost && !stonksScript?.getAttribute("data-debug")) {
+    const { hostname, devmode } = extractHostName(stonksScript, isLocalEnviroment);
+    if (isLocalEnviroment && (!devmode || !hostname)) {
       return true;
     }
-    if (environment.isHeadlessBrowser) {
+    const { isBot, botKind } = detectBot();
+    if (isBot && botKind !== "human") {
       return true;
     }
     return false;
