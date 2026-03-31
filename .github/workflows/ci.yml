@@ -37,8 +37,8 @@ jobs:
         working-directory: test/spa
 
       # ── Build tracker ────────────────────────────────────────
-      - name: Build tracker (test build)
-        run: pnpm bundle:test
+      - name: Build tracker
+        run: pnpm bundle
 
       # ── Unit tests ──────────────────────────────────────────
       - name: Run unit tests
@@ -82,21 +82,21 @@ jobs:
           SKIP_BUILD: "1"
           SKIP_SERVERS: "1"
 
-      # ── Production build & deploy ───────────────────────────
-      - name: Build production bundle
-        if: github.event_name == 'push'
-        run: pnpm bundle
-
+      # ── Deploy ──────────────────────────────────────────────
       - name: Upload to Cloudflare R2 (master -> stonks.js)
         if: github.event_name == 'push' && github.ref == 'refs/heads/master'
-        run: npx wrangler r2 object put one-dollar-analytic/stonks.js --file=build/stonks.js --content-type=text/javascript --remote
+        run: |
+          export CLOUDFLARE_API_TOKEN=$(printf '%s' "$CLOUDFLARE_API_TOKEN" | tr -d '\n\r')
+          npx wrangler r2 object put one-dollar-analytic/stonks.js --file=build/stonks.js --content-type=text/javascript --remote
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
       - name: Upload to Cloudflare R2 (dev -> stonks-dev.js)
         if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
-        run: npx wrangler r2 object put one-dollar-analytic/stonks-dev.js --file=build/stonks.js --content-type=text/javascript --remote
+        run: |
+          export CLOUDFLARE_API_TOKEN=$(printf '%s' "$CLOUDFLARE_API_TOKEN" | tr -d '\n\r')
+          npx wrangler r2 object put one-dollar-analytic/stonks-dev.js --file=build/stonks.js --content-type=text/javascript --remote
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
