@@ -72,7 +72,7 @@ jobs:
           echo "MPA server is ready"
 
           echo "Waiting for SPA server (port 5173)..."
-          timeout 30 bash -c 'until curl -sf http://127.0.0.1:5173 > /dev/null 2>&1; do sleep 1; done'
+          timeout 30 bash -c 'until curl -s -o /dev/null http://127.0.0.1:5173 2>&1; do sleep 1; done'
           echo "SPA server is ready"
 
       # ── Integration tests ───────────────────────────────────
