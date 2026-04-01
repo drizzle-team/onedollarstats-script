@@ -29,14 +29,6 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Install MPA test app dependencies
-        run: pnpm install --frozen-lockfile
-        working-directory: test/mpa
-
-      - name: Install SPA test app dependencies
-        run: pnpm install --frozen-lockfile
-        working-directory: test/spa
-
       # ── Build npm package ────────────────────────────────────
       - name: Build npm package
         run: pnpm build
@@ -45,14 +37,7 @@ jobs:
       - name: Run unit tests
         run: pnpm test:units
 
-      # ── Pack and install into test apps ──────────────────────
-      - name: Pack and install npm package into test apps
-        run: |
-          TARBALL=$(pnpm pack | tail -1)
-          cd test/mpa && pnpm add --save-dev "$(cd ../.. && pwd)/$TARBALL" && cd ../..
-          cd test/spa && pnpm add --save-dev "$(cd ../.. && pwd)/$TARBALL" && cd ../..
-
-      # ── Build CDN script (needed for script E2E pages) ───────
+      # ── Build CDN script (needed for script pages in test apps)
       - name: Build CDN script
         run: pnpm bundle:test
 
@@ -61,6 +46,14 @@ jobs:
           mkdir -p test/mpa/public test/spa/static
           cp build/stonks.js test/mpa/public/stonks.js
           cp build/stonks.js test/spa/static/stonks.js
+
+      # ── Pack and install into test apps ──────────────────────
+      - name: Pack and install npm package into test apps
+        run: |
+          TARBALL=$(pnpm pack | tail -1)
+          TARBALL_PATH="$(pwd)/$TARBALL"
+          cd test/mpa && pnpm add --save-dev "$TARBALL_PATH"
+          cd ../spa && pnpm add --save-dev "$TARBALL_PATH"
 
       # ── Build test apps ──────────────────────────────────────
       - name: Build MPA test app
