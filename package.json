@@ -1,12 +1,18 @@
 {
   "name": "onedollarstats",
-  "version": "0.0.17",
+  "version": "0.0.18",
   "description": "A lightweight, zero-dependency analytics tracker for frontend apps",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
   "scripts": {
-    "build": "tsc --emitDeclarationOnly && esbuild src/index.ts --bundle --outfile=dist/index.js --platform=browser --format=esm --target=es2020 --sourcemap --define:DEBUG_SCRIPT_URL='\"https://assets.onedollarstats.com/stonks-debug.js\"'",
+    "build": "tsc -p tsconfig.build.json --emitDeclarationOnly && rm -rf dist/utils dist/script.d.ts dist/debug-modal.d.ts dist/globals.d.ts && esbuild src/index.ts --bundle --outfile=dist/index.js --platform=browser --format=esm --target=es2020 --sourcemap --define:DEBUG_SCRIPT_URL='\"https://assets.onedollarstats.com/stonks-debug.js\"'",
     "bundle": "esbuild src/script.ts --bundle --minify --format=iife --outfile=build/stonks.js --define:DEBUG_SCRIPT_URL='\"https://assets.onedollarstats.com/stonks-debug.js\"'",
     "bundle:dev": "esbuild src/script.ts --bundle --minify --format=iife --outfile=build/stonks.js --define:DEBUG_SCRIPT_URL='\"https://assets.onedollarstats.com/stonks-debug-dev.js\"'",
     "bundle:test": "esbuild src/script.ts --bundle --format=cjs --outfile=build/stonks.js --define:DEBUG_SCRIPT_URL='\"https://assets.onedollarstats.com/stonks-debug.js\"'",
@@ -23,7 +29,10 @@
     "prepublishOnly": "pnpm build"
   },
   "files": [
-    "dist"
+    "dist/index.js",
+    "dist/index.js.map",
+    "dist/index.d.ts",
+    "dist/types.d.ts"
   ],
   "keywords": [
     "analytics",

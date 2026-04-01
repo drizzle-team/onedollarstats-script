@@ -1,10 +1,5 @@
 /**
- * Bot & crawler detection — standalone module.
- *
- * Usage:
- *   import { detectBot } from '@aspect/fingerprint/bot'
- *   const result = detectBot()
- *   if (result.isBot) console.log(result.botKind, result.signals)
+ * Bot & crawler detection module.
  *
  * Detects:
  * - Known search engine crawlers (Googlebot, Bingbot, Yandex, Baidu, etc.)
@@ -12,9 +7,6 @@
  * - Headless browsers (Puppeteer, Playwright, Selenium, PhantomJS)
  * - General automation tools via navigator.webdriver and injected globals
  * - API tampering / lie detection (prototype spoofing, proxy wrapping)
- *
- * Zero dependencies — can be imported and used independently of the
- * fingerprinting library.
  */
 
 // ---------------------------------------------------------------------------

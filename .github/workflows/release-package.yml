@@ -1,12 +1,13 @@
 name: Release Package
 
 on:
+  workflow_dispatch:
   release:
     types: [published]
 
 jobs:
   release:
-    if: github.event.release.target_commitish == 'master'
+    if: github.event_name == 'workflow_dispatch' || github.event.release.target_commitish == 'master'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -79,6 +80,7 @@ jobs:
 
       # ── Publish to npm ───────────────────────────────────────
       - name: Publish to npm
+        if: github.event_name == 'release'
         run: pnpm publish --no-git-checks
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
