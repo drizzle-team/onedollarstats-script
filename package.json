@@ -20,7 +20,6 @@
     "test:build&e2e:package": "pnpm build && FORCE_BUILD=1 COPY_PACKAGE=1 vitest run --project 'Package E2E Tests'",
     "test:all": "pnpm bundle:test && pnpm build && FORCE_BUILD=1 COPY_TRACKER=1 COPY_PACKAGE=1 vitest run",
     "prepublishOnly": "pnpm build",
-    "prepare": "simple-git-hooks"
   },
   "files": [
     "dist"
