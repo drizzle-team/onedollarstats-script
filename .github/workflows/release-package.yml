@@ -36,17 +36,7 @@ jobs:
       # ── Unit tests ──────────────────────────────────────────
       - name: Run unit tests
         run: pnpm test:units
-
-      # ── Build CDN script (needed for script pages in test apps)
-      - name: Build CDN script
-        run: pnpm bundle:test
-
-      - name: Copy tracker to test apps
-        run: |
-          mkdir -p test/mpa/public test/spa/static
-          cp build/stonks.js test/mpa/public/stonks.js
-          cp build/stonks.js test/spa/static/stonks.js
-
+        
       # ── Pack and install into test apps ──────────────────────
       - name: Pack and install npm package into test apps
         run: |
