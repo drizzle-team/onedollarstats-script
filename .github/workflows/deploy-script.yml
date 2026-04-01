@@ -1,13 +1,10 @@
-name: CI/CD
+name: Deploy CDN Script
 
 on:
-  push:
-    branches: [master, dev]
-  pull_request:
-    branches: [master, dev]
+  workflow_dispatch:
 
 jobs:
-  build-and-test:
+  deploy:
     runs-on: ubuntu-latest
     steps:
       # ── Setup ────────────────────────────────────────────────
@@ -36,29 +33,20 @@ jobs:
         run: pnpm install --frozen-lockfile
         working-directory: test/spa
 
-      # ── Build tracker ────────────────────────────────────────
+      # ── Build ────────────────────────────────────────────────
       - name: Build CDN script
         run: pnpm bundle
-
-      - name: Build npm package
-        run: pnpm build
 
       # ── Unit tests ──────────────────────────────────────────
       - name: Run unit tests
         run: pnpm test:units
 
-      # ── Prepare integration tests ───────────────────────────
+      # ── Script E2E tests ────────────────────────────────────
       - name: Copy tracker to test apps
         run: |
           mkdir -p test/mpa/public test/spa/static
           cp build/stonks.js test/mpa/public/stonks.js
           cp build/stonks.js test/spa/static/stonks.js
-
-      - name: Pack and install npm package into test apps
-        run: |
-          TARBALL=$(pnpm pack | tail -1)
-          cd test/mpa && pnpm add --save-dev "$(cd ../.. && pwd)/$TARBALL" && cd ../..
-          cd test/spa && pnpm add --save-dev "$(cd ../.. && pwd)/$TARBALL" && cd ../..
 
       - name: Build MPA test app
         run: pnpm build
@@ -84,16 +72,15 @@ jobs:
           timeout 30 bash -c 'until curl -s -o /dev/null http://127.0.0.1:5173 2>&1; do sleep 1; done'
           echo "SPA server is ready"
 
-      # ── Integration tests ───────────────────────────────────
-      - name: Run integration tests
-        run: pnpm test:e2e
+      - name: Run script E2E tests
+        run: pnpm test:e2e:script
         env:
           SKIP_BUILD: "1"
           SKIP_SERVERS: "1"
 
-      # ── Deploy ──────────────────────────────────────────────
-      - name: Upload to Cloudflare R2 (master -> stonks.js)
-        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+      # ── Deploy to Cloudflare R2 ─────────────────────────────
+      - name: Upload stonks.js to R2 (master)
+        if: github.ref == 'refs/heads/master'
         run: |
           export CLOUDFLARE_API_TOKEN=$(printf '%s' "$CLOUDFLARE_API_TOKEN" | tr -d '\n\r')
           npx wrangler r2 object put one-dollar-analytic/stonks.js --file=build/stonks.js --content-type=text/javascript --remote
@@ -101,8 +88,8 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
-      - name: Upload to Cloudflare R2 (dev -> stonks-dev.js)
-        if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+      - name: Upload stonks-dev.js to R2 (dev)
+        if: github.ref == 'refs/heads/dev'
         run: |
           export CLOUDFLARE_API_TOKEN=$(printf '%s' "$CLOUDFLARE_API_TOKEN" | tr -d '\n\r')
           npx wrangler r2 object put one-dollar-analytic/stonks-dev.js --file=build/stonks.js --content-type=text/javascript --remote

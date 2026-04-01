@@ -1,4 +1,4 @@
-name: Release
+name: Release Package
 
 on:
   release:
@@ -6,6 +6,7 @@ on:
 
 jobs:
   release:
+    if: github.event.release.target_commitish == 'master'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -42,6 +43,10 @@ jobs:
       - name: Build npm package
         run: pnpm build
 
+      # ── Unit tests ──────────────────────────────────────────
+      - name: Run unit tests
+        run: pnpm test:units
+
       # ── Pack and install into test apps ──────────────────────
       - name: Pack and install npm package into test apps
         run: |
@@ -68,7 +73,7 @@ jobs:
         run: pnpm build
         working-directory: test/spa
 
-      # ── Run package E2E tests ────────────────────────────────
+      # ── Package E2E tests ───────────────────────────────────
       - name: Install Chromium for Puppeteer
         run: npx puppeteer browsers install chrome
 
