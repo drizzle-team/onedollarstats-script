@@ -31,9 +31,7 @@ jobs:
 
       - name: Build CDN script (dev)
         if: github.ref == 'refs/heads/dev'
-        run: >-
-          esbuild src/script.ts --bundle --minify --format=iife --outfile=build/stonks.js
-          --define:DEBUG_SCRIPT_URL='"https://assets.onedollarstats.com/stonks-debug-dev.js"'
+        run: pnpm bundle:dev
 
       - name: Build npm package
         run: pnpm build

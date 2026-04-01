@@ -8,6 +8,7 @@
   "scripts": {
     "build": "tsc --emitDeclarationOnly && esbuild src/index.ts --bundle --outfile=dist/index.js --platform=browser --format=esm --target=es2020 --sourcemap --define:DEBUG_SCRIPT_URL='\"https://assets.onedollarstats.com/stonks-debug.js\"'",
     "bundle": "esbuild src/script.ts --bundle --minify --format=iife --outfile=build/stonks.js --define:DEBUG_SCRIPT_URL='\"https://assets.onedollarstats.com/stonks-debug.js\"'",
+    "bundle:dev": "esbuild src/script.ts --bundle --minify --format=iife --outfile=build/stonks.js --define:DEBUG_SCRIPT_URL='\"https://assets.onedollarstats.com/stonks-debug-dev.js\"'",
     "bundle:test": "esbuild src/script.ts --bundle --format=cjs --outfile=build/stonks.js --define:DEBUG_SCRIPT_URL='\"https://assets.onedollarstats.com/stonks-debug.js\"'",
     "bundle:debug": "esbuild src/debug-modal.ts --bundle --minify --format=iife --outfile=build/stonks-debug.js",
     "test": "vitest run",
@@ -37,6 +38,9 @@
   "author": "",
   "license": "MIT",
   "packageManager": "pnpm@10.16.1",
+  "pnpm": {
+    "onlyBuiltDependencies": ["esbuild", "puppeteer"]
+  },
   "devDependencies": {
     "@types/jsdom": "^27.0.0",
     "esbuild": "^0.25.10",
