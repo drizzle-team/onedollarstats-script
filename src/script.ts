@@ -1,12 +1,13 @@
 import type { BodyToSend, Event, ViewArguments } from "./types";
 import { detectBot } from "./utils/bot";
-import { createDebugModal } from "./utils/create-modal";
 import { getEnvironment } from "./utils/environment";
 import { extractHostName } from "./utils/extract-hostname";
 import { defaultConfig } from "./utils/merge-config";
 import { parseUtmParams } from "./utils/parse-utm-params";
 import { parseProps } from "./utils/props-parser";
 import { resolvePath } from "./utils/resolve-path";
+
+declare const DEBUG_SCRIPT_URL: string;
 
 // Wrapping the entire script in an IIFE (Immediately Invoked Function Expression)
 // to avoid polluting the global namespace. This isolates all variables and functions,
@@ -35,8 +36,19 @@ import { resolvePath } from "./utils/resolve-path";
 
     if (devmode && hostname) {
       const analyticsUrl = stonksScript?.getAttribute("data-url") || defaultConfig.collectorUrl;
-      const modalLog = createDebugModal(hostname, analyticsUrl);
-      window.__stonksModalLog = modalLog;
+
+      // Set up debug modal loading: store config + queue, then dynamically load the debug script
+      window.__stonksDebugConfig = { hostname, collectorUrl: analyticsUrl };
+      window.__stonksModalQueue = [];
+      window.__stonksModalReady = false;
+
+      const debugScript = document.createElement("script");
+      debugScript.src = DEBUG_SCRIPT_URL;
+      debugScript.onerror = () => {
+        // If the debug script fails to load, mark as ready so queued events are not stuck
+        window.__stonksModalReady = true;
+      };
+      document.head.appendChild(debugScript);
     }
   }
 
@@ -126,11 +138,14 @@ import { resolvePath } from "./utils/resolve-path";
       console.log(logMessage);
     }
 
-    const onComplete = (success: boolean) =>
-      window.__stonksModalLog?.(
-        `${data.type} ${success ? "sent" : "failed to send"}`,
-        success,
-      );
+    const onComplete = (success: boolean) => {
+      const message = `${data.type} ${success ? "sent" : "failed to send"}`;
+      if (window.__stonksModalReady) {
+        window.__stonksModalLog?.(message, success);
+      } else {
+        window.__stonksModalQueue?.push([message, success]);
+      }
+    };
     // Prepare the event payload
     const stringifiedBody = JSON.stringify(body);
 

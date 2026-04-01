@@ -1,6 +1,5 @@
 import type { AnalyticsConfig, BaseProps, BodyToSend, Event, InternalAnalyticsConfig, ViewArguments } from "./types";
 import { detectBot } from "./utils/bot";
-import { createDebugModal } from "./utils/create-modal";
 import { getEnvironment, isClient } from "./utils/environment";
 import { mergeConfig } from "./utils/merge-config";
 import { parseUtmParams } from "./utils/parse-utm-params";
@@ -8,13 +7,14 @@ import { parseProps } from "./utils/props-parser";
 import { resolvePath } from "./utils/resolve-path";
 import { shouldTrackPath } from "./utils/should-track";
 
+declare const DEBUG_SCRIPT_URL: string;
+
 class AnalyticsTracker {
   private static instance: AnalyticsTracker | null = null;
 
   private autocollectSetupDone = false;
   private config: InternalAnalyticsConfig;
   private lastPage: string | null = null;
-  private modalLog: (message: string, success: boolean) => void = () => {};
 
   public static getInstance(userConfig: AnalyticsConfig = {}): AnalyticsTracker {
     // Fresh no-op instance for SSR
@@ -38,7 +38,18 @@ class AnalyticsTracker {
     if (isLocalhost && this.config.devmode && this.config.hostname) {
       console.log(`[onedollarstats]\nOneDollarStats connected! Tracking localhost as ${this.config.hostname}`);
 
-      this.modalLog = createDebugModal(this.config.hostname, this.config.collectorUrl);
+      // Set up debug modal loading: store config + queue, then dynamically load the debug script
+      window.__stonksDebugConfig = { hostname: this.config.hostname, collectorUrl: this.config.collectorUrl };
+      window.__stonksModalQueue = [];
+      window.__stonksModalReady = false;
+
+      const debugScript = document.createElement("script");
+      debugScript.src = DEBUG_SCRIPT_URL;
+      debugScript.onerror = () => {
+        // If the debug script fails to load, mark as ready so queued events are not stuck
+        window.__stonksModalReady = true;
+      };
+      document.head.appendChild(debugScript);
     }
 
     // Auto-start autocollect (always set up listeners; handlePageView checks config)
@@ -130,7 +141,14 @@ class AnalyticsTracker {
     const safeGetThreshold = 1500; // limit for query-string-containing URLs
     const tryImageBeacon = payloadBase64.length <= safeGetThreshold;
 
-    const onComplete = (success: boolean) => this.modalLog(`${data.type} ${success ? "sent" : "failed to send"}`, success);
+    const onComplete = (success: boolean) => {
+      const message = `${data.type} ${success ? "sent" : "failed to send"}`;
+      if (window.__stonksModalReady) {
+        window.__stonksModalLog?.(message, success);
+      } else {
+        window.__stonksModalQueue?.push([message, success]);
+      }
+    };
 
     if (tryImageBeacon) {
       // Send via image beacon

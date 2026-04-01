@@ -6,11 +6,13 @@
   "types": "dist/index.d.ts",
   "type": "module",
   "scripts": {
-    "build": "tsc --emitDeclarationOnly && esbuild src/index.ts --bundle --outfile=dist/index.js --platform=browser --format=esm --target=es2020 --sourcemap",
-    "bundle": "esbuild src/script.ts --bundle --minify --format=iife --outfile=build/stonks.js",
-    "bundle:test": "esbuild src/script.ts --bundle --format=cjs --outfile=build/stonks.js",
+    "build": "tsc --emitDeclarationOnly && esbuild src/index.ts --bundle --outfile=dist/index.js --platform=browser --format=esm --target=es2020 --sourcemap --define:DEBUG_SCRIPT_URL='\"https://assets.onedollarstats.com/stonks-debug.js\"'",
+    "bundle": "esbuild src/script.ts --bundle --minify --format=iife --outfile=build/stonks.js --define:DEBUG_SCRIPT_URL='\"https://assets.onedollarstats.com/stonks-debug.js\"'",
+    "bundle:test": "esbuild src/script.ts --bundle --format=cjs --outfile=build/stonks.js --define:DEBUG_SCRIPT_URL='\"https://assets.onedollarstats.com/stonks-debug.js\"'",
+    "bundle:debug": "esbuild src/debug-modal.ts --bundle --minify --format=iife --outfile=build/stonks-debug.js",
     "test": "vitest run",
     "test:units": "vitest run --project 'Unit Tests'",
+    "test:units:modal": "vitest run --project 'Unit Tests' src/utils/create-modal.test.ts",
     "test:e2e:script": "vitest run --project 'Script E2E Tests'",
     "test:e2e:package": "vitest run --project 'Package E2E Tests'",
     "test:e2e": "vitest run --project 'Script E2E Tests' --project 'Package E2E Tests'",
@@ -41,12 +43,8 @@
     "esbuild": "^0.25.10",
     "jsdom": "^26.0.0",
     "puppeteer": "^24.1.1",
-    "simple-git-hooks": "^2.13.1",
     "tsx": "^4.19.2",
     "typescript": "^5.9.2",
     "vitest": "^4.0.18"
-  },
-  "simple-git-hooks": {
-    "pre-commit": "if [ \"$(git branch --show-current)\" = \"master\" ]; then pnpm bundle && pnpm test:all; fi"
   }
 }

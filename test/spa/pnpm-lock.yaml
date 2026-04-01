@@ -451,7 +451,7 @@ packages:
     hasBin: true
 
   onedollarstats@file:../../onedollarstats-0.0.17.tgz:
-    resolution: {integrity: sha512-QQLfpUIKGneZBf9sgXcRh4KJ+1tNja3H518zFoxZZwdyjpDJ9mXJQphl0ezxpJVsOt2VVvsnDSFjkc0FXKt8Ug==, tarball: file:../../onedollarstats-0.0.17.tgz}
+    resolution: {integrity: sha512-/83S+A21DhFoFJGq6FGnUwFZeaZQ/zlivqhoQ9xAmG8wdz+a5JnPqzqIEhYJ60zb650RSn1Z07+0dAwc8abBlg==, tarball: file:../../onedollarstats-0.0.17.tgz}
     version: 0.0.17
 
   picocolors@1.1.1:

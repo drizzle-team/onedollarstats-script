@@ -34,8 +34,15 @@ jobs:
         working-directory: test/spa
 
       # ── Build ────────────────────────────────────────────────
-      - name: Build CDN script
+      - name: Build CDN script (master)
+        if: github.ref == 'refs/heads/master'
         run: pnpm bundle
+
+      - name: Build CDN script (dev)
+        if: github.ref == 'refs/heads/dev'
+        run: >-
+          esbuild src/script.ts --bundle --minify --format=iife --outfile=build/stonks.js
+          --define:DEBUG_SCRIPT_URL='"https://assets.onedollarstats.com/stonks-debug-dev.js"'
 
       # ── Unit tests ──────────────────────────────────────────
       - name: Run unit tests
