@@ -10,5 +10,8 @@
   },
   "dependencies": {
     "astro": "^5.1.9"
+  },
+  "devDependencies": {
+    "onedollarstats": "file:/Users/kirillusichenko/Desktop/Dev/drizzle/lilstats/tracker/script/onedollarstats-0.0.17.tgz"
   }
 }

@@ -1,4 +1,4 @@
-export function parseProps(propsString: string) {
+export const parseProps = (propsString: string): Record<string, string> | undefined => {
   if (!propsString) return undefined;
   // "key1=value1;key2=value2"
 
@@ -7,15 +7,10 @@ export function parseProps(propsString: string) {
 
   for (const keyValueString of splittedProps) {
     const keyValuePair = keyValueString.split("=").map((el) => el.trim());
-    if (
-      keyValuePair.length !== 2 ||
-      keyValuePair[0] === "" ||
-      keyValuePair[1] === ""
-    )
-      continue;
+    if (keyValuePair.length !== 2 || keyValuePair[0] === "" || keyValuePair[1] === "") continue;
     // @ts-ignore
     propsObj[keyValuePair[0]] = keyValuePair[1];
   }
 
   return Object.keys(propsObj).length === 0 ? undefined : propsObj;
-}
+};

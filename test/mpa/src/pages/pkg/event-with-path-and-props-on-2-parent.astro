@@ -1,0 +1,17 @@
+<head>
+  <script>
+    import { configure } from "onedollarstats";
+    configure({ hostname: "example.com", devmode: true, autocollect: false });
+  </script>
+</head>
+<body>
+  <div 
+    data-s:event="Event"
+    data-s:event-path="/new-path"
+    data-s:event-props="key1=value1;key2=value2"
+    class="parent-1">
+      <span class="event-button"> 
+      Button
+    </span>
+  </div>
+</body>

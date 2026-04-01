@@ -305,9 +305,11 @@ function detectLies(): { liesDetected: number; hasProxy: boolean } {
       // Getter integrity check
       if (name.includes('.prototype.') && typeof val !== 'function') {
         const parts = name.split('.')
-        const proto = safeProto(parts[0])
+        const protoName = parts[0]
         const prop = parts[parts.length - 1]
-        if (proto) {
+        if (protoName && prop) {
+          const proto = safeProto(protoName)
+          if (!proto) continue
           const d = Object.getOwnPropertyDescriptor(proto, prop)
           if (d?.get) {
             const gs = Function.prototype.toString.call(d.get)

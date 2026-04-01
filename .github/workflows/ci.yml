@@ -37,8 +37,11 @@ jobs:
         working-directory: test/spa
 
       # ── Build tracker ────────────────────────────────────────
-      - name: Build tracker
+      - name: Build CDN script
         run: pnpm bundle
+
+      - name: Build npm package
+        run: pnpm build
 
       # ── Unit tests ──────────────────────────────────────────
       - name: Run unit tests
@@ -50,6 +53,12 @@ jobs:
           mkdir -p test/mpa/public test/spa/static
           cp build/stonks.js test/mpa/public/stonks.js
           cp build/stonks.js test/spa/static/stonks.js
+
+      - name: Pack and install npm package into test apps
+        run: |
+          TARBALL=$(pnpm pack | tail -1)
+          cd test/mpa && pnpm add --save-dev "$(cd ../.. && pwd)/$TARBALL" && cd ../..
+          cd test/spa && pnpm add --save-dev "$(cd ../.. && pwd)/$TARBALL" && cd ../..
 
       - name: Build MPA test app
         run: pnpm build

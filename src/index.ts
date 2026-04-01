@@ -1,134 +1,124 @@
-import type { BodyToSend, Event, ViewArguments } from "./types";
+import type { AnalyticsConfig, BaseProps, BodyToSend, Event, InternalAnalyticsConfig, ViewArguments } from "./types";
 import { detectBot } from "./utils/bot";
 import { createDebugModal } from "./utils/create-modal";
-import { defaultCollectorUrl } from "./utils/default-collector-url";
-import { extractHostName } from "./utils/extract-hostname";
+import { getEnvironment, isClient } from "./utils/environment";
+import { mergeConfig } from "./utils/merge-config";
 import { parseUtmParams } from "./utils/parse-utm-params";
 import { parseProps } from "./utils/props-parser";
+import { resolvePath } from "./utils/resolve-path";
+import { shouldTrackPath } from "./utils/should-track";
 
-// Wrapping the entire script in an IIFE (Immediately Invoked Function Expression)
-// to avoid polluting the global namespace. This isolates all variables and functions,
-// preventing potential conflicts with other scripts on the page.
-(() => {
-  // Don't execute the script on the server side. Check for document instead of window, because Deno has the window object even on the server.
-  if (!document) {
-    return;
+class AnalyticsTracker {
+  private static instance: AnalyticsTracker | null = null;
+
+  private autocollectSetupDone = false;
+  private config: InternalAnalyticsConfig;
+  private lastPage: string | null = null;
+  private modalLog: (message: string, success: boolean) => void = () => {};
+
+  public static getInstance(userConfig: AnalyticsConfig = {}): AnalyticsTracker {
+    // Fresh no-op instance for SSR
+    if (!isClient()) return new AnalyticsTracker(userConfig);
+
+    if (!AnalyticsTracker.instance) {
+      AnalyticsTracker.instance = new AnalyticsTracker(userConfig);
+    }
+    return AnalyticsTracker.instance;
   }
 
-  let lastPage: string | null = null;
+  private constructor(userConfig: AnalyticsConfig = {}) {
+    this.config = mergeConfig(userConfig);
 
-  window.stonks = {
-    event: event,
-    view: view,
-  };
+    // Skip setup in non-client environments
+    if (!isClient()) return;
 
-  const stonksScript = <HTMLScriptElement>document.currentScript; // ToDo
-  const useHashRouting = stonksScript?.getAttribute("data-hash-routing") !== null; // ToDo
-  const isLocalEnviroment = 
-      (/^localhost$|^127(\.[0-9]+){0,2}\.[0-9]+$|^\[::1?\]$/.test(location.hostname) &&
-        // Protocol check prevents desktop app schemes 'tauri://localhost' being treated as localhost
-        (location.protocol === "http:" || location.protocol === "https:")) ||
-      location.protocol === "file:"
+    const { isLocalhost } = getEnvironment();
 
-  if (isLocalEnviroment) {
-    const { hostname, devmode } = extractHostName(stonksScript, isLocalEnviroment);
+    // Debug log on localhost
+    if (isLocalhost && this.config.devmode && this.config.hostname) {
+      console.log(`[onedollarstats]\nOneDollarStats connected! Tracking localhost as ${this.config.hostname}`);
 
-    console.log(`[onedollarstats]\nScript successfully connected! ${hostname ? `Tracking your localhost as ${hostname}` : "Debug domain not set"}`);
+      this.modalLog = createDebugModal(this.config.hostname, this.config.collectorUrl);
+    }
 
-    if (devmode && hostname) createDebugModal(hostname, stonksScript?.getAttribute("data-url") || defaultCollectorUrl);
+    // Auto-start autocollect (always set up listeners; handlePageView checks config)
+    this.setupAutocollect();
   }
 
-  async function sendWithBeaconOrFetch(
-    analyticsUrl: string,
-    stringifiedBody: string,
-    callback: (success: boolean) => void,
-  ): Promise<void> {
+  private async sendWithBeaconOrFetch(stringifiedBody: string, callback: (success: boolean) => void): Promise<void> {
     // First fallback: try sendBeacon
-    if (navigator.sendBeacon?.(analyticsUrl, stringifiedBody)) {
+    if (navigator.sendBeacon?.(this.config.collectorUrl, stringifiedBody)) {
       callback(true);
       return;
     }
 
     // Second fallback: use fetch() with keepalive
-    fetch(analyticsUrl, {
+    fetch(this.config.collectorUrl, {
       method: "POST",
       body: stringifiedBody,
       headers: { "Content-Type": "application/json" },
-      keepalive: true,
+      keepalive: true
     })
-      .then(() => callback(true))
+      .then(({ ok }) => callback(ok))
       .catch((err: Error) => {
         console.error("[onedollarstats] fetch() failed:", err.message);
         callback(false);
       });
   }
 
-  async function send(data: Event): Promise<void> {
-    const analyticsUrl =
-      stonksScript?.getAttribute("data-url") || defaultCollectorUrl;
+  // Handles localhost replacement, referrer, UTM parameters, and debug mode.
+  // Uses img beacon then `navigator.sendBeacon` if available, otherwise falls back to `fetch`.
+  private async send(data: Event): Promise<void> {
+    const { isLocalhost, isHeadlessBrowser } = getEnvironment();
+    if ((isLocalhost && !this.config.devmode) || isHeadlessBrowser) return;
 
-    const { hostname, devmode } = extractHostName(stonksScript, isLocalEnviroment);
+    const { isBot, botKind } = detectBot();
 
-    const urlToSend: URL = new URL(hostname ? `https://${hostname}${location.pathname}` : location.href);
+    if (isBot && botKind !== "human") return;
 
+    const urlToSend = new URL(this.config.hostname ? `https://${this.config.hostname}${location.pathname}` : location.href);
+
+    // Clean query string unless UTM is explicitly provided
     urlToSend.search = "";
-    if ("path" in data && data.path) {
-      urlToSend.pathname = data.path; // ToDo: check sho menyaet teyvo
-    }
-    // remove slash
+    if (data.path) urlToSend.pathname = data.path;
+
     const cleanUrl = urlToSend.href.replace(/\/$/, "");
 
-    let referrer: string | undefined = data.referrer ?? undefined; // ToDo: collect referrer when user sends event
-
-    if (!referrer) {
-      const docReferrer =
-        document.referrer && document.referrer !== "null"
-          ? document.referrer
-          : undefined;
-
-      if (docReferrer) {
-        const referrerURL = new URL(docReferrer);
-
-        if (referrerURL.hostname !== urlToSend.hostname) {
-          referrer = referrerURL.href;
-        }
+    // Determine referrer
+    let referrer: string | undefined = data.referrer;
+    try {
+      if (!referrer && document.referrer && document.referrer !== "null") {
+        const referrerURL = new URL(document.referrer);
+        if (referrerURL.hostname !== urlToSend.hostname) referrer = referrerURL.href;
       }
-    }
+    } catch {} // ignore malformed referrer
 
+    // Build request body
     const body: BodyToSend = {
       u: cleanUrl,
       e: [
         {
           t: data.type,
-          h: useHashRouting, // ToDo: why we send hash routing
+          h: this.config.hashRouting,
           r: referrer,
           p: data.props
         }
       ],
-      debug: devmode
+      debug: this.config.devmode
     };
 
-    if (data.utm && Object.keys(data.utm).length > 0) {
-      body.qs = data.utm; // ToDo
-    }
+    if (data.utm && Object.keys(data.utm).length > 0) body.qs = data.utm;
 
     if (body.debug) {
       let logMessage = `[onedollarstats]\nEvent name: ${data.type}\nEvent collected from: ${cleanUrl}`;
-      if (data.props && Object.keys(data.props).length > 0)
-        logMessage += `\nProps: ${JSON.stringify(data.props, null, 2)}`;
+      if (data.props && Object.keys(data.props).length > 0) logMessage += `\nProps: ${JSON.stringify(data.props, null, 2)}`;
       if (referrer) logMessage += `\nReferrer: ${referrer}`;
-      if (useHashRouting) logMessage += `\nHashRouting: ${useHashRouting}`;
-      if (data.utm && Object.keys(data.utm).length > 0)
-        logMessage += `\nUTM: ${data.utm}`;
+      if (this.config.hashRouting) logMessage += `\nHashRouting: ${this.config.hashRouting}`;
+      if (data.utm && Object.keys(data.utm).length > 0) logMessage += `\nUTM: ${data.utm}`;
 
       console.log(logMessage);
     }
 
-    const onComplete = (success: boolean) =>
-      window.__stonksModalLog?.(
-        `${data.type} ${success ? "sent" : "failed to send"}`,
-        success,
-      );
     // Prepare the event payload
     const stringifiedBody = JSON.stringify(body);
 
@@ -140,284 +130,219 @@ import { parseProps } from "./utils/props-parser";
     const safeGetThreshold = 1500; // limit for query-string-containing URLs
     const tryImageBeacon = payloadBase64.length <= safeGetThreshold;
 
+    const onComplete = (success: boolean) => this.modalLog(`${data.type} ${success ? "sent" : "failed to send"}`, success);
+
     if (tryImageBeacon) {
       // Send via image beacon
       const img = new Image(1, 1);
 
       img.onload = () => onComplete(true);
       // If loading image fails (server unavailable, blocked, etc.)
-      img.onerror = () =>
-        sendWithBeaconOrFetch(analyticsUrl, stringifiedBody, onComplete);
+      img.onerror = () => this.sendWithBeaconOrFetch(stringifiedBody, onComplete);
 
       // Primary attempt: send data via image beacon (GET request with query string)
-      img.src = `${analyticsUrl}?data=${payloadBase64}`;
-    } else
-      await sendWithBeaconOrFetch(analyticsUrl, stringifiedBody, onComplete);
+      img.src = `${this.config.collectorUrl}?data=${payloadBase64}`;
+    } else await this.sendWithBeaconOrFetch(stringifiedBody, onComplete);
   }
 
-  async function event(
-    name: string,
-    arg2?: string | Record<string, string>,
-    props?: Record<string, string>,
-  ) {
-    if (shouldBlockEvent()) return;
+  // Prevents duplicate pageviews and respects include/exclude page rules. Automatically parses UTM parameters from URL.
+  private trackPageView({ path, props }: ViewArguments, checkBlock: boolean = false) {
+    if (!isClient()) return;
 
-    const options: {
-      path?: string;
-      props?: Record<string, string>;
-    } = {};
+    const viewPath = resolvePath(path);
 
-    if (typeof arg2 === "string") {
-      options.path = arg2;
-      if (props) options.props = props;
-    } else if (typeof arg2 === "object") {
-      options.props = arg2;
-    }
+    // Collect props from DOM attributes
+    const collectedProps: Record<string, string> = {};
+    const elements = document.querySelectorAll("[data-s\\:view-props], [data-s-view-props]");
 
-    let path: string | undefined = options?.path || undefined;
-    if (!path) {
-      const newPath =
-        document.body?.getAttribute("data-s-path") ||
-        document.body?.getAttribute("data-s:path") ||
-        document
-          .querySelector('meta[name="stonks-path"]')
-          ?.getAttribute("content");
-
-      if (newPath) {
-        path = newPath;
-      }
-    }
-
-    send({ type: name, props: options?.props, path });
-  }
-
-  function handleTaggedElementClickEvent(clickEvent: MouseEvent) {
-    if (clickEvent.type === "auxclick" && clickEvent.button !== 1) return;
-
-    const target = clickEvent.target as Element | null;
-    if (!target) return;
-
-    // Check if inside <a> or <button>
-    const insideInteractive = !!target.closest("a, button");
-
-    let el: Element | null = target;
-    let depth = 0;
-
-    while (el) {
-      const eventName =
-        el.getAttribute("data-s-event") || el.getAttribute("data-s:event");
-      if (eventName) {
-        const propsAttr =
-          el.getAttribute("data-s-event-props") ||
-          el.getAttribute("data-s:event-props");
-        const props = propsAttr ? parseProps(propsAttr) : undefined;
-        const path =
-          el.getAttribute("data-s-event-path") ||
-          el.getAttribute("data-s:event-path") ||
-          undefined;
-
-        event(eventName, path ?? props, props);
-
-        return;
-      }
-
-      el = el.parentElement;
-      depth++;
-
-      // If not in <a>/<button>, stop after 3 levels
-      if (!insideInteractive && depth >= 3) break;
-    }
-  }
-
-  async function view(
-    arg1?: string | Record<string, string>,
-    arg2?: Record<string, string>,
-  ) {
-    const options: {
-      path?: string;
-      props?: Record<string, string>;
-    } = {};
-
-    if (typeof arg1 === "string") {
-      options.path = arg1;
-      if (arg2) options.props = arg2;
-    } else if (typeof arg1 === "object") {
-      options.props = arg1;
-    }
-
-    trackPageView(
-      {
-        path: options?.path,
-        props: options?.props,
-      },
-      false,
-    );
-  }
-
-  async function trackPageView(
-    data: ViewArguments,
-    checkBlock: boolean = true,
-  ) {
-    if (checkBlock && shouldBlockEvent()) return;
-
-    const urlParams = new URLSearchParams(location.search);
-    const utm = parseUtmParams(urlParams);
-
-    let path: string | undefined = data?.path || undefined;
-
-    if (!path) {
-      const newPath =
-        document.body?.getAttribute("data-s-path") ||
-        document.body?.getAttribute("data-s:path") ||
-        document
-          .querySelector('meta[name="stonks-path"]')
-          ?.getAttribute("content");
-
-      if (newPath) {
-        path = newPath;
-      }
-    }
-
-    const pageViewProps = stonksScript?.getAttribute("data-props");
-    const collectedProps: Record<string, string> = pageViewProps
-      ? parseProps(pageViewProps) || {}
-      : {};
-    const elements = document.querySelectorAll(
-      "[data-s\\:view-props], [data-s-view-props]",
-    );
     for (const el of Array.from(elements)) {
-      const propsString =
-        el.getAttribute("data-s-view-props") ||
-        el.getAttribute("data-s:view-props");
+      const propsString = el.getAttribute("data-s-view-props") || el.getAttribute("data-s:view-props");
       if (!propsString) continue;
       const parsedProps = parseProps(propsString);
       Object.assign(collectedProps, parsedProps);
     }
+
+    // Collect props from meta tag (overrides DOM attributes)
     const metaViewProps = document
       .querySelector('meta[name="stonks-props"]')
       ?.getAttribute("content");
     if (metaViewProps) {
       Object.assign(collectedProps, parseProps(metaViewProps));
     }
-    if (data.props) {
-      Object.assign(collectedProps, data.props);
+
+    // Explicit props override everything
+    if (props) {
+      Object.assign(collectedProps, props);
     }
-    const props =
-      Object.keys(collectedProps).length > 0 ? collectedProps : undefined;
-    send({
-      type: "PageView",
-      props,
-      path: path,
-      utm,
-    });
+
+    const viewProps = Object.keys(collectedProps).length > 0 ? collectedProps : undefined;
+
+    // Skip duplicate pageviews or excluded pages
+    if (!this.config.hashRouting && this.lastPage === viewPath) return;
+
+    // Skip page if checkBlock is true and the path should be excluded
+    if (checkBlock && !shouldTrackPath(viewPath, this.config)) return;
+
+    this.lastPage = viewPath;
+
+    const utm = parseUtmParams(new URLSearchParams(location.search));
+    this.send({ type: "PageView", path: viewPath, props: viewProps, utm });
   }
 
-  async function triggerPageView(): Promise<void> {
-    const shouldCollectPage1 = document
-      .querySelector('meta[name="stonks-collect"]')
-      ?.getAttribute("content");
+  /**
+   * Tracks a custom event.
+   * Can accept path string or a props object.
+   *
+   * @param eventName Name of the event to track.
+   * @param pathOrProps Optional path string or props object.
+   * @param props Optional props object if path string is provided.
+   */
+  public async event(eventName: string, pathOrProps?: string | BaseProps, rawProps?: BaseProps) {
+    if (!isClient()) return;
 
-    const shouldCollectPage2 =
-      document.body?.getAttribute("data-s-collect") ||
-      document.body?.getAttribute("data-s:collect");
+    const { isLocalhost, isHeadlessBrowser } = getEnvironment();
+    if ((isLocalhost && !this.config.devmode) || isHeadlessBrowser) return;
 
-    if (shouldCollectPage1 === "false" || shouldCollectPage2 === "false") {
-      lastPage = null;
-      return;
-    }
-    const isAutocollect =
-      stonksScript?.getAttribute("data-autocollect") !== "false";
+    const path = resolvePath(typeof pathOrProps === "string" ? pathOrProps : undefined);
+    const props = typeof pathOrProps === "object" ? pathOrProps : rawProps;
 
-    if (
-      !isAutocollect &&
-      shouldCollectPage1 !== "true" &&
-      shouldCollectPage2 !== "true"
-    ) {
-      lastPage = null;
-      return;
-    }
-
-    if (!useHashRouting && lastPage === location.pathname) {
-      console.warn(`Ignoring event PageView - pathname has not changed`);
-      return;
-    }
-
-    if (shouldBlockEvent()) return;
-
-    lastPage = location.pathname;
-
-    const pageViewProps = stonksScript?.getAttribute("data-props");
-    const props = pageViewProps ? parseProps(pageViewProps) || {} : {};
-    const elements = document.querySelectorAll(
-      "[data-s\\:view-props], [data-s-view-props]",
-    );
-    for (const el of Array.from(elements)) {
-      const propsString =
-        el.getAttribute("data-s-view-props") ||
-        el.getAttribute("data-s:view-props");
-      if (!propsString) continue;
-      const parsedProps = parseProps(propsString);
-      Object.assign(props, parsedProps);
-    }
-    const metaViewProps = document
-      .querySelector('meta[name="stonks-props"]')
-      ?.getAttribute("content");
-    if (metaViewProps) {
-      Object.assign(props, parseProps(metaViewProps));
-    }
-
-    trackPageView(
-      {
-        props: Object.keys(props).length > 0 ? props : undefined,
-      },
-      false,
-    );
+    this.send({ type: eventName, path, props });
   }
 
-  function shouldBlockEvent(): boolean {
-    const { hostname, devmode } = extractHostName(stonksScript, isLocalEnviroment);
+  /**
+   * Records a page view.
+   * Can accept path string or a props object.
+   *
+   * @param pathOrProps Optional path string or props object.
+   * @param props Optional props when first arg is a path string.
+   */
+  public async view(pathOrProps?: string | BaseProps, props?: BaseProps) {
+    if (!isClient()) return;
 
-    if (isLocalEnviroment && (!devmode || !hostname)) {
-      return true;
+    const args: ViewArguments = {};
+
+    if (typeof pathOrProps === "string") {
+      args.path = pathOrProps;
+      args.props = props;
+    } else if (typeof pathOrProps === "object") {
+      args.props = pathOrProps;
     }
 
-    const {isBot, botKind} = detectBot()
-    
-    if (isBot && botKind !== "human") {
-      return true;
-    } // ToDo: create env var to allow headless browsers, need it for tests, so put to env var.
-
-    return false;
+    this.trackPageView(args);
   }
 
-  if (window.history.pushState) {
-    const originalPushState = window.history.pushState;
-    window.history.pushState = function (
-      data: unknown,
-      unused: string,
-      url?: string | URL | null | undefined,
-    ) {
-      originalPushState.apply(this, [data, unused, url]);
-      window.requestAnimationFrame(() => {
-        triggerPageView();
+  /**
+   * Installs global DOM/window listeners exactly once for:
+   *  - visibilitychange
+   *  - history.pushState
+   *  - popstate
+   *  - hashchange
+   *  - click autocapture for elements annotated with `data-s:event` & `data-s-event`
+   *
+   */
+  private setupAutocollect() {
+    if (!isClient() || this.autocollectSetupDone) return;
+    this.autocollectSetupDone = true;
+
+    const handlePageView = () => {
+      // Check meta tag and body attribute for collection control
+      const metaCollect = document
+        .querySelector('meta[name="stonks-collect"]')
+        ?.getAttribute("content");
+      const bodyCollect =
+        document.body?.getAttribute("data-s-collect") ||
+        document.body?.getAttribute("data-s:collect");
+
+      // Explicitly disabled
+      if (metaCollect === "false" || bodyCollect === "false") {
+        this.lastPage = null;
+        return;
+      }
+
+      // If autocollect is off, only collect if explicitly enabled via meta/body
+      if (!this.config.autocollect && metaCollect !== "true" && bodyCollect !== "true") {
+        this.lastPage = null;
+        return;
+      }
+
+      this.trackPageView({}, true);
+    };
+
+    // visibilitychange
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") handlePageView();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+
+    // pushState
+    const origPush = history.pushState.bind(history);
+    history.pushState = (...args) => {
+      origPush(...args);
+      requestAnimationFrame(() => {
+        handlePageView();
       });
     };
-    window.addEventListener("popstate", () => {
-      window.requestAnimationFrame(() => {
-        triggerPageView();
-      });
-    });
-  }
 
-  if (document.visibilityState !== "visible") {
-    document.addEventListener("visibilitychange", () => {
-      if (!lastPage && document.visibilityState === "visible") {
-        triggerPageView();
+    // popstate
+    window.addEventListener("popstate", handlePageView);
+
+    // hashchange
+    window.addEventListener("hashchange", handlePageView);
+
+    // click autocapture
+    const onClick: EventListener = (ev: Event) => {
+      const clickEvent = ev as MouseEvent;
+      if (clickEvent.type === "auxclick" && clickEvent.button !== 1) return;
+
+      const target = clickEvent.target as Element | null;
+      if (!target) return;
+
+      // Check if inside <a> or <button>
+      const insideInteractive = !!target.closest("a, button");
+
+      let el: Element | null = target;
+      let depth = 0;
+
+      while (el) {
+        const eventName = el.getAttribute("data-s-event") || el.getAttribute("data-s:event");
+        if (eventName) {
+          const propsAttr = el.getAttribute("data-s-event-props") || el.getAttribute("data-s:event-props");
+          const props = propsAttr ? parseProps(propsAttr) : undefined;
+          const path = el.getAttribute("data-s-event-path") || el.getAttribute("data-s:event-path") || undefined;
+
+          if ((path && !shouldTrackPath(path, this.config)) || !shouldTrackPath(location.pathname, this.config)) {
+            return;
+          }
+
+          this.event(eventName, path ?? props, props);
+          return;
+        }
+
+        el = el.parentElement;
+        depth++;
+
+        // If not in <a>/<button>, stop after 3 levels
+        if (!insideInteractive && depth >= 3) break;
       }
-    });
-  } else {
-    triggerPageView();
-  }
-  document.addEventListener("click", handleTaggedElementClickEvent);
-})();
+    };
 
+    document.addEventListener("click", onClick);
+
+    // Fire initial pageview if already visible
+    if (document.visibilityState === "visible") handlePageView();
+  }
+}
+
+export const configure = (userConfig: AnalyticsConfig = {}) => {
+  AnalyticsTracker.getInstance(userConfig);
+};
+
+export const event = async (eventName: string, pathOrProps?: string | BaseProps, props?: BaseProps) => {
+  const instance = AnalyticsTracker.getInstance();
+  await instance.event(eventName, pathOrProps, props);
+};
+
+export const view = async (pathOrProps?: string | BaseProps, props?: BaseProps) => {
+  const instance = AnalyticsTracker.getInstance();
+  await instance.view(pathOrProps, props);
+};

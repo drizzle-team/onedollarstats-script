@@ -115,10 +115,13 @@ web_modules/
 .next
 out
 
+# Build outputs
+dist/
+build/stonks.js
+
 # Nuxt.js build / generate output
 
 .nuxt
-dist
 
 # Gatsby files
 

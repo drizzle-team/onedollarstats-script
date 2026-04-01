@@ -2,7 +2,7 @@ import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   test: {
-    workspace: [
+    projects: [
       {
         test: {
           name: "Unit Tests",
@@ -11,9 +11,18 @@ export default defineConfig({
       },
       {
         test: {
-          name: "Integration Tests",
+          name: "Script E2E Tests",
+          environment: "node",
           globalSetup: "./test/setup.ts",
-          include: ["test/**/*.test.ts"],
+          include: ["test/script.test.ts"],
+        },
+      },
+      {
+        test: {
+          name: "Package E2E Tests",
+          environment: "node",
+          globalSetup: "./test/setup.ts",
+          include: ["test/package.test.ts"],
         },
       },
     ],

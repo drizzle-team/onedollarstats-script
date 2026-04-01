@@ -1,7 +1,7 @@
-import { spawn, execSync, type ChildProcess } from "child_process";
-import { createHash } from "crypto";
-import { readFileSync, writeFileSync, existsSync, copyFileSync, mkdirSync, readdirSync, statSync } from "fs";
-import { join, resolve } from "path";
+import { spawn, execSync, type ChildProcess } from "node:child_process";
+import { createHash } from "node:crypto";
+import { readFileSync, writeFileSync, existsSync, copyFileSync, mkdirSync, readdirSync, statSync } from "node:fs";
+import { join, resolve } from "node:path";
 
 const ROOT_DIR = resolve(import.meta.dirname, "..");
 const TEST_DIR = resolve(import.meta.dirname);
@@ -105,6 +105,35 @@ function copyTracker(): void {
   copyFileSync(trackerSrc, spaDest);
 
   console.log("Copying tracker to test apps");
+}
+
+/**
+ * Pack the npm package and install the tarball into MPA and SPA test apps.
+ * This lets Astro/Vite resolve `import { configure } from "onedollarstats"`.
+ */
+function copyPackage(): void {
+  console.log("Packing npm package...");
+
+  // Pack the tarball (outputs something like onedollarstats-0.0.17.tgz)
+  const packOutput = execSync("pnpm pack", { cwd: ROOT_DIR, encoding: "utf-8" }).trim();
+  const tarballName = packOutput.split("\n").pop()!.trim();
+  const tarballPath = join(ROOT_DIR, tarballName);
+
+  console.log(`Installing ${tarballName} into test apps...`);
+
+  // Install into MPA app
+  execSync(`pnpm add --save-dev "${tarballPath}"`, {
+    cwd: MPA_DIR,
+    stdio: "pipe",
+  });
+
+  // Install into SPA app
+  execSync(`pnpm add --save-dev "${tarballPath}"`, {
+    cwd: SPA_DIR,
+    stdio: "pipe",
+  });
+
+  console.log("Package installed in test apps");
 }
 
 /**
@@ -231,6 +260,7 @@ function killProcess(proc: ChildProcess | null): void {
  * - SKIP_BUILD=1: Skip copying tracker and building test apps (handled externally by CI)
  * - SKIP_SERVERS=1: Skip starting/stopping preview servers (handled externally by CI)
  * - COPY_TRACKER=1: Copy built tracker to test app directories before building
+ * - COPY_PACKAGE=1: Pack npm package and install tarball into test apps before building
  * - FORCE_BUILD=1: Force rebuild of test apps regardless of source hash
  */
 export default async function setup(): Promise<() => Promise<void>> {
@@ -244,6 +274,11 @@ export default async function setup(): Promise<() => Promise<void>> {
     // Copy tracker if requested (must happen BEFORE build so it's included in dist)
     if (process.env.COPY_TRACKER === "1") {
       copyTracker();
+    }
+
+    // Pack and install npm package if requested (must happen BEFORE build so Vite can bundle it)
+    if (process.env.COPY_PACKAGE === "1") {
+      copyPackage();
     }
 
     // Build apps if needed

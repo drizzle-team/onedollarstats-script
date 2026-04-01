@@ -1,30 +1,50 @@
 {
-  "name": "@unexpected/tracker",
+  "name": "onedollarstats",
+  "version": "0.0.17",
+  "description": "A lightweight, zero-dependency analytics tracker for frontend apps",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "type": "module",
   "scripts": {
-    "bundle": "npx esbuild ./src/index.ts --bundle --minify --format=iife --outfile=./build/stonks.js",
-    "bundle:test": "npx esbuild ./src/index.ts --bundle --format=cjs --outfile=./build/stonks.js",
+    "build": "tsc --emitDeclarationOnly && esbuild src/index.ts --bundle --outfile=dist/index.js --platform=browser --format=esm --target=es2020 --sourcemap",
+    "bundle": "esbuild src/script.ts --bundle --minify --format=iife --outfile=build/stonks.js",
+    "bundle:test": "esbuild src/script.ts --bundle --format=cjs --outfile=build/stonks.js",
     "test": "vitest run",
     "test:units": "vitest run --project 'Unit Tests'",
-    "test:e2e": "vitest run --project 'Integration Tests'",
-    "test:build&e2e": "pnpm bundle:test && FORCE_BUILD=1 COPY_TRACKER=1 vitest run --project 'Integration Tests'",
-    "test:all": "pnpm bundle:test && FORCE_BUILD=1 COPY_TRACKER=1 vitest run",
+    "test:e2e:script": "vitest run --project 'Script E2E Tests'",
+    "test:e2e:package": "vitest run --project 'Package E2E Tests'",
+    "test:e2e": "vitest run --project 'Script E2E Tests' --project 'Package E2E Tests'",
+    "test:build&e2e:script": "pnpm bundle:test && FORCE_BUILD=1 COPY_TRACKER=1 vitest run --project 'Script E2E Tests'",
+    "test:build&e2e:package": "pnpm build && FORCE_BUILD=1 COPY_PACKAGE=1 vitest run --project 'Package E2E Tests'",
+    "test:all": "pnpm bundle:test && pnpm build && FORCE_BUILD=1 COPY_TRACKER=1 COPY_PACKAGE=1 vitest run",
+    "prepublishOnly": "pnpm build",
     "prepare": "simple-git-hooks"
   },
-  "dependencies": {
-    "@fingerprintjs/fingerprintjs": "^4.4.1",
-    "jsdom": "^26.0.0",
-    "node-fetch": "^2.7.0",
-    "puppeteer": "^24.1.1",
-    "puppeteer-core": "^24.1.1",
-    "tsx": "^4.19.2",
-    "vitest": "^3.0.5",
-    "web-vitals": "^4.1.1"
-  },
+  "files": [
+    "dist"
+  ],
+  "keywords": [
+    "analytics",
+    "tracking",
+    "lightweight",
+    "zero-dependency",
+    "javascript",
+    "typescript",
+    "events",
+    "onedollarstats"
+  ],
+  "author": "",
+  "license": "MIT",
+  "packageManager": "pnpm@10.16.1",
   "devDependencies": {
     "@types/jsdom": "^27.0.0",
-    "esbuild": "^0.23.0",
+    "esbuild": "^0.25.10",
+    "jsdom": "^26.0.0",
+    "puppeteer": "^24.1.1",
     "simple-git-hooks": "^2.13.1",
-    "typescript": "^5.5.4"
+    "tsx": "^4.19.2",
+    "typescript": "^5.9.2",
+    "vitest": "^4.0.18"
   },
   "simple-git-hooks": {
     "pre-commit": "if [ \"$(git branch --show-current)\" = \"master\" ]; then pnpm bundle && pnpm test:all; fi"

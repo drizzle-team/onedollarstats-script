@@ -181,9 +181,11 @@ function detectLies() {
       }
       if (name.includes(".prototype.") && typeof val !== "function") {
         const parts = name.split(".");
-        const proto = safeProto(parts[0]);
+        const protoName = parts[0];
         const prop = parts[parts.length - 1];
-        if (proto) {
+        if (protoName && prop) {
+          const proto = safeProto(protoName);
+          if (!proto) continue;
           const d = Object.getOwnPropertyDescriptor(proto, prop);
           if (d?.get) {
             const gs = Function.prototype.toString.call(d.get);
@@ -238,121 +240,135 @@ function safeProto(name) {
   }
 }
 
-// src/utils/default-collector-url.ts
-var defaultCollectorUrl = "https://collector.onedollarstats.com/events";
+// src/utils/environment.ts
+var getEnvironment = () => ({
+  isLocalhost: /^localhost$|^127(\.[0-9]+){0,2}\.[0-9]+$|^\[::1?\]$/.test(location.hostname) && (location.protocol === "http:" || location.protocol === "https:") || location.protocol === "file:",
+  isHeadlessBrowser: Boolean(
+    window.navigator.webdriver || "_phantom" in window && window._phantom || "__nightmare" in window && window.__nightmare || "Cypress" in window && window.Cypress
+  )
+});
+
+// src/utils/merge-config.ts
+var defaultConfig = {
+  hostname: null,
+  devmode: false,
+  collectorUrl: "https://collector.onedollarstats.com/events",
+  hashRouting: false,
+  autocollect: true,
+  excludePages: [],
+  includePages: []
+};
 
 // src/utils/create-modal.ts
 var createDebugModal = (debugUrl, analyticsUrl) => {
-  const style = document.createElement("style");
-  style.textContent = `
-  .dev-modal {
-    position: fixed;
-    bottom: 20px;
-    right: 20px;
-    background: #f6f6f7;
-    color: #21272F;
-    padding: 14px;
-    border-radius: 8px;
-    max-width: 340px;
-    max-height: 180px;
-    overflow-y: none;
-    box-shadow: 0 5px 20px rgba(0,0,0,0.3);
-    font-family: sans-serif;
-    z-index: 99999;
-    animation: slideIn 0.3s ease-out;
+  if (!document.getElementById("onedollatstats-modal-styles")) {
+    const style = document.createElement("style");
+    style.id = "onedollatstats-modal-styles";
+    style.textContent = CSS;
+    document.head.appendChild(style);
   }
-
-  .dev-modal .title {
-    text-transform: uppercase;
-    font-size: 11px;
-    font-weight: 500;
-    margin: 0 0 6px 0;
-    letter-spacing: 0.5px;
-  }
-
-  .dev-modal p {
-    margin: 4px 0;
-    font-size: 14px;
-    display: flex;
-    align-items: flex-start;
-    gap: 4px;
-  }
-
-  .dev-modal .text {
-    word-break: break-word;
-  }
-
-  .dev-modal p svg {
-    flex-shrink: 0;
-    width: 18px;
-    height: 18px;
-    margin-top: 1px;
-  }
-
-  .dev-modal .close-btn {
-    position: absolute;
-    top: 2px;
-    right: 8px;
-    background: transparent;
-    border: none;
-    cursor: pointer;
-    font-size: 14px;
-    font-weight: bold;
-    color: #333;
-  }
-
-  @keyframes slideIn {
-    from {
-      opacity: 0;
-      transform: translateX(100%);
-    }
-    to {
-      opacity: 1;
-      transform: translateX(0);
-    }
-  }`;
-  document.head.appendChild(style);
   const modal = document.createElement("div");
   modal.className = "dev-modal";
   modal.innerHTML = `
-      <button class="close-btn">&times;</button>
-      <p class="title">
-        onedollarstats debug window
-      </p>
-      <p>
-       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="gray" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-info-icon lucide-info"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
-       <span class="text">${`Tracking localhost as ${debugUrl}`}</span>
-      </p>
-      <div id="event-log" style="max-height: 100px; overflow-y: auto;" />
-    `;
+    <button class="close-btn">&times;</button>
+    <p class="title">onedollarstats debug window</p>
+    <p>${icons.info}<span class="text">Tracking localhost as ${debugUrl}</span></p>
+    <div id="event-log" style="max-height: 100px; overflow-y: auto;"></div>
+  `;
   document.body.appendChild(modal);
   modal.querySelector(".close-btn")?.addEventListener("click", () => modal.remove(), { once: true });
-  window.__stonksModalLog = (message, success) => {
-    const logContainer = modal.querySelector("#event-log");
-    if (!logContainer) return;
-    const adBlockerWarning = modal.querySelector("#ad-blocker-warning");
-    if (adBlockerWarning) return;
-    const entry = document.createElement("p");
-    const iconSvg = success ? `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="green" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-check-icon lucide-circle-check"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>` : `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="red" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-x-icon lucide-circle-x"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg>`;
-    entry.innerHTML = `${iconSvg} <span class="text">${message}</span>`;
-    logContainer.appendChild(entry);
-    logContainer.scrollTop = logContainer.scrollHeight;
-  };
-  if (analyticsUrl === defaultCollectorUrl) {
+  if (analyticsUrl === defaultConfig.collectorUrl) {
     const img = new Image(1, 1);
     img.onerror = () => {
-      const titleEl = modal.querySelector(".title");
-      const adBlockWarning = document.createElement("p");
-      adBlockWarning.id = "ad-blocker-warning";
-      adBlockWarning.innerHTML = `
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="orange" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-triangle-alert-icon lucide-triangle-alert"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
-        <span class="text">Health check failed - ad blocker might be interfering.</span>`;
-      if (titleEl) titleEl.insertAdjacentElement("afterend", adBlockWarning);
-      else modal.appendChild(adBlockWarning);
+      if (modal.querySelector("#ad-blocker-warning")) return;
+      const warning = document.createElement("p");
+      warning.id = "ad-blocker-warning";
+      warning.innerHTML = `${icons.warning}<span class="text">Health check failed - ad blocker might be interfering.</span>`;
+      modal.querySelector(".title")?.insertAdjacentElement("afterend", warning);
     };
     img.src = "https://collector.onedollarstats.com/pixel-health";
   }
+  return (message, success) => {
+    const logContainer = modal.querySelector("#event-log");
+    if (!logContainer || modal.querySelector("#ad-blocker-warning")) return;
+    const entry = document.createElement("p");
+    entry.innerHTML = `${success ? icons.success : icons.error}<span class="text">${message}</span>`;
+    logContainer.appendChild(entry);
+    logContainer.scrollTop = logContainer.scrollHeight;
+  };
 };
+var icons = {
+  info: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="gray" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>`,
+  success: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="green" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>`,
+  error: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="red" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg>`,
+  warning: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="orange" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>`
+};
+var CSS = `
+  .dev-modal {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  background: #f6f6f7;
+  color: #21272F;
+  padding: 14px;
+  border-radius: 8px;
+  max-width: 340px;
+  max-height: 180px;
+  box-shadow: 0 5px 20px rgba(0,0,0,0.3);
+  font-family: sans-serif;
+  z-index: 99999;
+  animation: slideIn 0.3s ease-out;
+}
+
+.dev-modal .title {
+  text-transform: uppercase;
+  font-size: 11px;
+  font-weight: 500;
+  margin: 0 0 6px 0;
+  letter-spacing: 0.5px;
+}
+
+.dev-modal p {
+  margin: 4px 0;
+  font-size: 14px;
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.dev-modal .text {
+  word-break: break-word;
+}
+
+.dev-modal p svg {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+}
+
+.dev-modal .close-btn {
+  position: absolute;
+  top: 2px;
+  right: 8px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: bold;
+  color: #333;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}`;
 
 // src/utils/extract-hostname.ts
 var extractHostName = (script, isLocalhost) => {
@@ -411,20 +427,34 @@ function decodeAndTrim(value) {
 }
 
 // src/utils/props-parser.ts
-function parseProps(propsString) {
+var parseProps = (propsString) => {
   if (!propsString) return void 0;
   const splittedProps = propsString.split(";");
   const propsObj = {};
   for (const keyValueString of splittedProps) {
     const keyValuePair = keyValueString.split("=").map((el) => el.trim());
-    if (keyValuePair.length !== 2 || keyValuePair[0] === "" || keyValuePair[1] === "")
-      continue;
+    if (keyValuePair.length !== 2 || keyValuePair[0] === "" || keyValuePair[1] === "") continue;
     propsObj[keyValuePair[0]] = keyValuePair[1];
   }
   return Object.keys(propsObj).length === 0 ? void 0 : propsObj;
-}
+};
 
-// src/index.ts
+// src/utils/resolve-path.ts
+var resolvePath = (pathOrProps) => {
+  if (pathOrProps) return pathOrProps;
+  const sources = [
+    { value: document.body?.getAttribute("data-s-path"), name: "data-s-path" },
+    { value: document.body?.getAttribute("data-s:path"), name: "data-s:path" },
+    { value: document.querySelector('meta[name="stonks-path"]')?.getAttribute("content"), name: "meta[stonks-path]" }
+  ];
+  const existing = sources.filter(({ value }) => value);
+  if (existing.length > 1) {
+    console.warn("[onedollarstats] Multiple path sources found. Using priority order:", existing.map(({ name }) => name).join(" > "));
+  }
+  return existing[0]?.value ?? location.pathname;
+};
+
+// src/script.ts
 (() => {
   if (!document) {
     return;
@@ -436,13 +466,16 @@ function parseProps(propsString) {
   };
   const stonksScript = document.currentScript;
   const useHashRouting = stonksScript?.getAttribute("data-hash-routing") !== null;
-  const isLocalEnviroment = /^localhost$|^127(\.[0-9]+){0,2}\.[0-9]+$|^\[::1?\]$/.test(location.hostname) && // Protocol check prevents desktop app schemes 'tauri://localhost' being treated as localhost
-  (location.protocol === "http:" || location.protocol === "https:") || location.protocol === "file:";
-  if (isLocalEnviroment) {
-    const { hostname, devmode } = extractHostName(stonksScript, isLocalEnviroment);
+  const { isLocalhost: isLocalEnvironment } = getEnvironment();
+  if (isLocalEnvironment) {
+    const { hostname, devmode } = extractHostName(stonksScript, isLocalEnvironment);
     console.log(`[onedollarstats]
 Script successfully connected! ${hostname ? `Tracking your localhost as ${hostname}` : "Debug domain not set"}`);
-    if (devmode && hostname) createDebugModal(hostname, stonksScript?.getAttribute("data-url") || defaultCollectorUrl);
+    if (devmode && hostname) {
+      const analyticsUrl = stonksScript?.getAttribute("data-url") || defaultConfig.collectorUrl;
+      const modalLog = createDebugModal(hostname, analyticsUrl);
+      window.__stonksModalLog = modalLog;
+    }
   }
   async function sendWithBeaconOrFetch(analyticsUrl, stringifiedBody, callback) {
     if (navigator.sendBeacon?.(analyticsUrl, stringifiedBody)) {
@@ -460,11 +493,11 @@ Script successfully connected! ${hostname ? `Tracking your localhost as ${hostna
     });
   }
   async function send(data) {
-    const analyticsUrl = stonksScript?.getAttribute("data-url") || defaultCollectorUrl;
-    const { hostname, devmode } = extractHostName(stonksScript, isLocalEnviroment);
+    const analyticsUrl = stonksScript?.getAttribute("data-url") || defaultConfig.collectorUrl;
+    const { hostname, devmode } = extractHostName(stonksScript, isLocalEnvironment);
     const urlToSend = new URL(hostname ? `https://${hostname}${location.pathname}` : location.href);
     urlToSend.search = "";
-    if ("path" in data && data.path) {
+    if (data.path) {
       urlToSend.pathname = data.path;
     }
     const cleanUrl = urlToSend.href.replace(/\/$/, "");
@@ -484,7 +517,6 @@ Script successfully connected! ${hostname ? `Tracking your localhost as ${hostna
         {
           t: data.type,
           h: useHashRouting,
-          // ToDo: why we send hash routing
           r: referrer,
           p: data.props
         }
@@ -537,14 +569,8 @@ UTM: ${data.utm}`;
     } else if (typeof arg2 === "object") {
       options.props = arg2;
     }
-    let path = options?.path || void 0;
-    if (!path) {
-      const newPath = document.body?.getAttribute("data-s-path") || document.body?.getAttribute("data-s:path") || document.querySelector('meta[name="stonks-path"]')?.getAttribute("content");
-      if (newPath) {
-        path = newPath;
-      }
-    }
-    send({ type: name, props: options?.props, path });
+    const path = resolvePath(options?.path || void 0);
+    send({ type: name, props: options?.props, path: path !== location.pathname ? path : void 0 });
   }
   function handleTaggedElementClickEvent(clickEvent) {
     if (clickEvent.type === "auxclick" && clickEvent.button !== 1) return;
@@ -587,13 +613,8 @@ UTM: ${data.utm}`;
     if (checkBlock && shouldBlockEvent()) return;
     const urlParams = new URLSearchParams(location.search);
     const utm = parseUtmParams(urlParams);
-    let path = data?.path || void 0;
-    if (!path) {
-      const newPath = document.body?.getAttribute("data-s-path") || document.body?.getAttribute("data-s:path") || document.querySelector('meta[name="stonks-path"]')?.getAttribute("content");
-      if (newPath) {
-        path = newPath;
-      }
-    }
+    const path = resolvePath(data?.path || void 0);
+    const customPath = path !== location.pathname ? path : void 0;
     const pageViewProps = stonksScript?.getAttribute("data-props");
     const collectedProps = pageViewProps ? parseProps(pageViewProps) || {} : {};
     const elements = document.querySelectorAll(
@@ -616,7 +637,7 @@ UTM: ${data.utm}`;
     send({
       type: "PageView",
       props,
-      path,
+      path: customPath,
       utm
     });
   }
@@ -661,8 +682,8 @@ UTM: ${data.utm}`;
     );
   }
   function shouldBlockEvent() {
-    const { hostname, devmode } = extractHostName(stonksScript, isLocalEnviroment);
-    if (isLocalEnviroment && (!devmode || !hostname)) {
+    const { hostname, devmode } = extractHostName(stonksScript, isLocalEnvironment);
+    if (isLocalEnvironment && (!devmode || !hostname)) {
       return true;
     }
     const { isBot, botKind } = detectBot();

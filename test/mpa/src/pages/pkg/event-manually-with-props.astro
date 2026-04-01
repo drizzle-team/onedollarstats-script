@@ -1,0 +1,8 @@
+<head>
+  <script>
+    import { configure, event } from "onedollarstats";
+    configure({ hostname: "example.com", devmode: true, autocollect: false });
+    event("Event", { key1: "value1", key2: "value2" });
+  </script>
+</head>
+<body></body>

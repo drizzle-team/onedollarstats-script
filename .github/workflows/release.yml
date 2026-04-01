@@ -1,0 +1,98 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      # ── Setup ────────────────────────────────────────────────
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install MPA test app dependencies
+        run: pnpm install --frozen-lockfile
+        working-directory: test/mpa
+
+      - name: Install SPA test app dependencies
+        run: pnpm install --frozen-lockfile
+        working-directory: test/spa
+
+      # ── Build npm package ────────────────────────────────────
+      - name: Build npm package
+        run: pnpm build
+
+      # ── Pack and install into test apps ──────────────────────
+      - name: Pack and install npm package into test apps
+        run: |
+          TARBALL=$(pnpm pack | tail -1)
+          cd test/mpa && pnpm add --save-dev "$(cd ../.. && pwd)/$TARBALL" && cd ../..
+          cd test/spa && pnpm add --save-dev "$(cd ../.. && pwd)/$TARBALL" && cd ../..
+
+      # ── Build CDN script (needed for script E2E pages) ───────
+      - name: Build CDN script
+        run: pnpm bundle:test
+
+      - name: Copy tracker to test apps
+        run: |
+          mkdir -p test/mpa/public test/spa/static
+          cp build/stonks.js test/mpa/public/stonks.js
+          cp build/stonks.js test/spa/static/stonks.js
+
+      # ── Build test apps ──────────────────────────────────────
+      - name: Build MPA test app
+        run: pnpm build
+        working-directory: test/mpa
+
+      - name: Build SPA test app
+        run: pnpm build
+        working-directory: test/spa
+
+      # ── Run package E2E tests ────────────────────────────────
+      - name: Install Chromium for Puppeteer
+        run: npx puppeteer browsers install chrome
+
+      - name: Start servers and wait for readiness
+        run: |
+          (cd test/mpa && pnpm preview --host 0.0.0.0) &
+          (cd test/spa && pnpm preview --host 0.0.0.0) &
+
+          echo "Waiting for MPA server (port 4321)..."
+          timeout 30 bash -c 'until curl -sf http://127.0.0.1:4321 > /dev/null 2>&1; do sleep 1; done'
+          echo "MPA server is ready"
+
+          echo "Waiting for SPA server (port 5173)..."
+          timeout 30 bash -c 'until curl -s -o /dev/null http://127.0.0.1:5173 2>&1; do sleep 1; done'
+          echo "SPA server is ready"
+
+      - name: Run package E2E tests
+        run: pnpm test:e2e:package
+        env:
+          SKIP_BUILD: "1"
+          SKIP_SERVERS: "1"
+
+      # ── Publish to npm ───────────────────────────────────────
+      - name: Publish to npm
+        run: pnpm publish --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

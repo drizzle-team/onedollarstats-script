@@ -6,35 +6,27 @@ declare global {
     unexpected?: {
       q?: Event[];
     };
-    // window.stonks.event("click button");
-    // window.stonks.event("click button", {
-    //   key1: "props1",
-    // });
-    // window.stonks.event("click button", "/path", {
-    //   key1: "props1",
-    // });
-    // window.stonks.event("click button", "/path");
-    trackCustomEvent: (name: string, data: Record<string, string>) => Promise<void>;
-    trackPageViewEvent: (data: Record<string, string>) => Promise<void>;
     stonks: {
       event: (name: string, arg2?: Record<string, string> | string, props?: Record<string, string>) => Promise<void>;
       view: (arg1?: string | Record<string, string>, arg2?: Record<string, string>) => Promise<void>;
     };
-    __stonksModalLog?: (message: string, success?: boolean) => void;
+    __stonksModalLog?: (message: string, success: boolean) => void;
   }
 }
 
+export type BaseProps = Record<string, string>;
+
 export type ViewArguments = {
   path?: string;
-  props?: Record<string, string>;
+  props?: BaseProps;
 };
 
 export type Event = {
   type: string;
-  props?: Record<string, string>;
-  referrer?: string;
   path?: string;
+  props?: BaseProps;
   utm?: Record<string, string>;
+  referrer?: string;
 };
 
 // Short notations
@@ -45,16 +37,49 @@ export type Event = {
 // p: properties
 // e: events
 // qs: utm params
-export type MinimizedEvent = {
+type MinimizedEvent = {
   t: string;
-  h?: boolean | undefined; // ToDo: how hash works
-  r?: string | undefined;
-  p?: Record<string, string>;
+  h?: boolean;
+  r?: string;
+  p?: BaseProps;
 };
 
 export type BodyToSend = {
   u: string;
-  debug?: boolean;
   e: [MinimizedEvent];
   qs?: Record<string, string>;
+  debug?: boolean;
+};
+
+type BaseAnalyticsConfig = {
+  collectorUrl?: string;
+
+  /**
+   * @deprecated Use `devmode` and `hostname` instead.
+   */
+  trackLocalhostAs?: string | null;
+
+  hashRouting?: boolean;
+  autocollect?: boolean;
+  excludePages?: string[];
+  includePages?: string[];
+};
+
+// devmode = true -> hostname REQUIRED
+type DevModeConfig = BaseAnalyticsConfig & {
+  devmode: true;
+  hostname: string;
+};
+
+// devmode = false or undefined -> hostname optional
+type ProdModeConfig = BaseAnalyticsConfig & {
+  devmode?: false;
+  hostname?: string | null;
+};
+
+export type AnalyticsConfig = DevModeConfig | ProdModeConfig;
+
+export type InternalAnalyticsConfig = Required<Omit<BaseAnalyticsConfig, "trackLocalhostAs">> & {
+  devmode: boolean;
+  hostname: string | null;
 };

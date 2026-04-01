@@ -1,698 +1,78 @@
-"use strict";
-
-// src/utils/bot.ts
-var BOT_PATTERNS = [
-  // Search engines
-  { pattern: /Googlebot/i, kind: "search_engine", name: "Googlebot" },
-  { pattern: /Google-InspectionTool/i, kind: "search_engine", name: "Googlebot" },
-  { pattern: /Storebot-Google/i, kind: "search_engine", name: "Googlebot" },
-  { pattern: /AdsBot-Google/i, kind: "search_engine", name: "Google Ads" },
-  { pattern: /Mediapartners-Google/i, kind: "search_engine", name: "Google Adsense" },
-  { pattern: /bingbot/i, kind: "search_engine", name: "Bingbot" },
-  { pattern: /msnbot/i, kind: "search_engine", name: "MSNBot" },
-  { pattern: /YandexBot/i, kind: "search_engine", name: "YandexBot" },
-  { pattern: /YandexAccessibilityBot/i, kind: "search_engine", name: "YandexBot" },
-  { pattern: /Baiduspider/i, kind: "search_engine", name: "Baidu" },
-  { pattern: /DuckDuckBot/i, kind: "search_engine", name: "DuckDuckBot" },
-  { pattern: /Sogou/i, kind: "search_engine", name: "Sogou" },
-  { pattern: /Exabot/i, kind: "search_engine", name: "Exabot" },
-  { pattern: /ia_archiver/i, kind: "search_engine", name: "Alexa" },
-  { pattern: /SemrushBot/i, kind: "search_engine", name: "SemrushBot" },
-  { pattern: /AhrefsBot/i, kind: "search_engine", name: "AhrefsBot" },
-  { pattern: /MJ12bot/i, kind: "search_engine", name: "MJ12bot" },
-  { pattern: /DotBot/i, kind: "search_engine", name: "DotBot" },
-  { pattern: /PetalBot/i, kind: "search_engine", name: "PetalBot" },
-  { pattern: /Applebot/i, kind: "search_engine", name: "Applebot" },
-  { pattern: /GPTBot/i, kind: "search_engine", name: "GPTBot" },
-  { pattern: /ChatGPT-User/i, kind: "search_engine", name: "ChatGPT" },
-  { pattern: /ClaudeBot/i, kind: "search_engine", name: "ClaudeBot" },
-  { pattern: /CCBot/i, kind: "search_engine", name: "Common Crawl" },
-  { pattern: /anthropic-ai/i, kind: "search_engine", name: "Anthropic" },
-  { pattern: /PerplexityBot/i, kind: "search_engine", name: "PerplexityBot" },
-  // Social crawlers
-  { pattern: /facebookexternalhit/i, kind: "social_crawler", name: "Facebook" },
-  { pattern: /Facebot/i, kind: "social_crawler", name: "Facebook" },
-  { pattern: /Twitterbot/i, kind: "social_crawler", name: "Twitter" },
-  { pattern: /LinkedInBot/i, kind: "social_crawler", name: "LinkedIn" },
-  { pattern: /Slackbot/i, kind: "social_crawler", name: "Slack" },
-  { pattern: /Discordbot/i, kind: "social_crawler", name: "Discord" },
-  { pattern: /TelegramBot/i, kind: "social_crawler", name: "Telegram" },
-  { pattern: /WhatsApp/i, kind: "social_crawler", name: "WhatsApp" },
-  { pattern: /Pinterestbot/i, kind: "social_crawler", name: "Pinterest" },
-  { pattern: /Snapchat/i, kind: "social_crawler", name: "Snapchat" },
-  // Headless / automation
-  { pattern: /HeadlessChrome/i, kind: "headless", name: "Headless Chrome" },
-  { pattern: /PhantomJS/i, kind: "headless", name: "PhantomJS" },
-  { pattern: /Selenium/i, kind: "automation", name: "Selenium" },
-  { pattern: /Puppeteer/i, kind: "automation", name: "Puppeteer" },
-  // HTTP libraries
-  { pattern: /curl\//i, kind: "library", name: "curl" },
-  { pattern: /Wget\//i, kind: "library", name: "Wget" },
-  { pattern: /python-requests/i, kind: "library", name: "Python Requests" },
-  { pattern: /python-urllib/i, kind: "library", name: "Python urllib" },
-  { pattern: /node-fetch/i, kind: "library", name: "node-fetch" },
-  { pattern: /axios\//i, kind: "library", name: "Axios" },
-  { pattern: /Go-http-client/i, kind: "library", name: "Go HTTP" },
-  { pattern: /Java\//i, kind: "library", name: "Java HTTP" },
-  { pattern: /libwww-perl/i, kind: "library", name: "Perl LWP" },
-  { pattern: /Apache-HttpClient/i, kind: "library", name: "Apache HttpClient" },
-  { pattern: /okhttp/i, kind: "library", name: "OkHttp" },
-  { pattern: /Scrapy/i, kind: "library", name: "Scrapy" },
-  // Generic catch-all (must be last)
-  { pattern: /bot|crawl|spider|slurp|fetch|archiver/i, kind: "unknown_bot", name: "generic" }
-];
-var AUTOMATION_GLOBALS = [
-  // Selenium
-  "__selenium_unwrapped",
-  "__selenium_evaluate",
-  "__webdriver_evaluate",
-  "__webdriver_script_fn",
-  "__webdriver_script_func",
-  "__webdriver_script_function",
-  "__fxdriver_evaluate",
-  "__fxdriver_unwrapped",
-  "_Selenium_IDE_Recorder",
-  // Puppeteer / CDP
-  "__puppeteer_evaluation_script__",
-  // PhantomJS
-  "callPhantom",
-  "_phantom",
-  "phantom",
-  // Nightmare.js
-  "__nightmare",
-  // Playwright (injects page.exposeFunction bindings)
-  "__playwright",
-  "__pw_manual",
-  // CasperJS
-  "__casper",
-  // TestCafe
-  "__testcafe",
-  // WebDriver (generic)
-  "webdriver",
-  "domAutomation",
-  "domAutomationController"
-];
-function detectBot() {
-  const signals = collectBotSignals();
-  const isBot = signals.userAgentBot !== null || signals.webdriver || signals.headless || signals.automationGlobals.length > 0 || signals.liesDetected > 2 || signals.liesDetected > 0 && signals.hasProxy;
-  let botKind = "human";
-  if (isBot) {
-    if (signals.userAgentBot !== null) {
-      const ua = navigator.userAgent || "";
-      const match = BOT_PATTERNS.find((p) => p.pattern.test(ua));
-      botKind = match?.kind ?? "unknown_bot";
-    } else if (signals.headless) {
-      botKind = "headless";
-    } else if (signals.webdriver || signals.automationGlobals.length > 0) {
-      botKind = "automation";
-    } else {
-      botKind = "unknown_bot";
-    }
-  }
-  return { isBot, botKind, signals };
-}
-function collectBotSignals() {
-  return {
-    userAgentBot: detectUserAgentBot(),
-    webdriver: detectWebdriver(),
-    headless: detectHeadless(),
-    automationGlobals: detectAutomationGlobals(),
-    ...detectLies(),
-    missingLanguages: detectMissingLanguages(),
-    missingPlugins: detectMissingPlugins()
-  };
-}
-function detectUserAgentBot() {
-  const ua = navigator.userAgent || "";
-  if (!ua) return "empty-ua";
-  for (const { pattern, name } of BOT_PATTERNS) {
-    if (pattern.test(ua)) return name;
-  }
-  return null;
-}
-function detectWebdriver() {
-  return !!navigator.webdriver;
-}
-function detectHeadless() {
-  const w = window;
-  const n = navigator;
-  if (/Chrome/.test(n.userAgent) && !w.chrome) return true;
-  if (/HeadlessChrome/.test(n.userAgent)) return true;
-  try {
-    if (Notification.permission === "denied" && n.permissions) {
-      if ((!n.plugins || n.plugins.length === 0) && !/Mobile|Android/i.test(n.userAgent)) {
-        return true;
-      }
-    }
-  } catch {
-  }
-  return false;
-}
-function detectAutomationGlobals() {
-  const w = window;
-  return AUTOMATION_GLOBALS.filter((key) => {
-    try {
-      return key in w && w[key] !== void 0;
-    } catch {
-      return false;
-    }
-  });
-}
-function detectLies() {
-  let liesDetected = 0;
-  let hasProxy = false;
-  const apisToTest = [
-    ["Navigator.prototype.userAgent", () => desc(Navigator.prototype, "userAgent")],
-    ["Navigator.prototype.languages", () => desc(Navigator.prototype, "languages")],
-    ["Navigator.prototype.platform", () => desc(Navigator.prototype, "platform")],
-    ["Navigator.prototype.hardwareConcurrency", () => desc(Navigator.prototype, "hardwareConcurrency")],
-    ["Navigator.prototype.webdriver", () => desc(Navigator.prototype, "webdriver")],
-    ["HTMLCanvasElement.prototype.toDataURL", () => HTMLCanvasElement.prototype.toDataURL],
-    ["CanvasRenderingContext2D.prototype.fillText", () => CanvasRenderingContext2D.prototype.fillText],
-    ["Date.prototype.getTimezoneOffset", () => Date.prototype.getTimezoneOffset]
-  ];
-  for (const [name, accessor] of apisToTest) {
-    try {
-      const val = accessor();
-      if (val === void 0 || val === null) continue;
-      if (typeof val === "function") {
-        const str = Function.prototype.toString.call(val);
-        if (!isNativeToString(str)) liesDetected++;
-      }
-      if (name.includes(".prototype.") && typeof val !== "function") {
-        const parts = name.split(".");
-        const proto = safeProto(parts[0]);
-        const prop = parts[parts.length - 1];
-        if (proto) {
-          const d = Object.getOwnPropertyDescriptor(proto, prop);
-          if (d?.get) {
-            const gs = Function.prototype.toString.call(d.get);
-            if (!isNativeToString(gs)) liesDetected++;
-          }
-        }
-      }
-      if (typeof val === "function") {
-        if (val.toString !== Function.prototype.toString) {
-          try {
-            const native = Function.prototype.toString.call(val);
-            const custom = val.toString();
-            if (native !== custom) {
-              liesDetected++;
-              hasProxy = true;
-            }
-          } catch {
-            liesDetected++;
-            hasProxy = true;
-          }
-        }
-      }
-    } catch {
-    }
-  }
-  try {
-    const s = Function.prototype.toString.call(Function.prototype.toString);
-    if (!isNativeToString(s)) liesDetected++;
-  } catch {
-  }
-  return { liesDetected, hasProxy };
-}
-function detectMissingLanguages() {
-  const langs = navigator.languages;
-  return !langs || langs.length === 0;
-}
-function detectMissingPlugins() {
-  if (/Mobile|Android/i.test(navigator.userAgent)) return false;
-  return !navigator.plugins || navigator.plugins.length === 0;
-}
-function isNativeToString(str) {
-  return /^function\s[^{]*\{\s*\[native code\]\s*\}$/.test(str) || str === "function () { [native code] }" || /^\(\)\s*=>\s*\{\s*\[native code\]\s*\}$/.test(str);
-}
-function desc(proto, prop) {
-  return Object.getOwnPropertyDescriptor(proto, prop);
-}
-function safeProto(name) {
-  try {
-    return window[name]?.prototype ?? null;
-  } catch {
-    return null;
-  }
-}
-
-// src/utils/default-collector-url.ts
-var defaultCollectorUrl = "https://collector.onedollarstats.com/events";
-
-// src/utils/create-modal.ts
-var createDebugModal = (debugUrl, analyticsUrl) => {
-  const style = document.createElement("style");
-  style.textContent = `
+"use strict";(()=>{var O=[{pattern:/Googlebot/i,kind:"search_engine",name:"Googlebot"},{pattern:/Google-InspectionTool/i,kind:"search_engine",name:"Googlebot"},{pattern:/Storebot-Google/i,kind:"search_engine",name:"Googlebot"},{pattern:/AdsBot-Google/i,kind:"search_engine",name:"Google Ads"},{pattern:/Mediapartners-Google/i,kind:"search_engine",name:"Google Adsense"},{pattern:/bingbot/i,kind:"search_engine",name:"Bingbot"},{pattern:/msnbot/i,kind:"search_engine",name:"MSNBot"},{pattern:/YandexBot/i,kind:"search_engine",name:"YandexBot"},{pattern:/YandexAccessibilityBot/i,kind:"search_engine",name:"YandexBot"},{pattern:/Baiduspider/i,kind:"search_engine",name:"Baidu"},{pattern:/DuckDuckBot/i,kind:"search_engine",name:"DuckDuckBot"},{pattern:/Sogou/i,kind:"search_engine",name:"Sogou"},{pattern:/Exabot/i,kind:"search_engine",name:"Exabot"},{pattern:/ia_archiver/i,kind:"search_engine",name:"Alexa"},{pattern:/SemrushBot/i,kind:"search_engine",name:"SemrushBot"},{pattern:/AhrefsBot/i,kind:"search_engine",name:"AhrefsBot"},{pattern:/MJ12bot/i,kind:"search_engine",name:"MJ12bot"},{pattern:/DotBot/i,kind:"search_engine",name:"DotBot"},{pattern:/PetalBot/i,kind:"search_engine",name:"PetalBot"},{pattern:/Applebot/i,kind:"search_engine",name:"Applebot"},{pattern:/GPTBot/i,kind:"search_engine",name:"GPTBot"},{pattern:/ChatGPT-User/i,kind:"search_engine",name:"ChatGPT"},{pattern:/ClaudeBot/i,kind:"search_engine",name:"ClaudeBot"},{pattern:/CCBot/i,kind:"search_engine",name:"Common Crawl"},{pattern:/anthropic-ai/i,kind:"search_engine",name:"Anthropic"},{pattern:/PerplexityBot/i,kind:"search_engine",name:"PerplexityBot"},{pattern:/facebookexternalhit/i,kind:"social_crawler",name:"Facebook"},{pattern:/Facebot/i,kind:"social_crawler",name:"Facebook"},{pattern:/Twitterbot/i,kind:"social_crawler",name:"Twitter"},{pattern:/LinkedInBot/i,kind:"social_crawler",name:"LinkedIn"},{pattern:/Slackbot/i,kind:"social_crawler",name:"Slack"},{pattern:/Discordbot/i,kind:"social_crawler",name:"Discord"},{pattern:/TelegramBot/i,kind:"social_crawler",name:"Telegram"},{pattern:/WhatsApp/i,kind:"social_crawler",name:"WhatsApp"},{pattern:/Pinterestbot/i,kind:"social_crawler",name:"Pinterest"},{pattern:/Snapchat/i,kind:"social_crawler",name:"Snapchat"},{pattern:/HeadlessChrome/i,kind:"headless",name:"Headless Chrome"},{pattern:/PhantomJS/i,kind:"headless",name:"PhantomJS"},{pattern:/Selenium/i,kind:"automation",name:"Selenium"},{pattern:/Puppeteer/i,kind:"automation",name:"Puppeteer"},{pattern:/curl\//i,kind:"library",name:"curl"},{pattern:/Wget\//i,kind:"library",name:"Wget"},{pattern:/python-requests/i,kind:"library",name:"Python Requests"},{pattern:/python-urllib/i,kind:"library",name:"Python urllib"},{pattern:/node-fetch/i,kind:"library",name:"node-fetch"},{pattern:/axios\//i,kind:"library",name:"Axios"},{pattern:/Go-http-client/i,kind:"library",name:"Go HTTP"},{pattern:/Java\//i,kind:"library",name:"Java HTTP"},{pattern:/libwww-perl/i,kind:"library",name:"Perl LWP"},{pattern:/Apache-HttpClient/i,kind:"library",name:"Apache HttpClient"},{pattern:/okhttp/i,kind:"library",name:"OkHttp"},{pattern:/Scrapy/i,kind:"library",name:"Scrapy"},{pattern:/bot|crawl|spider|slurp|fetch|archiver/i,kind:"unknown_bot",name:"generic"}],U=["__selenium_unwrapped","__selenium_evaluate","__webdriver_evaluate","__webdriver_script_fn","__webdriver_script_func","__webdriver_script_function","__fxdriver_evaluate","__fxdriver_unwrapped","_Selenium_IDE_Recorder","__puppeteer_evaluation_script__","callPhantom","_phantom","phantom","__nightmare","__playwright","__pw_manual","__casper","__testcafe","webdriver","domAutomation","domAutomationController"];function $(){let e=N(),t=e.userAgentBot!==null||e.webdriver||e.headless||e.automationGlobals.length>0||e.liesDetected>2||e.liesDetected>0&&e.hasProxy,o="human";if(t)if(e.userAgentBot!==null){let r=navigator.userAgent||"";o=O.find(i=>i.pattern.test(r))?.kind??"unknown_bot"}else e.headless?o="headless":e.webdriver||e.automationGlobals.length>0?o="automation":o="unknown_bot";return{isBot:t,botKind:o,signals:e}}function N(){return{userAgentBot:I(),webdriver:q(),headless:F(),automationGlobals:V(),...J(),missingLanguages:z(),missingPlugins:K()}}function I(){let e=navigator.userAgent||"";if(!e)return"empty-ua";for(let{pattern:t,name:o}of O)if(t.test(e))return o;return null}function q(){return!!navigator.webdriver}function F(){let e=window,t=navigator;if(/Chrome/.test(t.userAgent)&&!e.chrome||/HeadlessChrome/.test(t.userAgent))return!0;try{if(Notification.permission==="denied"&&t.permissions&&(!t.plugins||t.plugins.length===0)&&!/Mobile|Android/i.test(t.userAgent))return!0}catch{}return!1}function V(){let e=window;return U.filter(t=>{try{return t in e&&e[t]!==void 0}catch{return!1}})}function J(){let e=0,t=!1,o=[["Navigator.prototype.userAgent",()=>x(Navigator.prototype,"userAgent")],["Navigator.prototype.languages",()=>x(Navigator.prototype,"languages")],["Navigator.prototype.platform",()=>x(Navigator.prototype,"platform")],["Navigator.prototype.hardwareConcurrency",()=>x(Navigator.prototype,"hardwareConcurrency")],["Navigator.prototype.webdriver",()=>x(Navigator.prototype,"webdriver")],["HTMLCanvasElement.prototype.toDataURL",()=>HTMLCanvasElement.prototype.toDataURL],["CanvasRenderingContext2D.prototype.fillText",()=>CanvasRenderingContext2D.prototype.fillText],["Date.prototype.getTimezoneOffset",()=>Date.prototype.getTimezoneOffset]];for(let[r,c]of o)try{let i=c();if(i==null)continue;if(typeof i=="function"){let p=Function.prototype.toString.call(i);E(p)||e++}if(r.includes(".prototype.")&&typeof i!="function"){let p=r.split("."),f=p[0],P=p[p.length-1];if(f&&P){let k=W(f);if(!k)continue;let v=Object.getOwnPropertyDescriptor(k,P);if(v?.get){let _=Function.prototype.toString.call(v.get);E(_)||e++}}}if(typeof i=="function"&&i.toString!==Function.prototype.toString)try{let p=Function.prototype.toString.call(i),f=i.toString();p!==f&&(e++,t=!0)}catch{e++,t=!0}}catch{}try{let r=Function.prototype.toString.call(Function.prototype.toString);E(r)||e++}catch{}return{liesDetected:e,hasProxy:t}}function z(){let e=navigator.languages;return!e||e.length===0}function K(){return/Mobile|Android/i.test(navigator.userAgent)?!1:!navigator.plugins||navigator.plugins.length===0}function E(e){return/^function\s[^{]*\{\s*\[native code\]\s*\}$/.test(e)||e==="function () { [native code] }"||/^\(\)\s*=>\s*\{\s*\[native code\]\s*\}$/.test(e)}function x(e,t){return Object.getOwnPropertyDescriptor(e,t)}function W(e){try{return window[e]?.prototype??null}catch{return null}}var R=()=>({isLocalhost:/^localhost$|^127(\.[0-9]+){0,2}\.[0-9]+$|^\[::1?\]$/.test(location.hostname)&&(location.protocol==="http:"||location.protocol==="https:")||location.protocol==="file:",isHeadlessBrowser:!!(window.navigator.webdriver||"_phantom"in window&&window._phantom||"__nightmare"in window&&window.__nightmare||"Cypress"in window&&window.Cypress)});var B={hostname:null,devmode:!1,collectorUrl:"https://collector.onedollarstats.com/events",hashRouting:!1,autocollect:!0,excludePages:[],includePages:[]};var G=(e,t)=>{if(!document.getElementById("onedollatstats-modal-styles")){let r=document.createElement("style");r.id="onedollatstats-modal-styles",r.textContent=Y,document.head.appendChild(r)}let o=document.createElement("div");if(o.className="dev-modal",o.innerHTML=`
+    <button class="close-btn">&times;</button>
+    <p class="title">onedollarstats debug window</p>
+    <p>${T.info}<span class="text">Tracking localhost as ${e}</span></p>
+    <div id="event-log" style="max-height: 100px; overflow-y: auto;"></div>
+  `,document.body.appendChild(o),o.querySelector(".close-btn")?.addEventListener("click",()=>o.remove(),{once:!0}),t===B.collectorUrl){let r=new Image(1,1);r.onerror=()=>{if(o.querySelector("#ad-blocker-warning"))return;let c=document.createElement("p");c.id="ad-blocker-warning",c.innerHTML=`${T.warning}<span class="text">Health check failed - ad blocker might be interfering.</span>`,o.querySelector(".title")?.insertAdjacentElement("afterend",c)},r.src="https://collector.onedollarstats.com/pixel-health"}return(r,c)=>{let i=o.querySelector("#event-log");if(!i||o.querySelector("#ad-blocker-warning"))return;let p=document.createElement("p");p.innerHTML=`${c?T.success:T.error}<span class="text">${r}</span>`,i.appendChild(p),i.scrollTop=i.scrollHeight}},T={info:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="gray" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>',success:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="green" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>',error:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="red" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg>',warning:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="orange" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>'},Y=`
   .dev-modal {
-    position: fixed;
-    bottom: 20px;
-    right: 20px;
-    background: #f6f6f7;
-    color: #21272F;
-    padding: 14px;
-    border-radius: 8px;
-    max-width: 340px;
-    max-height: 180px;
-    overflow-y: none;
-    box-shadow: 0 5px 20px rgba(0,0,0,0.3);
-    font-family: sans-serif;
-    z-index: 99999;
-    animation: slideIn 0.3s ease-out;
-  }
-
-  .dev-modal .title {
-    text-transform: uppercase;
-    font-size: 11px;
-    font-weight: 500;
-    margin: 0 0 6px 0;
-    letter-spacing: 0.5px;
-  }
-
-  .dev-modal p {
-    margin: 4px 0;
-    font-size: 14px;
-    display: flex;
-    align-items: flex-start;
-    gap: 4px;
-  }
-
-  .dev-modal .text {
-    word-break: break-word;
-  }
-
-  .dev-modal p svg {
-    flex-shrink: 0;
-    width: 18px;
-    height: 18px;
-    margin-top: 1px;
-  }
-
-  .dev-modal .close-btn {
-    position: absolute;
-    top: 2px;
-    right: 8px;
-    background: transparent;
-    border: none;
-    cursor: pointer;
-    font-size: 14px;
-    font-weight: bold;
-    color: #333;
-  }
-
-  @keyframes slideIn {
-    from {
-      opacity: 0;
-      transform: translateX(100%);
-    }
-    to {
-      opacity: 1;
-      transform: translateX(0);
-    }
-  }`;
-  document.head.appendChild(style);
-  const modal = document.createElement("div");
-  modal.className = "dev-modal";
-  modal.innerHTML = `
-      <button class="close-btn">&times;</button>
-      <p class="title">
-        onedollarstats debug window
-      </p>
-      <p>
-       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="gray" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-info-icon lucide-info"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
-       <span class="text">${`Tracking localhost as ${debugUrl}`}</span>
-      </p>
-      <div id="event-log" style="max-height: 100px; overflow-y: auto;" />
-    `;
-  document.body.appendChild(modal);
-  modal.querySelector(".close-btn")?.addEventListener("click", () => modal.remove(), { once: true });
-  window.__stonksModalLog = (message, success) => {
-    const logContainer = modal.querySelector("#event-log");
-    if (!logContainer) return;
-    const adBlockerWarning = modal.querySelector("#ad-blocker-warning");
-    if (adBlockerWarning) return;
-    const entry = document.createElement("p");
-    const iconSvg = success ? `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="green" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-check-icon lucide-circle-check"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>` : `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="red" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-x-icon lucide-circle-x"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg>`;
-    entry.innerHTML = `${iconSvg} <span class="text">${message}</span>`;
-    logContainer.appendChild(entry);
-    logContainer.scrollTop = logContainer.scrollHeight;
-  };
-  if (analyticsUrl === defaultCollectorUrl) {
-    const img = new Image(1, 1);
-    img.onerror = () => {
-      const titleEl = modal.querySelector(".title");
-      const adBlockWarning = document.createElement("p");
-      adBlockWarning.id = "ad-blocker-warning";
-      adBlockWarning.innerHTML = `
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="orange" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-triangle-alert-icon lucide-triangle-alert"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
-        <span class="text">Health check failed - ad blocker might be interfering.</span>`;
-      if (titleEl) titleEl.insertAdjacentElement("afterend", adBlockWarning);
-      else modal.appendChild(adBlockWarning);
-    };
-    img.src = "https://collector.onedollarstats.com/pixel-health";
-  }
-};
-
-// src/utils/extract-hostname.ts
-var extractHostName = (script, isLocalhost) => {
-  const debugAttr = script.getAttribute("data-debug");
-  const hostnameAttr = script.getAttribute("data-hostname");
-  const devmodeAttr = script.getAttribute("data-devmode");
-  let devmode;
-  if (!isLocalhost) {
-    devmode = false;
-  } else if (devmodeAttr !== null) {
-    const normalized = devmodeAttr.toLowerCase().trim();
-    devmode = normalized === "" || normalized === "true" || normalized === "1";
-  } else if (debugAttr !== null) {
-    devmode = true;
-  } else {
-    devmode = false;
-  }
-  let hostname;
-  if (hostnameAttr !== null) {
-    const trimmed = hostnameAttr.trim();
-    hostname = trimmed || null;
-  } else if (devmode && debugAttr !== null) {
-    hostname = debugAttr;
-  } else {
-    hostname = null;
-  }
-  return { hostname, devmode };
-};
-
-// src/utils/parse-utm-params.ts
-function parseUtmParams(urlSearchParams) {
-  const utm = {};
-  const keys = ["utm_campaign", "utm_source", "utm_medium", "utm_term", "utm_content"];
-  for (const key of keys) {
-    const raw = urlSearchParams.get(key);
-    if (!raw) continue;
-    const decoded = decodeAndTrim(raw);
-    if (decoded) {
-      utm[key] = decoded;
-    }
-  }
-  return utm;
-}
-function decodeAndTrim(value) {
-  let decoded = value;
-  let previous = "";
-  while (decoded !== previous) {
-    previous = decoded;
-    try {
-      decoded = decodeURIComponent(decoded);
-    } catch {
-      return decoded.trim();
-    }
-  }
-  return decoded.trim();
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  background: #f6f6f7;
+  color: #21272F;
+  padding: 14px;
+  border-radius: 8px;
+  max-width: 340px;
+  max-height: 180px;
+  box-shadow: 0 5px 20px rgba(0,0,0,0.3);
+  font-family: sans-serif;
+  z-index: 99999;
+  animation: slideIn 0.3s ease-out;
 }
 
-// src/utils/props-parser.ts
-function parseProps(propsString) {
-  if (!propsString) return void 0;
-  const splittedProps = propsString.split(";");
-  const propsObj = {};
-  for (const keyValueString of splittedProps) {
-    const keyValuePair = keyValueString.split("=").map((el) => el.trim());
-    if (keyValuePair.length !== 2 || keyValuePair[0] === "" || keyValuePair[1] === "")
-      continue;
-    propsObj[keyValuePair[0]] = keyValuePair[1];
-  }
-  return Object.keys(propsObj).length === 0 ? void 0 : propsObj;
+.dev-modal .title {
+  text-transform: uppercase;
+  font-size: 11px;
+  font-weight: 500;
+  margin: 0 0 6px 0;
+  letter-spacing: 0.5px;
 }
 
-// src/index.ts
-(() => {
-  if (!document) {
-    return;
+.dev-modal p {
+  margin: 4px 0;
+  font-size: 14px;
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.dev-modal .text {
+  word-break: break-word;
+}
+
+.dev-modal p svg {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+}
+
+.dev-modal .close-btn {
+  position: absolute;
+  top: 2px;
+  right: 8px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: bold;
+  color: #333;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(100%);
   }
-  let lastPage = null;
-  window.stonks = {
-    event,
-    view
-  };
-  const stonksScript = document.currentScript;
-  const useHashRouting = stonksScript?.getAttribute("data-hash-routing") !== null;
-  const isLocalEnviroment = /^localhost$|^127(\.[0-9]+){0,2}\.[0-9]+$|^\[::1?\]$/.test(location.hostname) && // Protocol check prevents desktop app schemes 'tauri://localhost' being treated as localhost
-  (location.protocol === "http:" || location.protocol === "https:") || location.protocol === "file:";
-  if (isLocalEnviroment) {
-    const { hostname, devmode } = extractHostName(stonksScript, isLocalEnviroment);
-    console.log(`[onedollarstats]
-Script successfully connected! ${hostname ? `Tracking your localhost as ${hostname}` : "Debug domain not set"}`);
-    if (devmode && hostname) createDebugModal(hostname, stonksScript?.getAttribute("data-url") || defaultCollectorUrl);
+  to {
+    opacity: 1;
+    transform: translateX(0);
   }
-  async function sendWithBeaconOrFetch(analyticsUrl, stringifiedBody, callback) {
-    if (navigator.sendBeacon?.(analyticsUrl, stringifiedBody)) {
-      callback(true);
-      return;
-    }
-    fetch(analyticsUrl, {
-      method: "POST",
-      body: stringifiedBody,
-      headers: { "Content-Type": "application/json" },
-      keepalive: true
-    }).then(() => callback(true)).catch((err) => {
-      console.error("[onedollarstats] fetch() failed:", err.message);
-      callback(false);
-    });
-  }
-  async function send(data) {
-    const analyticsUrl = stonksScript?.getAttribute("data-url") || defaultCollectorUrl;
-    const { hostname, devmode } = extractHostName(stonksScript, isLocalEnviroment);
-    const urlToSend = new URL(hostname ? `https://${hostname}${location.pathname}` : location.href);
-    urlToSend.search = "";
-    if ("path" in data && data.path) {
-      urlToSend.pathname = data.path;
-    }
-    const cleanUrl = urlToSend.href.replace(/\/$/, "");
-    let referrer = data.referrer ?? void 0;
-    if (!referrer) {
-      const docReferrer = document.referrer && document.referrer !== "null" ? document.referrer : void 0;
-      if (docReferrer) {
-        const referrerURL = new URL(docReferrer);
-        if (referrerURL.hostname !== urlToSend.hostname) {
-          referrer = referrerURL.href;
-        }
-      }
-    }
-    const body = {
-      u: cleanUrl,
-      e: [
-        {
-          t: data.type,
-          h: useHashRouting,
-          // ToDo: why we send hash routing
-          r: referrer,
-          p: data.props
-        }
-      ],
-      debug: devmode
-    };
-    if (data.utm && Object.keys(data.utm).length > 0) {
-      body.qs = data.utm;
-    }
-    if (body.debug) {
-      let logMessage = `[onedollarstats]
-Event name: ${data.type}
-Event collected from: ${cleanUrl}`;
-      if (data.props && Object.keys(data.props).length > 0)
-        logMessage += `
-Props: ${JSON.stringify(data.props, null, 2)}`;
-      if (referrer) logMessage += `
-Referrer: ${referrer}`;
-      if (useHashRouting) logMessage += `
-HashRouting: ${useHashRouting}`;
-      if (data.utm && Object.keys(data.utm).length > 0)
-        logMessage += `
-UTM: ${data.utm}`;
-      console.log(logMessage);
-    }
-    const onComplete = (success) => window.__stonksModalLog?.(
-      `${data.type} ${success ? "sent" : "failed to send"}`,
-      success
-    );
-    const stringifiedBody = JSON.stringify(body);
-    const bytes = new TextEncoder().encode(stringifiedBody);
-    const bin = String.fromCharCode(...bytes);
-    const payloadBase64 = btoa(bin);
-    const safeGetThreshold = 1500;
-    const tryImageBeacon = payloadBase64.length <= safeGetThreshold;
-    if (tryImageBeacon) {
-      const img = new Image(1, 1);
-      img.onload = () => onComplete(true);
-      img.onerror = () => sendWithBeaconOrFetch(analyticsUrl, stringifiedBody, onComplete);
-      img.src = `${analyticsUrl}?data=${payloadBase64}`;
-    } else
-      await sendWithBeaconOrFetch(analyticsUrl, stringifiedBody, onComplete);
-  }
-  async function event(name, arg2, props) {
-    if (shouldBlockEvent()) return;
-    const options = {};
-    if (typeof arg2 === "string") {
-      options.path = arg2;
-      if (props) options.props = props;
-    } else if (typeof arg2 === "object") {
-      options.props = arg2;
-    }
-    let path = options?.path || void 0;
-    if (!path) {
-      const newPath = document.body?.getAttribute("data-s-path") || document.body?.getAttribute("data-s:path") || document.querySelector('meta[name="stonks-path"]')?.getAttribute("content");
-      if (newPath) {
-        path = newPath;
-      }
-    }
-    send({ type: name, props: options?.props, path });
-  }
-  function handleTaggedElementClickEvent(clickEvent) {
-    if (clickEvent.type === "auxclick" && clickEvent.button !== 1) return;
-    const target = clickEvent.target;
-    if (!target) return;
-    const insideInteractive = !!target.closest("a, button");
-    let el = target;
-    let depth = 0;
-    while (el) {
-      const eventName = el.getAttribute("data-s-event") || el.getAttribute("data-s:event");
-      if (eventName) {
-        const propsAttr = el.getAttribute("data-s-event-props") || el.getAttribute("data-s:event-props");
-        const props = propsAttr ? parseProps(propsAttr) : void 0;
-        const path = el.getAttribute("data-s-event-path") || el.getAttribute("data-s:event-path") || void 0;
-        event(eventName, path ?? props, props);
-        return;
-      }
-      el = el.parentElement;
-      depth++;
-      if (!insideInteractive && depth >= 3) break;
-    }
-  }
-  async function view(arg1, arg2) {
-    const options = {};
-    if (typeof arg1 === "string") {
-      options.path = arg1;
-      if (arg2) options.props = arg2;
-    } else if (typeof arg1 === "object") {
-      options.props = arg1;
-    }
-    trackPageView(
-      {
-        path: options?.path,
-        props: options?.props
-      },
-      false
-    );
-  }
-  async function trackPageView(data, checkBlock = true) {
-    if (checkBlock && shouldBlockEvent()) return;
-    const urlParams = new URLSearchParams(location.search);
-    const utm = parseUtmParams(urlParams);
-    let path = data?.path || void 0;
-    if (!path) {
-      const newPath = document.body?.getAttribute("data-s-path") || document.body?.getAttribute("data-s:path") || document.querySelector('meta[name="stonks-path"]')?.getAttribute("content");
-      if (newPath) {
-        path = newPath;
-      }
-    }
-    const pageViewProps = stonksScript?.getAttribute("data-props");
-    const collectedProps = pageViewProps ? parseProps(pageViewProps) || {} : {};
-    const elements = document.querySelectorAll(
-      "[data-s\\:view-props], [data-s-view-props]"
-    );
-    for (const el of Array.from(elements)) {
-      const propsString = el.getAttribute("data-s-view-props") || el.getAttribute("data-s:view-props");
-      if (!propsString) continue;
-      const parsedProps = parseProps(propsString);
-      Object.assign(collectedProps, parsedProps);
-    }
-    const metaViewProps = document.querySelector('meta[name="stonks-props"]')?.getAttribute("content");
-    if (metaViewProps) {
-      Object.assign(collectedProps, parseProps(metaViewProps));
-    }
-    if (data.props) {
-      Object.assign(collectedProps, data.props);
-    }
-    const props = Object.keys(collectedProps).length > 0 ? collectedProps : void 0;
-    send({
-      type: "PageView",
-      props,
-      path,
-      utm
-    });
-  }
-  async function triggerPageView() {
-    const shouldCollectPage1 = document.querySelector('meta[name="stonks-collect"]')?.getAttribute("content");
-    const shouldCollectPage2 = document.body?.getAttribute("data-s-collect") || document.body?.getAttribute("data-s:collect");
-    if (shouldCollectPage1 === "false" || shouldCollectPage2 === "false") {
-      lastPage = null;
-      return;
-    }
-    const isAutocollect = stonksScript?.getAttribute("data-autocollect") !== "false";
-    if (!isAutocollect && shouldCollectPage1 !== "true" && shouldCollectPage2 !== "true") {
-      lastPage = null;
-      return;
-    }
-    if (!useHashRouting && lastPage === location.pathname) {
-      console.warn(`Ignoring event PageView - pathname has not changed`);
-      return;
-    }
-    if (shouldBlockEvent()) return;
-    lastPage = location.pathname;
-    const pageViewProps = stonksScript?.getAttribute("data-props");
-    const props = pageViewProps ? parseProps(pageViewProps) || {} : {};
-    const elements = document.querySelectorAll(
-      "[data-s\\:view-props], [data-s-view-props]"
-    );
-    for (const el of Array.from(elements)) {
-      const propsString = el.getAttribute("data-s-view-props") || el.getAttribute("data-s:view-props");
-      if (!propsString) continue;
-      const parsedProps = parseProps(propsString);
-      Object.assign(props, parsedProps);
-    }
-    const metaViewProps = document.querySelector('meta[name="stonks-props"]')?.getAttribute("content");
-    if (metaViewProps) {
-      Object.assign(props, parseProps(metaViewProps));
-    }
-    trackPageView(
-      {
-        props: Object.keys(props).length > 0 ? props : void 0
-      },
-      false
-    );
-  }
-  function shouldBlockEvent() {
-    const { hostname, devmode } = extractHostName(stonksScript, isLocalEnviroment);
-    if (isLocalEnviroment && (!devmode || !hostname)) {
-      return true;
-    }
-    const { isBot, botKind } = detectBot();
-    if (isBot && botKind !== "human") {
-      return true;
-    }
-    return false;
-  }
-  if (window.history.pushState) {
-    const originalPushState = window.history.pushState;
-    window.history.pushState = function(data, unused, url) {
-      originalPushState.apply(this, [data, unused, url]);
-      window.requestAnimationFrame(() => {
-        triggerPageView();
-      });
-    };
-    window.addEventListener("popstate", () => {
-      window.requestAnimationFrame(() => {
-        triggerPageView();
-      });
-    });
-  }
-  if (document.visibilityState !== "visible") {
-    document.addEventListener("visibilitychange", () => {
-      if (!lastPage && document.visibilityState === "visible") {
-        triggerPageView();
-      }
-    });
-  } else {
-    triggerPageView();
-  }
-  document.addEventListener("click", handleTaggedElementClickEvent);
-})();
+}`;var C=(e,t)=>{let o=e.getAttribute("data-debug"),r=e.getAttribute("data-hostname"),c=e.getAttribute("data-devmode"),i;if(!t)i=!1;else if(c!==null){let f=c.toLowerCase().trim();i=f===""||f==="true"||f==="1"}else o!==null?i=!0:i=!1;let p;return r!==null?p=r.trim()||null:i&&o!==null?p=o:p=null,{hostname:p,devmode:i}};function H(e){let t={},o=["utm_campaign","utm_source","utm_medium","utm_term","utm_content"];for(let r of o){let c=e.get(r);if(!c)continue;let i=X(c);i&&(t[r]=i)}return t}function X(e){let t=e,o="";for(;t!==o;){o=t;try{t=decodeURIComponent(t)}catch{return t.trim()}}return t.trim()}var w=e=>{if(!e)return;let t=e.split(";"),o={};for(let r of t){let c=r.split("=").map(i=>i.trim());c.length!==2||c[0]===""||c[1]===""||(o[c[0]]=c[1])}return Object.keys(o).length===0?void 0:o};var M=e=>{if(e)return e;let o=[{value:document.body?.getAttribute("data-s-path"),name:"data-s-path"},{value:document.body?.getAttribute("data-s:path"),name:"data-s:path"},{value:document.querySelector('meta[name="stonks-path"]')?.getAttribute("content"),name:"meta[stonks-path]"}].filter(({value:r})=>r);return o.length>1&&console.warn("[onedollarstats] Multiple path sources found. Using priority order:",o.map(({name:r})=>r).join(" > ")),o[0]?.value??location.pathname};(()=>{if(!document)return;let e=null;window.stonks={event:p,view:P};let t=document.currentScript,o=t?.getAttribute("data-hash-routing")!==null,{isLocalhost:r}=R();if(r){let{hostname:n,devmode:s}=C(t,r);if(console.log(`[onedollarstats]
+Script successfully connected! ${n?`Tracking your localhost as ${n}`:"Debug domain not set"}`),s&&n){let l=t?.getAttribute("data-url")||B.collectorUrl,a=G(n,l);window.__stonksModalLog=a}}async function c(n,s,l){if(navigator.sendBeacon?.(n,s)){l(!0);return}fetch(n,{method:"POST",body:s,headers:{"Content-Type":"application/json"},keepalive:!0}).then(()=>l(!0)).catch(a=>{console.error("[onedollarstats] fetch() failed:",a.message),l(!1)})}async function i(n){let s=t?.getAttribute("data-url")||B.collectorUrl,{hostname:l,devmode:a}=C(t,r),d=new URL(l?`https://${l}${location.pathname}`:location.href);d.search="",n.path&&(d.pathname=n.path);let b=d.href.replace(/\/$/,""),m=n.referrer??void 0;if(!m){let g=document.referrer&&document.referrer!=="null"?document.referrer:void 0;if(g){let j=new URL(g);j.hostname!==d.hostname&&(m=j.href)}}let u={u:b,e:[{t:n.type,h:o,r:m,p:n.props}],debug:a};if(n.utm&&Object.keys(n.utm).length>0&&(u.qs=n.utm),u.debug){let g=`[onedollarstats]
+Event name: ${n.type}
+Event collected from: ${b}`;n.props&&Object.keys(n.props).length>0&&(g+=`
+Props: ${JSON.stringify(n.props,null,2)}`),m&&(g+=`
+Referrer: ${m}`),o&&(g+=`
+HashRouting: ${o}`),n.utm&&Object.keys(n.utm).length>0&&(g+=`
+UTM: ${n.utm}`),console.log(g)}let h=g=>window.__stonksModalLog?.(`${n.type} ${g?"sent":"failed to send"}`,g),y=JSON.stringify(u),L=new TextEncoder().encode(y),S=String.fromCharCode(...L),A=btoa(S);if(A.length<=1500){let g=new Image(1,1);g.onload=()=>h(!0),g.onerror=()=>c(s,y,h),g.src=`${s}?data=${A}`}else await c(s,y,h)}async function p(n,s,l){if(_())return;let a={};typeof s=="string"?(a.path=s,l&&(a.props=l)):typeof s=="object"&&(a.props=s);let d=M(a?.path||void 0);i({type:n,props:a?.props,path:d!==location.pathname?d:void 0})}function f(n){if(n.type==="auxclick"&&n.button!==1)return;let s=n.target;if(!s)return;let l=!!s.closest("a, button"),a=s,d=0;for(;a;){let b=a.getAttribute("data-s-event")||a.getAttribute("data-s:event");if(b){let m=a.getAttribute("data-s-event-props")||a.getAttribute("data-s:event-props"),u=m?w(m):void 0,h=a.getAttribute("data-s-event-path")||a.getAttribute("data-s:event-path")||void 0;p(b,h??u,u);return}if(a=a.parentElement,d++,!l&&d>=3)break}}async function P(n,s){let l={};typeof n=="string"?(l.path=n,s&&(l.props=s)):typeof n=="object"&&(l.props=n),k({path:l?.path,props:l?.props},!1)}async function k(n,s=!0){if(s&&_())return;let l=new URLSearchParams(location.search),a=H(l),d=M(n?.path||void 0),b=d!==location.pathname?d:void 0,m=t?.getAttribute("data-props"),u=m?w(m)||{}:{},h=document.querySelectorAll("[data-s\\:view-props], [data-s-view-props]");for(let S of Array.from(h)){let A=S.getAttribute("data-s-view-props")||S.getAttribute("data-s:view-props");if(!A)continue;let D=w(A);Object.assign(u,D)}let y=document.querySelector('meta[name="stonks-props"]')?.getAttribute("content");y&&Object.assign(u,w(y)),n.props&&Object.assign(u,n.props);let L=Object.keys(u).length>0?u:void 0;i({type:"PageView",props:L,path:b,utm:a})}async function v(){let n=document.querySelector('meta[name="stonks-collect"]')?.getAttribute("content"),s=document.body?.getAttribute("data-s-collect")||document.body?.getAttribute("data-s:collect");if(n==="false"||s==="false"){e=null;return}if(!(t?.getAttribute("data-autocollect")!=="false")&&n!=="true"&&s!=="true"){e=null;return}if(!o&&e===location.pathname){console.warn("Ignoring event PageView - pathname has not changed");return}if(_())return;e=location.pathname;let a=t?.getAttribute("data-props"),d=a?w(a)||{}:{},b=document.querySelectorAll("[data-s\\:view-props], [data-s-view-props]");for(let u of Array.from(b)){let h=u.getAttribute("data-s-view-props")||u.getAttribute("data-s:view-props");if(!h)continue;let y=w(h);Object.assign(d,y)}let m=document.querySelector('meta[name="stonks-props"]')?.getAttribute("content");m&&Object.assign(d,w(m)),k({props:Object.keys(d).length>0?d:void 0},!1)}function _(){let{hostname:n,devmode:s}=C(t,r);if(r&&(!s||!n))return!0;let{isBot:l,botKind:a}=$();return!!(l&&a!=="human")}if(window.history.pushState){let n=window.history.pushState;window.history.pushState=function(s,l,a){n.apply(this,[s,l,a]),window.requestAnimationFrame(()=>{v()})},window.addEventListener("popstate",()=>{window.requestAnimationFrame(()=>{v()})})}document.visibilityState!=="visible"?document.addEventListener("visibilitychange",()=>{!e&&document.visibilityState==="visible"&&v()}):v(),document.addEventListener("click",f)})();})();

@@ -1,40 +1,19 @@
 {
   "compilerOptions": {
-    /* Projects */
-    "incremental": true,
-    "composite": true,
-    /* Language and Environment */
-    "target": "ES2017",
-    "lib": ["DOM", "ES2017"],
-    /* Modules */
-    "module": "ESNext",
-    "moduleResolution": "Node",
-    "rootDir": "./src",
-    /* Emit */
     "declaration": true,
-    "declarationMap": true,
-    "sourceMap": true,
-    "outDir": "./build",
-    /* Interop Constraints */
+    "declarationDir": "dist",
+    "outDir": "dist",
+    "module": "ESNext",
+    "lib": ["DOM", "DOM.Iterable", "ES2020"],
+    "target": "ES2020",
+    "strict": true,
+    "moduleResolution": "bundler",
+    "rootDir": "src",
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
-    /* Type Checking */
-    "strict": true,
-    "noImplicitAny": true,
-    "strictNullChecks": true,
-    "strictFunctionTypes": true,
-    "strictBindCallApply": true,
-    "strictPropertyInitialization": true,
-    "noImplicitThis": true,
-    "useUnknownInCatchVariables": true,
-    "alwaysStrict": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
-    "noUncheckedIndexedAccess": true,
-    "noImplicitOverride": true,
-    "noPropertyAccessFromIndexSignature": true,
-    /* Completeness */
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "sourceMap": true
   },
-  "include": ["src/**/*"]
+  "include": ["src"],
+  "exclude": ["node_modules", "dist", "build", "**/*.test.ts"]
 }

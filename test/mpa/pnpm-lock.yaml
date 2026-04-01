@@ -11,6 +11,10 @@ importers:
       astro:
         specifier: ^5.1.9
         version: 5.13.9(@types/node@24.5.2)(rollup@4.52.0)(typescript@5.9.2)
+    devDependencies:
+      onedollarstats:
+        specifier: file:/Users/kirillusichenko/Desktop/Dev/drizzle/lilstats/tracker/script/onedollarstats-0.0.17.tgz
+        version: file:../../onedollarstats-0.0.17.tgz
 
 packages:
 
@@ -1029,6 +1033,10 @@ packages:
 
   ohash@2.0.11:
     resolution: {integrity: sha512-RdR9FQrFwNBNXAr4GixM8YaRZRJ5PUWbKYbE5eOsrwAjJW0q2REGcf79oYPsLyskQCZG1PLN+S/K1V00joZAoQ==}
+
+  onedollarstats@file:../../onedollarstats-0.0.17.tgz:
+    resolution: {integrity: sha512-QQLfpUIKGneZBf9sgXcRh4KJ+1tNja3H518zFoxZZwdyjpDJ9mXJQphl0ezxpJVsOt2VVvsnDSFjkc0FXKt8Ug==, tarball: file:../../onedollarstats-0.0.17.tgz}
+    version: 0.0.17
 
   oniguruma-parser@0.12.1:
     resolution: {integrity: sha512-8Unqkvk1RYc6yq2WBYRj4hdnsAxVze8i7iPfQr8e4uSP3tRv0rpZcbGUDvxfQQcdwHt/e9PrMvGCsa8OqG9X3w==}
@@ -2658,6 +2666,8 @@ snapshots:
       ufo: 1.6.1
 
   ohash@2.0.11: {}
+
+  onedollarstats@file:../../onedollarstats-0.0.17.tgz: {}
 
   oniguruma-parser@0.12.1: {}
 
