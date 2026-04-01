@@ -80,7 +80,6 @@ jobs:
 
       # ── Publish to npm ───────────────────────────────────────
       - name: Publish to npm
-        if: github.event_name == 'release'
         run: pnpm publish --no-git-checks
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
