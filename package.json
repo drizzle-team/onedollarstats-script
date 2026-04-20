@@ -1,6 +1,6 @@
 {
   "name": "onedollarstats",
-  "version": "0.0.18",
+  "version": "0.0.19",
   "description": "A lightweight, zero-dependency analytics tracker for frontend apps",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -48,7 +48,10 @@
   "license": "MIT",
   "packageManager": "pnpm@10.16.1",
   "pnpm": {
-    "onlyBuiltDependencies": ["esbuild", "puppeteer"]
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "puppeteer"
+    ]
   },
   "devDependencies": {
     "@types/jsdom": "^27.0.0",
