@@ -24,7 +24,7 @@ export type BotKind =
 
 export interface BotSignals {
   /** navigator.userAgent matched a known bot pattern. */
-  userAgentBot: string | null
+  userAgentBot: boolean
   /** navigator.webdriver is true. */
   webdriver: boolean
   /** Headless browser indicators detected. */
@@ -54,75 +54,69 @@ export interface BotDetectionResult {
 // Known bot UA patterns
 // ---------------------------------------------------------------------------
 
-interface BotPattern {
-  pattern: RegExp
-  kind: BotKind
-  name: string
-}
-
-const BOT_PATTERNS: BotPattern[] = [
+const BOT_PATTERNS: RegExp[] = [
   // Search engines
-  { pattern: /Googlebot/i,             kind: 'search_engine',  name: 'Googlebot' },
-  { pattern: /Google-InspectionTool/i,  kind: 'search_engine',  name: 'Googlebot' },
-  { pattern: /Storebot-Google/i,        kind: 'search_engine',  name: 'Googlebot' },
-  { pattern: /AdsBot-Google/i,          kind: 'search_engine',  name: 'Google Ads' },
-  { pattern: /Mediapartners-Google/i,   kind: 'search_engine',  name: 'Google Adsense' },
-  { pattern: /bingbot/i,               kind: 'search_engine',  name: 'Bingbot' },
-  { pattern: /msnbot/i,                kind: 'search_engine',  name: 'MSNBot' },
-  { pattern: /YandexBot/i,             kind: 'search_engine',  name: 'YandexBot' },
-  { pattern: /YandexAccessibilityBot/i, kind: 'search_engine', name: 'YandexBot' },
-  { pattern: /Baiduspider/i,           kind: 'search_engine',  name: 'Baidu' },
-  { pattern: /DuckDuckBot/i,           kind: 'search_engine',  name: 'DuckDuckBot' },
-  { pattern: /Sogou/i,                 kind: 'search_engine',  name: 'Sogou' },
-  { pattern: /Exabot/i,                kind: 'search_engine',  name: 'Exabot' },
-  { pattern: /ia_archiver/i,           kind: 'search_engine',  name: 'Alexa' },
-  { pattern: /SemrushBot/i,            kind: 'search_engine',  name: 'SemrushBot' },
-  { pattern: /AhrefsBot/i,             kind: 'search_engine',  name: 'AhrefsBot' },
-  { pattern: /MJ12bot/i,               kind: 'search_engine',  name: 'MJ12bot' },
-  { pattern: /DotBot/i,                kind: 'search_engine',  name: 'DotBot' },
-  { pattern: /PetalBot/i,              kind: 'search_engine',  name: 'PetalBot' },
-  { pattern: /Applebot/i,              kind: 'search_engine',  name: 'Applebot' },
-  { pattern: /GPTBot/i,                kind: 'search_engine',  name: 'GPTBot' },
-  { pattern: /ChatGPT-User/i,          kind: 'search_engine',  name: 'ChatGPT' },
-  { pattern: /ClaudeBot/i,             kind: 'search_engine',  name: 'ClaudeBot' },
-  { pattern: /CCBot/i,                 kind: 'search_engine',  name: 'Common Crawl' },
-  { pattern: /anthropic-ai/i,          kind: 'search_engine',  name: 'Anthropic' },
-  { pattern: /PerplexityBot/i,         kind: 'search_engine',  name: 'PerplexityBot' },
+  /Googlebot/i,
+  /Google-InspectionTool/i,
+  /Storebot-Google/i,
+  /AdsBot-Google/i,
+  /Mediapartners-Google/i,
+  /bingbot/i,
+  /msnbot/i,
+  /YandexBot/i,
+  /YandexAccessibilityBot/i,
+  /Baiduspider/i,
+  /DuckDuckBot/i,
+  /Sogou/i,
+  /Exabot/i,
+  /ia_archiver/i,
+  /SemrushBot/i,
+  /AhrefsBot/i,
+  /MJ12bot/i,
+  /DotBot/i,
+  /PetalBot/i,
+  /Applebot/i,
+  /GPTBot/i,
+  /ChatGPT-User/i,
+  /ClaudeBot/i,
+  /CCBot/i,
+  /anthropic-ai/i,
+  /PerplexityBot/i,
 
   // Social crawlers
-  { pattern: /facebookexternalhit/i,   kind: 'social_crawler', name: 'Facebook' },
-  { pattern: /Facebot/i,              kind: 'social_crawler', name: 'Facebook' },
-  { pattern: /Twitterbot/i,           kind: 'social_crawler', name: 'Twitter' },
-  { pattern: /LinkedInBot/i,          kind: 'social_crawler', name: 'LinkedIn' },
-  { pattern: /Slackbot/i,             kind: 'social_crawler', name: 'Slack' },
-  { pattern: /Discordbot/i,           kind: 'social_crawler', name: 'Discord' },
-  { pattern: /TelegramBot/i,          kind: 'social_crawler', name: 'Telegram' },
-  { pattern: /WhatsApp/i,             kind: 'social_crawler', name: 'WhatsApp' },
-  { pattern: /Pinterestbot/i,         kind: 'social_crawler', name: 'Pinterest' },
-  { pattern: /Snapchat/i,             kind: 'social_crawler', name: 'Snapchat' },
+  /facebookexternalhit/i,
+  /Facebot/i,
+  /Twitterbot/i,
+  /LinkedInBot/i,
+  /Slackbot/i,
+  /Discordbot/i,
+  /TelegramBot/i,
+  /WhatsApp/i,
+  /Pinterestbot/i,
+  /Snapchat/i,
 
   // Headless / automation
-  { pattern: /HeadlessChrome/i,        kind: 'headless',       name: 'Headless Chrome' },
-  { pattern: /PhantomJS/i,            kind: 'headless',       name: 'PhantomJS' },
-  { pattern: /Selenium/i,             kind: 'automation',     name: 'Selenium' },
-  { pattern: /Puppeteer/i,            kind: 'automation',     name: 'Puppeteer' },
+  /HeadlessChrome/i,
+  /PhantomJS/i,
+  /Selenium/i,
+  /Puppeteer/i,
 
   // HTTP libraries
-  { pattern: /curl\//i,               kind: 'library',        name: 'curl' },
-  { pattern: /Wget\//i,               kind: 'library',        name: 'Wget' },
-  { pattern: /python-requests/i,      kind: 'library',        name: 'Python Requests' },
-  { pattern: /python-urllib/i,        kind: 'library',        name: 'Python urllib' },
-  { pattern: /node-fetch/i,           kind: 'library',        name: 'node-fetch' },
-  { pattern: /axios\//i,              kind: 'library',        name: 'Axios' },
-  { pattern: /Go-http-client/i,       kind: 'library',        name: 'Go HTTP' },
-  { pattern: /Java\//i,               kind: 'library',        name: 'Java HTTP' },
-  { pattern: /libwww-perl/i,          kind: 'library',        name: 'Perl LWP' },
-  { pattern: /Apache-HttpClient/i,    kind: 'library',        name: 'Apache HttpClient' },
-  { pattern: /okhttp/i,               kind: 'library',        name: 'OkHttp' },
-  { pattern: /Scrapy/i,               kind: 'library',        name: 'Scrapy' },
+  /curl\//i,
+  /Wget\//i,
+  /python-requests/i,
+  /python-urllib/i,
+  /node-fetch/i,
+  /axios\//i,
+  /Go-http-client/i,
+  /Java\//i,
+  /libwww-perl/i,
+  /Apache-HttpClient/i,
+  /okhttp/i,
+  /Scrapy/i,
 
   // Generic catch-all (must be last)
-  { pattern: /bot|crawl|spider|slurp|fetch|archiver/i, kind: 'unknown_bot', name: 'generic' },
+  /bot|crawl|spider|slurp|fetch|archiver/i,
 ]
 
 // ---------------------------------------------------------------------------
@@ -173,7 +167,7 @@ export function detectBot(): BotDetectionResult {
   const signals = collectBotSignals()
 
   const isBot =
-    signals.userAgentBot !== null ||
+    signals.userAgentBot ||
     signals.webdriver ||
     signals.headless ||
     signals.automationGlobals.length > 0 ||
@@ -182,12 +176,7 @@ export function detectBot(): BotDetectionResult {
 
   let botKind: BotKind = 'human'
   if (isBot) {
-    if (signals.userAgentBot !== null) {
-      // Find the matching pattern to determine kind
-      const ua = navigator.userAgent || ''
-      const match = BOT_PATTERNS.find(p => p.pattern.test(ua))
-      botKind = match?.kind ?? 'unknown_bot'
-    } else if (signals.headless) {
+    if (signals.headless) {
       botKind = 'headless'
     } else if (signals.webdriver || signals.automationGlobals.length > 0) {
       botKind = 'automation'
@@ -216,13 +205,10 @@ function collectBotSignals(): BotSignals {
 }
 
 /** Check UA string against known bot patterns. */
-function detectUserAgentBot(): string | null {
+function detectUserAgentBot(): boolean {
   const ua = navigator.userAgent || ''
-  if (!ua) return 'empty-ua'
-  for (const { pattern, name } of BOT_PATTERNS) {
-    if (pattern.test(ua)) return name
-  }
-  return null
+  if (!ua) return true
+  return BOT_PATTERNS.some(pattern => pattern.test(ua))
 }
 
 /** navigator.webdriver is set by WebDriver-based automation. */

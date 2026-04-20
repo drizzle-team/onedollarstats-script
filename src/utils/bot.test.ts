@@ -79,60 +79,60 @@ describe("Bot Detection Tests", () => {
       const result = detectBot();
       // In JSDOM, lie detection fires because Navigator.prototype properties
       // are not native, so isBot may be true. We verify the UA-specific signal:
-      expect(result.signals.userAgentBot).toBeNull();
+      expect(result.signals.userAgentBot).toBe(false);
       expect(result.signals.webdriver).toBe(false);
       expect(result.signals.automationGlobals).toEqual([]);
     });
 
-    test("Googlebot is detected as search_engine", async () => {
+    test("Googlebot UA is detected", async () => {
       setupDOM({ userAgent: "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)" });
       const { detectBot } = await import("./bot");
       const result = detectBot();
       expect(result.isBot).toBe(true);
-      expect(result.botKind).toBe("search_engine");
-      expect(result.signals.userAgentBot).toBe("Googlebot");
+      expect(result.botKind).toBe("unknown_bot");
+      expect(result.signals.userAgentBot).toBe(true);
     });
 
-    test("Bingbot is detected as search_engine", async () => {
+    test("Bingbot UA is detected", async () => {
       setupDOM({ userAgent: "Mozilla/5.0 (compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm)" });
       const { detectBot } = await import("./bot");
       const result = detectBot();
       expect(result.isBot).toBe(true);
-      expect(result.botKind).toBe("search_engine");
+      expect(result.botKind).toBe("unknown_bot");
     });
 
-    test("Facebook crawler is detected as social_crawler", async () => {
+    test("Facebook crawler UA is detected", async () => {
       setupDOM({ userAgent: "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)" });
       const { detectBot } = await import("./bot");
       const result = detectBot();
       expect(result.isBot).toBe(true);
-      expect(result.botKind).toBe("social_crawler");
-      expect(result.signals.userAgentBot).toBe("Facebook");
+      expect(result.botKind).toBe("unknown_bot");
+      expect(result.signals.userAgentBot).toBe(true);
     });
 
-    test("Twitterbot is detected as social_crawler", async () => {
+    test("Twitterbot UA is detected", async () => {
       setupDOM({ userAgent: "Twitterbot/1.0" });
       const { detectBot } = await import("./bot");
       const result = detectBot();
       expect(result.isBot).toBe(true);
-      expect(result.botKind).toBe("social_crawler");
+      expect(result.botKind).toBe("unknown_bot");
     });
 
-    test("curl is detected as library", async () => {
+    test("curl UA is detected", async () => {
       setupDOM({ userAgent: "curl/7.68.0" });
       const { detectBot } = await import("./bot");
       const result = detectBot();
       expect(result.isBot).toBe(true);
-      expect(result.botKind).toBe("library");
-      expect(result.signals.userAgentBot).toBe("curl");
+      expect(result.botKind).toBe("unknown_bot");
+      expect(result.signals.userAgentBot).toBe(true);
     });
 
-    test("python-requests is detected as library", async () => {
+    test("python-requests UA is detected", async () => {
       setupDOM({ userAgent: "python-requests/2.28.0" });
       const { detectBot } = await import("./bot");
       const result = detectBot();
       expect(result.isBot).toBe(true);
-      expect(result.botKind).toBe("library");
+      expect(result.botKind).toBe("unknown_bot");
     });
 
     test("HeadlessChrome is detected as headless", async () => {
@@ -140,24 +140,24 @@ describe("Bot Detection Tests", () => {
       const { detectBot } = await import("./bot");
       const result = detectBot();
       expect(result.isBot).toBe(true);
-      expect(result.signals.userAgentBot).toBe("Headless Chrome");
+      expect(result.signals.userAgentBot).toBe(true);
     });
 
-    test("GPTBot is detected as search_engine", async () => {
+    test("GPTBot UA is detected", async () => {
       setupDOM({ userAgent: "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; GPTBot/1.0; +https://openai.com/gptbot" });
       const { detectBot } = await import("./bot");
       const result = detectBot();
       expect(result.isBot).toBe(true);
-      expect(result.botKind).toBe("search_engine");
-      expect(result.signals.userAgentBot).toBe("GPTBot");
+      expect(result.botKind).toBe("unknown_bot");
+      expect(result.signals.userAgentBot).toBe(true);
     });
 
-    test("ClaudeBot is detected as search_engine", async () => {
+    test("ClaudeBot UA is detected", async () => {
       setupDOM({ userAgent: "ClaudeBot/1.0" });
       const { detectBot } = await import("./bot");
       const result = detectBot();
       expect(result.isBot).toBe(true);
-      expect(result.botKind).toBe("search_engine");
+      expect(result.botKind).toBe("unknown_bot");
     });
 
     test("generic bot pattern detected", async () => {
@@ -173,7 +173,7 @@ describe("Bot Detection Tests", () => {
       const { detectBot } = await import("./bot");
       const result = detectBot();
       expect(result.isBot).toBe(true);
-      expect(result.signals.userAgentBot).toBe("empty-ua");
+      expect(result.signals.userAgentBot).toBe(true);
     });
   });
 
@@ -302,25 +302,25 @@ describe("Bot Detection Tests", () => {
       const result = detectBot();
       // In JSDOM, lie detection triggers because Navigator.prototype getters
       // are not native. We verify no bot-specific signals are present:
-      expect(result.signals.userAgentBot).toBeNull();
+      expect(result.signals.userAgentBot).toBe(false);
       expect(result.signals.webdriver).toBe(false);
       expect(result.signals.automationGlobals).toEqual([]);
       expect(result.signals.missingLanguages).toBe(false);
       expect(result.signals.missingPlugins).toBe(false);
     });
 
-    test("search_engine for known search bots", async () => {
+    test("unknown_bot for UA-only matches (search bot)", async () => {
       setupDOM({ userAgent: "Mozilla/5.0 (compatible; YandexBot/3.0; +http://yandex.com/bots)" });
       const { detectBot } = await import("./bot");
       const result = detectBot();
-      expect(result.botKind).toBe("search_engine");
+      expect(result.botKind).toBe("unknown_bot");
     });
 
-    test("social_crawler for social bots", async () => {
+    test("unknown_bot for UA-only matches (social bot)", async () => {
       setupDOM({ userAgent: "LinkedInBot/1.0 (compatible; Mozilla/5.0)" });
       const { detectBot } = await import("./bot");
       const result = detectBot();
-      expect(result.botKind).toBe("social_crawler");
+      expect(result.botKind).toBe("unknown_bot");
     });
 
     test("automation for webdriver without UA match", async () => {
