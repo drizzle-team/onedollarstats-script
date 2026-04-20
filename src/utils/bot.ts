@@ -54,70 +54,11 @@ export interface BotDetectionResult {
 // Known bot UA patterns
 // ---------------------------------------------------------------------------
 
-const BOT_PATTERNS: RegExp[] = [
-  // Search engines
-  /Googlebot/i,
-  /Google-InspectionTool/i,
-  /Storebot-Google/i,
-  /AdsBot-Google/i,
-  /Mediapartners-Google/i,
-  /bingbot/i,
-  /msnbot/i,
-  /YandexBot/i,
-  /YandexAccessibilityBot/i,
-  /Baiduspider/i,
-  /DuckDuckBot/i,
-  /Sogou/i,
-  /Exabot/i,
-  /ia_archiver/i,
-  /SemrushBot/i,
-  /AhrefsBot/i,
-  /MJ12bot/i,
-  /DotBot/i,
-  /PetalBot/i,
-  /Applebot/i,
-  /GPTBot/i,
-  /ChatGPT-User/i,
-  /ClaudeBot/i,
-  /CCBot/i,
-  /anthropic-ai/i,
-  /PerplexityBot/i,
-
-  // Social crawlers
-  /facebookexternalhit/i,
-  /Facebot/i,
-  /Twitterbot/i,
-  /LinkedInBot/i,
-  /Slackbot/i,
-  /Discordbot/i,
-  /TelegramBot/i,
-  /WhatsApp/i,
-  /Pinterestbot/i,
-  /Snapchat/i,
-
-  // Headless / automation
-  /HeadlessChrome/i,
-  /PhantomJS/i,
-  /Selenium/i,
-  /Puppeteer/i,
-
-  // HTTP libraries
-  /curl\//i,
-  /Wget\//i,
-  /python-requests/i,
-  /python-urllib/i,
-  /node-fetch/i,
-  /axios\//i,
-  /Go-http-client/i,
-  /Java\//i,
-  /libwww-perl/i,
-  /Apache-HttpClient/i,
-  /okhttp/i,
-  /Scrapy/i,
-
-  // Generic catch-all (must be last)
-  /bot|crawl|spider|slurp|fetch|archiver/i,
-]
+// Single alternation. The generic tokens (bot, crawl, spider, slurp, fetch,
+// archiver) subsume most named crawlers; only names that don't contain one of
+// those tokens are listed explicitly.
+const BOT_UA_PATTERN =
+  /Google-InspectionTool|Mediapartners-Google|Sogou|ChatGPT-User|anthropic-ai|facebookexternalhit|WhatsApp|Snapchat|HeadlessChrome|PhantomJS|Selenium|Puppeteer|curl\/|Wget\/|python-requests|python-urllib|axios\/|Go-http-client|Java\/|libwww-perl|Apache-HttpClient|okhttp|Scrapy|bot|crawl|spider|slurp|fetch|archiver/i
 
 // ---------------------------------------------------------------------------
 // Automation globals injected by common frameworks
@@ -208,7 +149,7 @@ function collectBotSignals(): BotSignals {
 function detectUserAgentBot(): boolean {
   const ua = navigator.userAgent || ''
   if (!ua) return true
-  return BOT_PATTERNS.some(pattern => pattern.test(ua))
+  return BOT_UA_PATTERN.test(ua)
 }
 
 /** navigator.webdriver is set by WebDriver-based automation. */
@@ -258,53 +199,35 @@ function detectLies(): { liesDetected: number; hasProxy: boolean } {
   let liesDetected = 0
   let hasProxy = false
 
-  const apisToTest: Array<[string, () => unknown]> = [
-    ['Navigator.prototype.userAgent', () => desc(Navigator.prototype, 'userAgent')],
-    ['Navigator.prototype.languages', () => desc(Navigator.prototype, 'languages')],
-    ['Navigator.prototype.platform', () => desc(Navigator.prototype, 'platform')],
-    ['Navigator.prototype.hardwareConcurrency', () => desc(Navigator.prototype, 'hardwareConcurrency')],
-    ['Navigator.prototype.webdriver', () => desc(Navigator.prototype, 'webdriver')],
-    ['HTMLCanvasElement.prototype.toDataURL', () => HTMLCanvasElement.prototype.toDataURL],
-    ['CanvasRenderingContext2D.prototype.fillText', () => CanvasRenderingContext2D.prototype.fillText],
-    ['Date.prototype.getTimezoneOffset', () => Date.prototype.getTimezoneOffset],
+  const apisToTest: Array<[object, string]> = [
+    [Navigator.prototype, 'userAgent'],
+    [Navigator.prototype, 'languages'],
+    [Navigator.prototype, 'platform'],
+    [Navigator.prototype, 'hardwareConcurrency'],
+    [Navigator.prototype, 'webdriver'],
+    [HTMLCanvasElement.prototype, 'toDataURL'],
+    [CanvasRenderingContext2D.prototype, 'fillText'],
+    [Date.prototype, 'getTimezoneOffset'],
   ]
 
-  for (const [name, accessor] of apisToTest) {
+  for (const [proto, prop] of apisToTest) {
     try {
-      const val = accessor()
-      if (val === undefined || val === null) continue
+      const d = Object.getOwnPropertyDescriptor(proto, prop)
+      if (!d) continue
+      const fn = d.value ?? d.get
+      if (typeof fn !== 'function') continue
 
-      // toString format check
-      if (typeof val === 'function') {
-        const str = Function.prototype.toString.call(val)
-        if (!isNativeToString(str)) liesDetected++
-      }
+      // toString integrity for methods and accessor getters
+      const str = Function.prototype.toString.call(fn)
+      if (!isNativeToString(str)) liesDetected++
 
-      // Getter integrity check
-      if (name.includes('.prototype.') && typeof val !== 'function') {
-        const parts = name.split('.')
-        const protoName = parts[0]
-        const prop = parts[parts.length - 1]
-        if (protoName && prop) {
-          const proto = safeProto(protoName)
-          if (!proto) continue
-          const d = Object.getOwnPropertyDescriptor(proto, prop)
-          if (d?.get) {
-            const gs = Function.prototype.toString.call(d.get)
-            if (!isNativeToString(gs)) liesDetected++
-          }
-        }
-      }
-
-      // Proxy detection
-      if (typeof val === 'function') {
-        if (val.toString !== Function.prototype.toString) {
-          try {
-            const native = Function.prototype.toString.call(val)
-            const custom = val.toString()
-            if (native !== custom) { liesDetected++; hasProxy = true }
-          } catch { liesDetected++; hasProxy = true }
-        }
+      // Proxy detection — only for value-bound methods (not getters)
+      if (d.value && fn.toString !== Function.prototype.toString) {
+        try {
+          const native = Function.prototype.toString.call(fn)
+          const custom = fn.toString()
+          if (native !== custom) { liesDetected++; hasProxy = true }
+        } catch { liesDetected++; hasProxy = true }
       }
     } catch { /* skip inaccessible */ }
   }
@@ -338,13 +261,4 @@ function isNativeToString(str: string): boolean {
   return /^function\s[^{]*\{\s*\[native code\]\s*\}$/.test(str) ||
     str === 'function () { [native code] }' ||
     /^\(\)\s*=>\s*\{\s*\[native code\]\s*\}$/.test(str)
-}
-
-function desc(proto: object, prop: string) {
-  return Object.getOwnPropertyDescriptor(proto, prop)
-}
-
-function safeProto(name: string): object | null {
-  try { return (window as any)[name]?.prototype ?? null }
-  catch { return null }
 }
