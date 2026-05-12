@@ -25,6 +25,21 @@ export default defineConfig({
           include: ["test/package.test.ts"],
         },
       },
+      {
+        test: {
+          name: "Expo E2E Tests",
+          environment: "node",
+          globalSetup: "./test/setup.ts",
+          include: ["test/expo.test.ts"],
+        },
+      },
+      {
+        test: {
+          name: "Expo Unit Tests",
+          environment: "jsdom",
+          include: ["src/expo.test.tsx"],
+        },
+      },
     ],
   },
 });

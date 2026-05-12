@@ -1,66 +1,7 @@
 "use strict";
 
 // src/utils/bot.ts
-var BOT_PATTERNS = [
-  // Search engines
-  { pattern: /Googlebot/i, kind: "search_engine", name: "Googlebot" },
-  { pattern: /Google-InspectionTool/i, kind: "search_engine", name: "Googlebot" },
-  { pattern: /Storebot-Google/i, kind: "search_engine", name: "Googlebot" },
-  { pattern: /AdsBot-Google/i, kind: "search_engine", name: "Google Ads" },
-  { pattern: /Mediapartners-Google/i, kind: "search_engine", name: "Google Adsense" },
-  { pattern: /bingbot/i, kind: "search_engine", name: "Bingbot" },
-  { pattern: /msnbot/i, kind: "search_engine", name: "MSNBot" },
-  { pattern: /YandexBot/i, kind: "search_engine", name: "YandexBot" },
-  { pattern: /YandexAccessibilityBot/i, kind: "search_engine", name: "YandexBot" },
-  { pattern: /Baiduspider/i, kind: "search_engine", name: "Baidu" },
-  { pattern: /DuckDuckBot/i, kind: "search_engine", name: "DuckDuckBot" },
-  { pattern: /Sogou/i, kind: "search_engine", name: "Sogou" },
-  { pattern: /Exabot/i, kind: "search_engine", name: "Exabot" },
-  { pattern: /ia_archiver/i, kind: "search_engine", name: "Alexa" },
-  { pattern: /SemrushBot/i, kind: "search_engine", name: "SemrushBot" },
-  { pattern: /AhrefsBot/i, kind: "search_engine", name: "AhrefsBot" },
-  { pattern: /MJ12bot/i, kind: "search_engine", name: "MJ12bot" },
-  { pattern: /DotBot/i, kind: "search_engine", name: "DotBot" },
-  { pattern: /PetalBot/i, kind: "search_engine", name: "PetalBot" },
-  { pattern: /Applebot/i, kind: "search_engine", name: "Applebot" },
-  { pattern: /GPTBot/i, kind: "search_engine", name: "GPTBot" },
-  { pattern: /ChatGPT-User/i, kind: "search_engine", name: "ChatGPT" },
-  { pattern: /ClaudeBot/i, kind: "search_engine", name: "ClaudeBot" },
-  { pattern: /CCBot/i, kind: "search_engine", name: "Common Crawl" },
-  { pattern: /anthropic-ai/i, kind: "search_engine", name: "Anthropic" },
-  { pattern: /PerplexityBot/i, kind: "search_engine", name: "PerplexityBot" },
-  // Social crawlers
-  { pattern: /facebookexternalhit/i, kind: "social_crawler", name: "Facebook" },
-  { pattern: /Facebot/i, kind: "social_crawler", name: "Facebook" },
-  { pattern: /Twitterbot/i, kind: "social_crawler", name: "Twitter" },
-  { pattern: /LinkedInBot/i, kind: "social_crawler", name: "LinkedIn" },
-  { pattern: /Slackbot/i, kind: "social_crawler", name: "Slack" },
-  { pattern: /Discordbot/i, kind: "social_crawler", name: "Discord" },
-  { pattern: /TelegramBot/i, kind: "social_crawler", name: "Telegram" },
-  { pattern: /WhatsApp/i, kind: "social_crawler", name: "WhatsApp" },
-  { pattern: /Pinterestbot/i, kind: "social_crawler", name: "Pinterest" },
-  { pattern: /Snapchat/i, kind: "social_crawler", name: "Snapchat" },
-  // Headless / automation
-  { pattern: /HeadlessChrome/i, kind: "headless", name: "Headless Chrome" },
-  { pattern: /PhantomJS/i, kind: "headless", name: "PhantomJS" },
-  { pattern: /Selenium/i, kind: "automation", name: "Selenium" },
-  { pattern: /Puppeteer/i, kind: "automation", name: "Puppeteer" },
-  // HTTP libraries
-  { pattern: /curl\//i, kind: "library", name: "curl" },
-  { pattern: /Wget\//i, kind: "library", name: "Wget" },
-  { pattern: /python-requests/i, kind: "library", name: "Python Requests" },
-  { pattern: /python-urllib/i, kind: "library", name: "Python urllib" },
-  { pattern: /node-fetch/i, kind: "library", name: "node-fetch" },
-  { pattern: /axios\//i, kind: "library", name: "Axios" },
-  { pattern: /Go-http-client/i, kind: "library", name: "Go HTTP" },
-  { pattern: /Java\//i, kind: "library", name: "Java HTTP" },
-  { pattern: /libwww-perl/i, kind: "library", name: "Perl LWP" },
-  { pattern: /Apache-HttpClient/i, kind: "library", name: "Apache HttpClient" },
-  { pattern: /okhttp/i, kind: "library", name: "OkHttp" },
-  { pattern: /Scrapy/i, kind: "library", name: "Scrapy" },
-  // Generic catch-all (must be last)
-  { pattern: /bot|crawl|spider|slurp|fetch|archiver/i, kind: "unknown_bot", name: "generic" }
-];
+var BOT_UA_PATTERN = /Google-InspectionTool|Mediapartners-Google|Sogou|ChatGPT-User|anthropic-ai|facebookexternalhit|WhatsApp|Snapchat|HeadlessChrome|PhantomJS|Selenium|Puppeteer|curl\/|Wget\/|python-requests|python-urllib|axios\/|Go-http-client|Java\/|libwww-perl|Apache-HttpClient|okhttp|Scrapy|bot|crawl|spider|slurp|fetch|archiver/i;
 var AUTOMATION_GLOBALS = [
   // Selenium
   "__selenium_unwrapped",
@@ -94,14 +35,10 @@ var AUTOMATION_GLOBALS = [
 ];
 function detectBot() {
   const signals = collectBotSignals();
-  const isBot = signals.userAgentBot !== null || signals.webdriver || signals.headless || signals.automationGlobals.length > 0 || signals.liesDetected > 2 || signals.liesDetected > 0 && signals.hasProxy;
+  const isBot = signals.userAgentBot || signals.webdriver || signals.headless || signals.automationGlobals.length > 0 || signals.liesDetected > 2 || signals.liesDetected > 0 && signals.hasProxy;
   let botKind = "human";
   if (isBot) {
-    if (signals.userAgentBot !== null) {
-      const ua = navigator.userAgent || "";
-      const match = BOT_PATTERNS.find((p) => p.pattern.test(ua));
-      botKind = match?.kind ?? "unknown_bot";
-    } else if (signals.headless) {
+    if (signals.headless) {
       botKind = "headless";
     } else if (signals.webdriver || signals.automationGlobals.length > 0) {
       botKind = "automation";
@@ -124,11 +61,8 @@ function collectBotSignals() {
 }
 function detectUserAgentBot() {
   const ua = navigator.userAgent || "";
-  if (!ua) return "empty-ua";
-  for (const { pattern, name } of BOT_PATTERNS) {
-    if (pattern.test(ua)) return name;
-  }
-  return null;
+  if (!ua) return true;
+  return BOT_UA_PATTERN.test(ua);
 }
 function detectWebdriver() {
   return !!navigator.webdriver;
@@ -162,50 +96,34 @@ function detectLies() {
   let liesDetected = 0;
   let hasProxy = false;
   const apisToTest = [
-    ["Navigator.prototype.userAgent", () => desc(Navigator.prototype, "userAgent")],
-    ["Navigator.prototype.languages", () => desc(Navigator.prototype, "languages")],
-    ["Navigator.prototype.platform", () => desc(Navigator.prototype, "platform")],
-    ["Navigator.prototype.hardwareConcurrency", () => desc(Navigator.prototype, "hardwareConcurrency")],
-    ["Navigator.prototype.webdriver", () => desc(Navigator.prototype, "webdriver")],
-    ["HTMLCanvasElement.prototype.toDataURL", () => HTMLCanvasElement.prototype.toDataURL],
-    ["CanvasRenderingContext2D.prototype.fillText", () => CanvasRenderingContext2D.prototype.fillText],
-    ["Date.prototype.getTimezoneOffset", () => Date.prototype.getTimezoneOffset]
+    [Navigator.prototype, "userAgent"],
+    [Navigator.prototype, "languages"],
+    [Navigator.prototype, "platform"],
+    [Navigator.prototype, "hardwareConcurrency"],
+    [Navigator.prototype, "webdriver"],
+    [HTMLCanvasElement.prototype, "toDataURL"],
+    [CanvasRenderingContext2D.prototype, "fillText"],
+    [Date.prototype, "getTimezoneOffset"]
   ];
-  for (const [name, accessor] of apisToTest) {
+  for (const [proto, prop] of apisToTest) {
     try {
-      const val = accessor();
-      if (val === void 0 || val === null) continue;
-      if (typeof val === "function") {
-        const str = Function.prototype.toString.call(val);
-        if (!isNativeToString(str)) liesDetected++;
-      }
-      if (name.includes(".prototype.") && typeof val !== "function") {
-        const parts = name.split(".");
-        const protoName = parts[0];
-        const prop = parts[parts.length - 1];
-        if (protoName && prop) {
-          const proto = safeProto(protoName);
-          if (!proto) continue;
-          const d = Object.getOwnPropertyDescriptor(proto, prop);
-          if (d?.get) {
-            const gs = Function.prototype.toString.call(d.get);
-            if (!isNativeToString(gs)) liesDetected++;
-          }
-        }
-      }
-      if (typeof val === "function") {
-        if (val.toString !== Function.prototype.toString) {
-          try {
-            const native = Function.prototype.toString.call(val);
-            const custom = val.toString();
-            if (native !== custom) {
-              liesDetected++;
-              hasProxy = true;
-            }
-          } catch {
+      const d = Object.getOwnPropertyDescriptor(proto, prop);
+      if (!d) continue;
+      const fn = d.value ?? d.get;
+      if (typeof fn !== "function") continue;
+      const str = Function.prototype.toString.call(fn);
+      if (!isNativeToString(str)) liesDetected++;
+      if (d.value && fn.toString !== Function.prototype.toString) {
+        try {
+          const native = Function.prototype.toString.call(fn);
+          const custom = fn.toString();
+          if (native !== custom) {
             liesDetected++;
             hasProxy = true;
           }
+        } catch {
+          liesDetected++;
+          hasProxy = true;
         }
       }
     } catch {
@@ -228,16 +146,6 @@ function detectMissingPlugins() {
 }
 function isNativeToString(str) {
   return /^function\s[^{]*\{\s*\[native code\]\s*\}$/.test(str) || str === "function () { [native code] }" || /^\(\)\s*=>\s*\{\s*\[native code\]\s*\}$/.test(str);
-}
-function desc(proto, prop) {
-  return Object.getOwnPropertyDescriptor(proto, prop);
-}
-function safeProto(name) {
-  try {
-    return window[name]?.prototype ?? null;
-  } catch {
-    return null;
-  }
 }
 
 // src/utils/environment.ts

@@ -1,0 +1,29 @@
+{
+  "name": "onedollarstats-expo-test",
+  "version": "0.0.1",
+  "private": true,
+  "main": "expo-router/entry",
+  "packageManager": "pnpm@10.16.1",
+  "scripts": {
+    "start": "npx expo start",
+    "web": "npx expo start --web",
+    "ios": "npx expo start --ios",
+    "android": "npx expo start --android",
+    "build": "npx expo export --platform web --output-dir dist",
+    "preview": "npx serve dist --listen 8081 --single --no-clipboard"
+  },
+  "dependencies": {
+    "@babel/runtime": "^7.29.2",
+    "@expo/metro-runtime": "~4.0.0",
+    "expo": "~52.0.0",
+    "expo-router": "~4.0.0",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "react-native": "0.76.5",
+    "react-native-web": "~0.19.0"
+  },
+  "devDependencies": {
+    "serve": "^14.0.0",
+    "typescript": "^5.0.0"
+  }
+}

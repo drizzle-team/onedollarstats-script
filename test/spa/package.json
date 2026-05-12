@@ -3,6 +3,7 @@
 	"private": true,
 	"version": "0.0.1",
 	"type": "module",
+	"packageManager": "pnpm@10.16.1",
 	"scripts": {
 		"dev": "vite dev",
 		"build": "vite build",
@@ -16,6 +17,7 @@
 		"@sveltejs/adapter-static": "^3.0.8",
 		"@sveltejs/kit": "^2.16.0",
 		"@sveltejs/vite-plugin-svelte": "^5.0.0",
+		"onedollarstats": "file:/Users/kyrylousichenko/Dev/onedollarstats-script/onedollarstats-0.0.19.tgz",
 		"svelte": "^5.0.0",
 		"svelte-check": "^4.0.0",
 		"typescript": "^5.0.0",
