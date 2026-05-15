@@ -311,7 +311,8 @@ function send(
 
   const body = JSON.stringify({
     u: url,
-    e: [{ t: eventName, ...(props && { p: props }) }]
+    e: [{ t: eventName, ...(props && { p: props }) }],
+    debug: config.devmode
   });
 
   if (Platform.OS === 'web') {
