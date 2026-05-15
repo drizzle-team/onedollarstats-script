@@ -1,6 +1,6 @@
 {
   "name": "onedollarstats",
-  "version": "0.0.21",
+  "version": "0.0.22",
   "description": "A lightweight, zero-dependency analytics tracker for frontend apps",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
