@@ -2,11 +2,17 @@ import { describe, expect, test, vi, beforeEach, afterEach } from 'vitest';
 import { createElement, useEffect, type ReactNode } from 'react';
 import { render, renderHook, act } from '@testing-library/react';
 
-// usePathname is mutable per-test
+// usePathname / useSegments are mutable per-test.
 let mockPathname = '/home';
+let mockSegments: string[] | null = null;
+
+function defaultSegmentsFor(pathname: string): string[] {
+  return pathname.split('/').filter(Boolean);
+}
 
 vi.mock('expo-router', () => ({
-  usePathname: () => mockPathname
+  usePathname: () => mockPathname,
+  useSegments: () => mockSegments ?? defaultSegmentsFor(mockPathname)
 }));
 
 // Capture AppState handler so tests can drive it
@@ -33,10 +39,11 @@ vi.mock('react-native', () => ({
 import {
   OneDollarStatsProvider,
   useAnalytics,
-  useAnalyticsPath,
-  AnalyticsPath,
-  useAnalyticsProps,
-  AnalyticsProps,
+  // TODO(page-scope): restore when override APIs are reintroduced.
+  // useAnalyticsPath,
+  // AnalyticsPath,
+  // useAnalyticsProps,
+  // AnalyticsProps,
   type ExpoAnalyticsConfig
 } from './expo';
 
@@ -58,6 +65,7 @@ beforeEach(() => {
   fetchSpy = vi.fn().mockResolvedValue({ ok: true });
   vi.stubGlobal('fetch', fetchSpy);
   mockPathname = '/home';
+  mockSegments = null;
   mockPlatformOS = 'ios';
   appStateListeners.length = 0;
   removeMock.mockClear();
@@ -282,6 +290,78 @@ describe('useAnalytics — manual event() and view()', () => {
 
     expect(fetchSpy).toHaveBeenCalledTimes(2);
   });
+
+  test('view(props) — object-only form attaches props to current pathname', () => {
+    const { result } = renderHook(() => useAnalytics(), {
+      wrapper: wrapper({ hostname: 'example.com', autocollect: false })
+    });
+
+    act(() => result.current.view({ campaign: 'spring' }));
+
+    expect(fetchSpy).toHaveBeenLastCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        body: JSON.stringify({
+          u: 'https://example.com/home',
+          e: [{ t: 'PageView', p: { campaign: 'spring' } }]
+        })
+      })
+    );
+  });
+
+  test('event(name, props) — object-only form attaches props to current pathname', () => {
+    const { result } = renderHook(() => useAnalytics(), {
+      wrapper: wrapper({ hostname: 'example.com' })
+    });
+
+    act(() => result.current.event('signup', { plan: 'pro' }));
+
+    expect(fetchSpy).toHaveBeenLastCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        body: JSON.stringify({
+          u: 'https://example.com/home',
+          e: [{ t: 'signup', p: { plan: 'pro' } }]
+        })
+      })
+    );
+  });
+
+  test('event(name, path, props) — three-arg form', () => {
+    const { result } = renderHook(() => useAnalytics(), {
+      wrapper: wrapper({ hostname: 'example.com' })
+    });
+
+    act(() => result.current.event('signup', '/landing', { plan: 'pro' }));
+
+    expect(fetchSpy).toHaveBeenLastCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        body: JSON.stringify({
+          u: 'https://example.com/landing',
+          e: [{ t: 'signup', p: { plan: 'pro' } }]
+        })
+      })
+    );
+  });
+
+  test('event(name, path) — string-only second arg sets path with no props', () => {
+    const { result } = renderHook(() => useAnalytics(), {
+      wrapper: wrapper({ hostname: 'example.com' })
+    });
+
+    act(() => result.current.event('signup', '/landing'));
+
+    expect(fetchSpy).toHaveBeenLastCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        body: JSON.stringify({
+          u: 'https://example.com/landing',
+          e: [{ t: 'signup' }]
+        })
+      })
+    );
+  });
 });
 
 describe('Provider scoping', () => {
@@ -306,7 +386,354 @@ describe('Path filtering logic (smoke)', () => {
   });
 });
 
-describe('useAnalyticsPath / <AnalyticsPath>', () => {
+describe('collapseDynamicRoutes', () => {
+  test('default (true) collapses dynamic segments using useSegments', () => {
+    mockPathname = '/profile/abc123';
+    mockSegments = ['profile', '[id]'];
+    renderProvider({ hostname: 'example.com' });
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(fetchSpy).toHaveBeenCalledWith(
+      'https://collector.onedollarstats.com/events',
+      expect.objectContaining({
+        body: JSON.stringify({
+          u: 'https://example.com/profile/[id]',
+          e: [{ t: 'PageView' }]
+        })
+      })
+    );
+  });
+
+  test('collapseDynamicRoutes: false keeps the concrete pathname', () => {
+    mockPathname = '/profile/abc123';
+    mockSegments = ['profile', '[id]'];
+    renderProvider({ hostname: 'example.com', collapseDynamicRoutes: false });
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        body: JSON.stringify({
+          u: 'https://example.com/profile/abc123',
+          e: [{ t: 'PageView' }]
+        })
+      })
+    );
+  });
+
+  test('group segments like (tabs) are stripped when collapsing', () => {
+    mockPathname = '/home';
+    mockSegments = ['(tabs)', 'home'];
+    renderProvider({ hostname: 'example.com' });
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        body: JSON.stringify({
+          u: 'https://example.com/home',
+          e: [{ t: 'PageView' }]
+        })
+      })
+    );
+  });
+
+  test('catch-all segments [...slug] are preserved', () => {
+    mockPathname = '/posts/a/b/c';
+    mockSegments = ['posts', '[...slug]'];
+    renderProvider({ hostname: 'example.com' });
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        body: JSON.stringify({
+          u: 'https://example.com/posts/[...slug]',
+          e: [{ t: 'PageView' }]
+        })
+      })
+    );
+  });
+
+  test('empty segments collapse to "/"', () => {
+    mockPathname = '/';
+    mockSegments = [];
+    renderProvider({ hostname: 'example.com' });
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        body: JSON.stringify({
+          u: 'https://example.com/',
+          e: [{ t: 'PageView' }]
+        })
+      })
+    );
+  });
+
+  test('manual event() uses the collapsed path', () => {
+    mockPathname = '/profile/abc123';
+    mockSegments = ['profile', '[id]'];
+    const { result } = renderHook(() => useAnalytics(), {
+      wrapper: wrapper({ hostname: 'example.com' })
+    });
+
+    act(() => result.current.event('cta_click'));
+
+    expect(fetchSpy).toHaveBeenLastCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        body: JSON.stringify({
+          u: 'https://example.com/profile/[id]',
+          e: [{ t: 'cta_click' }]
+        })
+      })
+    );
+  });
+
+  test('view() without explicit path uses the collapsed path', () => {
+    mockPathname = '/profile/abc123';
+    mockSegments = ['profile', '[id]'];
+    const { result } = renderHook(() => useAnalytics(), {
+      wrapper: wrapper({ hostname: 'example.com', autocollect: false })
+    });
+
+    act(() => result.current.view());
+
+    expect(fetchSpy).toHaveBeenLastCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        body: JSON.stringify({
+          u: 'https://example.com/profile/[id]',
+          e: [{ t: 'PageView' }]
+        })
+      })
+    );
+  });
+
+  test('view(explicitPath) ignores collapse and forwards the path as-is', () => {
+    mockPathname = '/profile/abc123';
+    mockSegments = ['profile', '[id]'];
+    const { result } = renderHook(() => useAnalytics(), {
+      wrapper: wrapper({ hostname: 'example.com', autocollect: false })
+    });
+
+    act(() => result.current.view('/explicit/abc123'));
+
+    expect(fetchSpy).toHaveBeenLastCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        body: JSON.stringify({
+          u: 'https://example.com/explicit/abc123',
+          e: [{ t: 'PageView' }]
+        })
+      })
+    );
+  });
+
+  test('mixed dynamic + static segments collapse', () => {
+    mockPathname = '/orgs/acme/users/u-42';
+    mockSegments = ['orgs', '[org]', 'users', '[userId]'];
+    renderProvider({ hostname: 'example.com' });
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        body: JSON.stringify({
+          u: 'https://example.com/orgs/[org]/users/[userId]',
+          e: [{ t: 'PageView' }]
+        })
+      })
+    );
+  });
+
+  test('multiple groups in the chain are all stripped', () => {
+    mockPathname = '/home';
+    mockSegments = ['(tabs)', '(stack)', 'home'];
+    renderProvider({ hostname: 'example.com' });
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        body: JSON.stringify({
+          u: 'https://example.com/home',
+          e: [{ t: 'PageView' }]
+        })
+      })
+    );
+  });
+
+  test('group + dynamic segment combined: group stripped, dynamic kept', () => {
+    mockPathname = '/profile/abc123';
+    mockSegments = ['(tabs)', 'profile', '[id]'];
+    renderProvider({ hostname: 'example.com' });
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        body: JSON.stringify({
+          u: 'https://example.com/profile/[id]',
+          e: [{ t: 'PageView' }]
+        })
+      })
+    );
+  });
+
+  test('only-group segments collapse to "/"', () => {
+    mockPathname = '/';
+    mockSegments = ['(tabs)'];
+    renderProvider({ hostname: 'example.com' });
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        body: JSON.stringify({
+          u: 'https://example.com/',
+          e: [{ t: 'PageView' }]
+        })
+      })
+    );
+  });
+
+  test('dedup happens against the collapsed path: /profile/abc → /profile/xyz fires only once', () => {
+    // Same template, different concrete ids. Auto PageView should fire once on mount
+    // and NOT refire when the concrete pathname changes but the template stays the same.
+    mockPathname = '/profile/abc';
+    mockSegments = ['profile', '[id]'];
+    const { rerender } = renderProvider({ hostname: 'example.com' });
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+
+    mockPathname = '/profile/xyz';
+    // mockSegments stays ['profile', '[id]'] — same template
+    rerender(providerEl({ hostname: 'example.com' }));
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
+  test('dedup with collapseDynamicRoutes: false treats concrete ids as distinct pages', () => {
+    mockPathname = '/profile/abc';
+    mockSegments = ['profile', '[id]'];
+    const { rerender } = renderProvider({
+      hostname: 'example.com',
+      collapseDynamicRoutes: false
+    });
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+
+    mockPathname = '/profile/xyz';
+    rerender(providerEl({ hostname: 'example.com', collapseDynamicRoutes: false }));
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    expect(fetchSpy).toHaveBeenLastCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        body: JSON.stringify({
+          u: 'https://example.com/profile/xyz',
+          e: [{ t: 'PageView' }]
+        })
+      })
+    );
+  });
+
+  test('navigating between two different templates fires two PageViews', () => {
+    mockPathname = '/profile/abc';
+    mockSegments = ['profile', '[id]'];
+    const { rerender } = renderProvider({ hostname: 'example.com' });
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(fetchSpy).toHaveBeenLastCalledWith(
+      expect.any(String),
+      expect.objectContaining({ body: expect.stringContaining('/profile/[id]') })
+    );
+
+    mockPathname = '/posts/a/b';
+    mockSegments = ['posts', '[...slug]'];
+    rerender(providerEl({ hostname: 'example.com' }));
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    expect(fetchSpy).toHaveBeenLastCalledWith(
+      expect.any(String),
+      expect.objectContaining({ body: expect.stringContaining('/posts/[...slug]') })
+    );
+  });
+
+  test('excludePages matches the collapsed template', () => {
+    mockPathname = '/profile/abc123';
+    mockSegments = ['profile', '[id]'];
+    renderProvider({ hostname: 'example.com', excludePages: ['/profile/[id]'] });
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  test('includePages whitelist matches the collapsed template', () => {
+    mockPathname = '/profile/abc123';
+    mockSegments = ['profile', '[id]'];
+    renderProvider({ hostname: 'example.com', includePages: ['/profile/[id]'] });
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(fetchSpy).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ body: expect.stringContaining('/profile/[id]') })
+    );
+  });
+
+  test('excludePages with collapseDynamicRoutes: false matches the concrete path', () => {
+    mockPathname = '/profile/abc123';
+    mockSegments = ['profile', '[id]'];
+    renderProvider({
+      hostname: 'example.com',
+      collapseDynamicRoutes: false,
+      excludePages: ['/profile/[id]']
+    });
+
+    // Template-shaped exclude does NOT match the concrete path when collapse is off
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(fetchSpy).toHaveBeenLastCalledWith(
+      expect.any(String),
+      expect.objectContaining({ body: expect.stringContaining('/profile/abc123') })
+    );
+  });
+
+  test('AppState foreground refire uses the collapsed path', () => {
+    mockPathname = '/profile/abc123';
+    mockSegments = ['profile', '[id]'];
+    renderProvider({ hostname: 'example.com' });
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      appStateListeners.forEach(h => h('active'));
+    });
+
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    expect(fetchSpy).toHaveBeenLastCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        body: JSON.stringify({
+          u: 'https://example.com/profile/[id]',
+          e: [{ t: 'PageView' }]
+        })
+      })
+    );
+  });
+
+  test('toggling collapseDynamicRoutes between renders flips path shape', () => {
+    mockPathname = '/profile/abc123';
+    mockSegments = ['profile', '[id]'];
+    const { rerender } = renderProvider({ hostname: 'example.com' });
+    expect(fetchSpy).toHaveBeenLastCalledWith(
+      expect.any(String),
+      expect.objectContaining({ body: expect.stringContaining('/profile/[id]') })
+    );
+
+    rerender(providerEl({ hostname: 'example.com', collapseDynamicRoutes: false }));
+    // New tracked path (/profile/abc123) differs from lastPathRef (/profile/[id]) → refire
+    expect(fetchSpy).toHaveBeenLastCalledWith(
+      expect.any(String),
+      expect.objectContaining({ body: expect.stringContaining('/profile/abc123') })
+    );
+  });
+});
+
+// TODO(page-scope): restore the test blocks below when the override APIs
+// (useAnalyticsPath / AnalyticsPath / useAnalyticsProps / AnalyticsProps) are
+// reintroduced. The original test bodies are preserved verbatim inside block
+// comments so they can be uncommented in one move. The `describe.skip` shells
+// keep the test runner reporting the deferral explicitly.
+
+describe.skip('useAnalyticsPath / <AnalyticsPath>', () => {
+  /*
   function ScreenWithHook({ override }: { override: string }) {
     useAnalyticsPath(override);
     return createElement('div');
@@ -667,9 +1094,11 @@ describe('useAnalyticsPath / <AnalyticsPath>', () => {
       })
     );
   });
+  */
 });
 
-describe('useAnalyticsProps / <AnalyticsProps>', () => {
+describe.skip('useAnalyticsProps / <AnalyticsProps>', () => {
+  /*
   function ScreenWithProps({ props }: { props: Record<string, string> }) {
     useAnalyticsProps(props);
     return createElement('div');
@@ -898,9 +1327,11 @@ describe('useAnalyticsProps / <AnalyticsProps>', () => {
       })
     );
   });
+  */
 });
 
-describe('Override APIs — used outside <OneDollarStatsProvider>', () => {
+describe.skip('Override APIs — used outside <OneDollarStatsProvider>', () => {
+  /*
   test('useAnalyticsPath throws outside provider', () => {
     expect(() => renderHook(() => useAnalyticsPath('/x'))).toThrow(
       /useAnalyticsPath must be used inside <OneDollarStatsProvider>/
@@ -924,9 +1355,11 @@ describe('Override APIs — used outside <OneDollarStatsProvider>', () => {
       /AnalyticsProps must be used inside <OneDollarStatsProvider>/
     );
   });
+  */
 });
 
-describe('Override APIs — cleanup race-safety', () => {
+describe.skip('Override APIs — cleanup race-safety', () => {
+  /*
   // The unmount cleanup of useAnalyticsPath/useAnalyticsProps does an identity check:
   // it only nulls the override ref if it still equals the entry it originally wrote.
   // The risk it guards against: stale unmount clears a newer entry written by a different hook
@@ -1041,9 +1474,11 @@ describe('Override APIs — cleanup race-safety', () => {
       })
     );
   });
+  */
 });
 
-describe('Override APIs — component priority edge cases', () => {
+describe.skip('Override APIs — component priority edge cases', () => {
+  /*
   test('<AnalyticsPath> overwrites a hook entry from a DIFFERENT realPath', () => {
     // Hook wrote entry for old path; we navigate; on the new path, only the component is mounted.
     // The component's guard checks `existing.realPath === pathname` — since old != new, it should
@@ -1108,9 +1543,11 @@ describe('Override APIs — component priority edge cases', () => {
       })
     );
   });
+  */
 });
 
-describe('Override APIs — filtering and empty inputs', () => {
+describe.skip('Override APIs — filtering and empty inputs', () => {
+  /*
   test('includePages whitelist excludes an overridden screen whose template is not listed', () => {
     mockPathname = '/profile/abc123';
     function ScreenWithHook() {
@@ -1193,6 +1630,7 @@ describe('Override APIs — filtering and empty inputs', () => {
       })
     );
   });
+  */
 });
 
 describe('Transport — web platform fallback stack', () => {
@@ -1377,15 +1815,24 @@ describe('Transport — web platform fallback stack', () => {
     });
 
     mockPlatformOS = 'web';
-    // Build a screen with a huge prop to push the base64-encoded payload past the 1500-char threshold
+    // Build a screen that fires an event with a huge prop, pushing the base64-encoded
+    // payload past the 1500-char threshold so the Image path is bypassed.
     const huge = 'x'.repeat(2000);
-    function HugePropScreen() {
-      useAnalyticsProps({ huge });
+    function HugePayloadScreen() {
+      const { event } = useAnalytics();
+      useEffect(() => {
+        event('huge', { huge });
+      }, [event]);
       return createElement('div');
     }
-    render(providerEl({ hostname: 'example.com', devmode: true }, createElement(HugePropScreen)));
+    render(
+      providerEl(
+        { hostname: 'example.com', devmode: true, autocollect: false },
+        createElement(HugePayloadScreen)
+      )
+    );
 
-    // Image was NOT used
+    // Image was NOT used for the huge event
     expect(imageInstances.length).toBe(0);
     // sendBeacon was called directly
     expect(sendBeaconSpy).toHaveBeenCalledTimes(1);
@@ -1394,18 +1841,26 @@ describe('Transport — web platform fallback stack', () => {
 
   test('web + small payload sends correct body via Image (props included)', () => {
     mockPlatformOS = 'web';
-    function ScreenWithProps() {
-      useAnalyticsProps({ tier: 'pro' });
+    function ScreenFiresEvent() {
+      const { event } = useAnalytics();
+      useEffect(() => {
+        event('signup', { tier: 'pro' });
+      }, [event]);
       return createElement('div');
     }
-    render(providerEl({ hostname: 'example.com', devmode: true }, createElement(ScreenWithProps)));
+    render(
+      providerEl(
+        { hostname: 'example.com', devmode: true, autocollect: false },
+        createElement(ScreenFiresEvent)
+      )
+    );
 
     expect(imageInstances.length).toBe(1);
     const img = imageInstances[0]!;
     const dataParam = img.src.split('?data=')[1]!;
     expect(JSON.parse(atob(dataParam))).toEqual({
       u: 'https://example.com/home',
-      e: [{ t: 'PageView', p: { tier: 'pro' } }]
+      e: [{ t: 'signup', p: { tier: 'pro' } }]
     });
   });
 });

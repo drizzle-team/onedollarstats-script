@@ -10,7 +10,7 @@ import {
   type ReactNode
 } from 'react';
 import { AppState, Platform, type AppStateStatus } from 'react-native';
-import { usePathname } from 'expo-router';
+import { usePathname, useSegments } from 'expo-router';
 
 export type ExpoAnalyticsConfig = {
   hostname: string;
@@ -19,6 +19,7 @@ export type ExpoAnalyticsConfig = {
   includePages?: string[];
   autocollect?: boolean;
   devmode?: boolean;
+  collapseDynamicRoutes?: boolean;
 };
 
 type InternalConfig = {
@@ -26,25 +27,32 @@ type InternalConfig = {
   collectorUrl: string;
   autocollect: boolean;
   devmode: boolean;
+  collapseDynamicRoutes: boolean;
   excludePages?: string[];
   includePages?: string[];
 };
 
+// TODO(page-scope): restore when page-scope detection is designed.
+/*
 type OverrideSource = 'hook' | 'component';
 type Override = { realPath: string; customPath: string; source: OverrideSource } | null;
 type PropsOverride =
   | { realPath: string; props: Record<string, string>; source: OverrideSource }
   | null;
+*/
 
 type ContextValue = {
   config: InternalConfig;
   lastPathRef: MutableRefObject<string | null>;
-  overrideRef: MutableRefObject<Override>;
-  propsOverrideRef: MutableRefObject<PropsOverride>;
+  // TODO(page-scope): restore when page-scope detection is designed.
+  // overrideRef: MutableRefObject<Override>;
+  // propsOverrideRef: MutableRefObject<PropsOverride>;
 };
 
 const Context = createContext<ContextValue | null>(null);
 
+// TODO(page-scope): restore when page-scope detection is designed.
+/*
 function resolvePath(pathname: string, overrideRef: MutableRefObject<Override>): string {
   const o = overrideRef.current;
   return o && o.realPath === pathname ? o.customPath : pathname;
@@ -67,6 +75,7 @@ function mergeProps(
   if (!explicitProps) return screenProps;
   return { ...screenProps, ...explicitProps };
 }
+*/
 
 function mergeConfig(config: ExpoAnalyticsConfig): InternalConfig {
   return {
@@ -74,9 +83,26 @@ function mergeConfig(config: ExpoAnalyticsConfig): InternalConfig {
     collectorUrl: config.collectorUrl ?? 'https://collector.onedollarstats.com/events',
     autocollect: config.autocollect ?? true,
     devmode: config.devmode ?? false,
+    collapseDynamicRoutes: config.collapseDynamicRoutes ?? true,
     excludePages: config.excludePages,
     includePages: config.includePages
   };
+}
+
+function isGroupSegment(segment: string): boolean {
+  return /^\(.+\)$/.test(segment);
+}
+
+function collapsePath(segments: readonly string[]): string {
+  const visible = segments.filter(s => !isGroupSegment(s));
+  if (visible.length === 0) return '/';
+  return '/' + visible.join('/');
+}
+
+function useTrackedPath(config: InternalConfig): string {
+  const pathname = usePathname();
+  const segments = useSegments();
+  return config.collapseDynamicRoutes ? collapsePath(segments as readonly string[]) : pathname;
 }
 
 function isWebLocalhost(): boolean {
@@ -113,16 +139,18 @@ export function OneDollarStatsProvider({ config, children }: OneDollarStatsProvi
       config.collectorUrl,
       config.autocollect,
       config.devmode,
+      config.collapseDynamicRoutes,
       config.excludePages,
       config.includePages
     ]
   );
 
   const lastPathRef = useRef<string | null>(null);
-  const overrideRef = useRef<Override>(null);
-  const propsOverrideRef = useRef<PropsOverride>(null);
+  // TODO(page-scope): restore when page-scope detection is designed.
+  // const overrideRef = useRef<Override>(null);
+  // const propsOverrideRef = useRef<PropsOverride>(null);
   const announcedRef = useRef(false);
-  const pathname = usePathname();
+  const trackedPath = useTrackedPath(merged);
 
   useEffect(() => {
     if (announcedRef.current) return;
@@ -136,12 +164,11 @@ export function OneDollarStatsProvider({ config, children }: OneDollarStatsProvi
 
   useEffect(() => {
     if (!merged.autocollect) return;
-    const resolved = resolvePath(pathname, overrideRef);
-    if (isExcluded(resolved, merged)) return;
-    if (lastPathRef.current === resolved) return;
-    lastPathRef.current = resolved;
-    send('PageView', resolved, merged, resolveProps(pathname, propsOverrideRef));
-  }, [pathname, merged]);
+    if (isExcluded(trackedPath, merged)) return;
+    if (lastPathRef.current === trackedPath) return;
+    lastPathRef.current = trackedPath;
+    send('PageView', trackedPath, merged);
+  }, [trackedPath, merged]);
 
   useEffect(() => {
     const handler = (state: AppStateStatus) => {
@@ -149,51 +176,54 @@ export function OneDollarStatsProvider({ config, children }: OneDollarStatsProvi
       if (!merged.autocollect) return;
       const current = lastPathRef.current;
       if (!current || isExcluded(current, merged)) return;
-      send('PageView', current, merged, resolveProps(pathname, propsOverrideRef));
+      send('PageView', current, merged);
     };
     const sub = AppState.addEventListener('change', handler);
     return () => sub.remove();
-  }, [merged, pathname]);
+  }, [merged]);
 
   const value = useMemo<ContextValue>(
-    () => ({ config: merged, lastPathRef, overrideRef, propsOverrideRef }),
+    () => ({ config: merged, lastPathRef }),
     [merged]
   );
 
   return createElement(Context.Provider, { value }, children);
 }
 
+type Props = Record<string, string>;
+
 export type AnalyticsAPI = {
-  event(eventName: string, props?: Record<string, string>): void;
-  view(path?: string, props?: Record<string, string>): void;
+  event(eventName: string, pathOrProps?: string | Props, props?: Props): void;
+  view(pathOrProps?: string | Props, props?: Props): void;
 };
 
 export function useAnalytics(): AnalyticsAPI {
   const ctx = useRequiredContext('useAnalytics');
-  const pathname = usePathname();
+  const trackedPath = useTrackedPath(ctx.config);
 
   const event = useCallback(
-    (eventName: string, props?: Record<string, string>) => {
-      const { config, overrideRef, propsOverrideRef } = ctx;
-      const screenProps = resolveProps(pathname, propsOverrideRef);
-      send(eventName, resolvePath(pathname, overrideRef), config, mergeProps(screenProps, props));
+    (eventName: string, pathOrProps?: string | Props, props?: Props) => {
+      const targetPath = typeof pathOrProps === 'string' ? pathOrProps : trackedPath;
+      const eventProps = typeof pathOrProps === 'object' ? pathOrProps : props;
+      send(eventName, targetPath, ctx.config, eventProps);
     },
-    [ctx, pathname]
+    [ctx, trackedPath]
   );
 
   const view = useCallback(
-    (path?: string, props?: Record<string, string>) => {
-      const { config, overrideRef, propsOverrideRef } = ctx;
-      const targetPath = path ?? resolvePath(pathname, overrideRef);
-      const screenProps = resolveProps(pathname, propsOverrideRef);
-      send('PageView', targetPath, config, mergeProps(screenProps, props));
+    (pathOrProps?: string | Props, props?: Props) => {
+      const targetPath = typeof pathOrProps === 'string' ? pathOrProps : trackedPath;
+      const viewProps = typeof pathOrProps === 'object' ? pathOrProps : props;
+      send('PageView', targetPath, ctx.config, viewProps);
     },
-    [ctx, pathname]
+    [ctx, trackedPath]
   );
 
   return { event, view };
 }
 
+// TODO(page-scope): restore when page-scope detection is designed.
+/*
 export function useAnalyticsPath(customPath: string): void {
   const ctx = useRequiredContext('useAnalyticsPath');
   const pathname = usePathname();
@@ -251,6 +281,7 @@ export function AnalyticsProps(props: AnalyticsPropsProps): null {
   }, [ctx, pathname, props]);
   return null;
 }
+*/
 
 function shouldSkipSend(config: InternalConfig): boolean {
   if (Platform.OS !== 'web') return false;

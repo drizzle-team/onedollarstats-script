@@ -1,5 +1,5 @@
 import { useLocalSearchParams } from 'expo-router';
-import { useAnalyticsPath } from 'onedollarstats/expo';
+import { View } from 'onedollarstats/expo';
 import { View, Text, StyleSheet } from 'react-native';
 
 export default function Profile() {
