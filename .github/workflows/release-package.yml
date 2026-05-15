@@ -36,7 +36,7 @@ jobs:
 
       # ── Unit tests ──────────────────────────────────────────
       - name: Run unit tests
-        run: pnpm test:units
+        run: pnpm test:unit:web
         
       # ── Pack and install into test apps ──────────────────────
       - name: Pack and install npm package into test apps

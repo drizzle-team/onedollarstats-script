@@ -9,11 +9,12 @@
     "strict": true,
     "moduleResolution": "bundler",
     "rootDir": "src",
+    "jsx": "react-jsx",
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true,
     "sourceMap": true
   },
   "include": ["src"],
-  "exclude": ["node_modules", "dist", "build", "**/*.test.ts"]
+  "exclude": ["node_modules", "dist", "build", "**/*.test.ts", "**/*.test.tsx"]
 }

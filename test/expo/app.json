@@ -1,0 +1,14 @@
+{
+  "expo": {
+    "name": "onedollarstats-test",
+    "slug": "onedollarstats-test",
+    "scheme": "onedollarstats-test",
+    "version": "1.0.0",
+    "assetBundlePatterns": ["**/*"],
+    "web": {
+      "bundler": "metro",
+      "output": "static"
+    },
+    "plugins": ["expo-router"]
+  }
+}

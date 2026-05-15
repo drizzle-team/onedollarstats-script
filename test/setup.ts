@@ -9,14 +9,17 @@ const CACHE_DIR = join(TEST_DIR, ".cache");
 
 const MPA_DIR = join(TEST_DIR, "mpa");
 const SPA_DIR = join(TEST_DIR, "spa");
+const EXPO_DIR = join(TEST_DIR, "expo");
 
 const MPA_PORT = 4321;
 const SPA_PORT = 5173;
+const EXPO_PORT = 8081;
 
 const SERVER_STARTUP_TIMEOUT = 30_000; // 30 seconds
 
 let mpaProcess: ChildProcess | null = null;
 let spaProcess: ChildProcess | null = null;
+let expoProcess: ChildProcess | null = null;
 
 /**
  * Recursively get all files in a directory
@@ -108,8 +111,8 @@ function copyTracker(): void {
 }
 
 /**
- * Pack the npm package and install the tarball into MPA and SPA test apps.
- * This lets Astro/Vite resolve `import { configure } from "onedollarstats"`.
+ * Pack the npm package and install the tarball into MPA, SPA, and Expo test apps.
+ * This lets Astro/Vite/Metro resolve `import { configure } from "onedollarstats"`.
  */
 function copyPackage(): void {
   console.log("Packing npm package...");
@@ -130,6 +133,12 @@ function copyPackage(): void {
   // Install into SPA app
   execSync(`pnpm add --save-dev "${tarballPath}"`, {
     cwd: SPA_DIR,
+    stdio: "pipe",
+  });
+
+  // Install into Expo app
+  execSync(`pnpm add --save-dev "${tarballPath}"`, {
+    cwd: EXPO_DIR,
     stdio: "pipe",
   });
 
@@ -284,6 +293,7 @@ export default async function setup(): Promise<() => Promise<void>> {
     // Build apps if needed
     await buildAppIfNeeded("mpa", MPA_DIR);
     await buildAppIfNeeded("spa", SPA_DIR);
+    await buildAppIfNeeded("expo", EXPO_DIR);
   } else {
     console.log("Skipping build (SKIP_BUILD=1)");
   }
@@ -292,16 +302,19 @@ export default async function setup(): Promise<() => Promise<void>> {
     // Kill any processes using our ports before starting
     killPort(MPA_PORT);
     killPort(SPA_PORT);
+    killPort(EXPO_PORT);
 
     // Start preview servers
     console.log("Starting servers...");
     mpaProcess = startPreviewServer(MPA_DIR);
     spaProcess = startPreviewServer(SPA_DIR);
+    expoProcess = startPreviewServer(EXPO_DIR);
 
     // Wait for servers to be ready
     await Promise.all([
       waitForServer(`http://localhost:${MPA_PORT}`, SERVER_STARTUP_TIMEOUT),
       waitForServer(`http://localhost:${SPA_PORT}`, SERVER_STARTUP_TIMEOUT),
+      waitForServer(`http://localhost:${EXPO_PORT}`, SERVER_STARTUP_TIMEOUT),
     ]);
 
     console.log("Servers ready");
@@ -315,6 +328,7 @@ export default async function setup(): Promise<() => Promise<void>> {
       console.log("Stopping servers...");
       killProcess(mpaProcess);
       killProcess(spaProcess);
+      killProcess(expoProcess);
 
       // Give processes time to clean up
       await new Promise((r) => setTimeout(r, 500));

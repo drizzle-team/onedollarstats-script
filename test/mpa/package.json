@@ -2,6 +2,7 @@
   "name": "agreeable-aurora",
   "type": "module",
   "version": "0.0.1",
+  "packageManager": "pnpm@10.16.1",
   "scripts": {
     "dev": "astro dev",
     "build": "astro build",
@@ -11,5 +12,7 @@
   "dependencies": {
     "astro": "^5.1.9"
   },
-  "devDependencies": {}
+  "devDependencies": {
+    "onedollarstats": "file:/Users/kyrylousichenko/Dev/onedollarstats-script/onedollarstats-0.0.19.tgz"
+  }
 }

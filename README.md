@@ -119,6 +119,45 @@ event("Purchase", "/product", { amount: 1, color: "green" });
 - `pathOrProps` – Optional, **string** represents the path, **object** represents custom properties.
 - `props` – Optional, properties if the second argument is a path string.
 
+## Expo / React Native
+
+`onedollarstats/expo` is a dedicated entry point for Expo apps using `expo-router`. It auto-collects pageviews on route change and on app foreground, supports dynamic-route templates (`/profile/[id]` instead of `/profile/abc123`), and sends events natively on iOS/Android and via image beacon + `sendBeacon` on web.
+
+```tsx
+// app/_layout.tsx
+import { Stack } from 'expo-router';
+import { OneDollarStatsProvider } from 'onedollarstats/expo';
+
+export default function RootLayout() {
+  return (
+    <OneDollarStatsProvider config={{ hostname: 'example.com' }}>
+      <Stack screenOptions={{ headerShown: false }} />
+    </OneDollarStatsProvider>
+  );
+}
+```
+
+Fire custom events or manual pageviews from any component with `useAnalytics()`:
+
+```tsx
+import { useAnalytics } from 'onedollarstats/expo';
+
+const { event, view } = useAnalytics();
+
+event('signup', { plan: 'pro' });        // event with current route
+event('signup', '/landing');              // event with explicit path
+view({ campaign: 'spring' });             // pageview with just props
+view('/landing', { campaign: 'spring' }); // pageview with explicit path
+```
+
+**Expo-specific config options:**
+
+| Option                  | Type       | Default | Description                                                                                  |
+| ----------------------- | ---------- | ------- | -------------------------------------------------------------------------------------------- |
+| `collapseDynamicRoutes` | `boolean`  | `true`  | Use `useSegments()` to record routes as templates (`/profile/[id]`) instead of concrete paths. Group segments like `(tabs)` are stripped. |
+
+All other options (`hostname`, `collectorUrl`, `devmode`, `autocollect`, `excludePages`, `includePages`) behave the same as in the web tracker above.
+
 ## Autocapture
 
 **Page view events**
