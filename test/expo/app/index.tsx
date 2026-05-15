@@ -20,6 +20,12 @@ export default function Home() {
       <Link href="/nested/deep" style={styles.link} className="link-deep">
         <Text>Nested Page</Text>
       </Link>
+      <Link href="/profile/abc123" style={styles.link} className="link-profile">
+        <Text>Profile (dynamic)</Text>
+      </Link>
+      <Link href="/with-screen-props" style={styles.link} className="link-screen-props">
+        <Text>Screen Props</Text>
+      </Link>
     </View>
   );
 }

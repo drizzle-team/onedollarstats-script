@@ -38,9 +38,9 @@ jobs:
 
       # ── Unit tests ──────────────────────────────────────────
       - name: Run unit tests
-        run: pnpm test:units
+        run: pnpm test:unit:web
 
-      # ── Script E2E tests ────────────────────────────────────
+      # ── Web E2E tests ───────────────────────────────────────
       - name: Copy tracker to test apps
         run: |
           mkdir -p test/mpa/public test/spa/static
@@ -78,8 +78,8 @@ jobs:
           timeout 30 bash -c 'until curl -s -o /dev/null http://127.0.0.1:5173 2>&1; do sleep 1; done'
           echo "SPA server is ready"
 
-      - name: Run script E2E tests
-        run: pnpm test:e2e:script
+      - name: Run web E2E tests
+        run: pnpm test:e2e:web
         env:
           SKIP_BUILD: "1"
           SKIP_SERVERS: "1"

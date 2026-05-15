@@ -122,6 +122,47 @@ test("Expo View: nested path is tracked", async ({ reqs, goto }: Context) => {
   ]);
 });
 
+// ─── Expo Web: Per-screen path override (useAnalyticsPath) ──────────────────
+
+test("Expo Override: dynamic route reports the override path, not the concrete one", async ({ reqs, goto }: Context) => {
+  await goto(`${EXPO_URL}/profile/abc123`);
+
+  expect(reqs).toStrictEqual([
+    {
+      u: `${DEBUG_DOMAIN}/profile/[id]`,
+      e: [{ t: "PageView" }]
+    }
+  ]);
+});
+
+test("Expo Override: navigating from / to /profile/abc123 fires the override path", async ({ reqs, page, goto }: Context) => {
+  await goto(`${EXPO_URL}`);
+  await clickAndWaitForRequest(page, reqs, ".link-profile");
+
+  expect(reqs).toStrictEqual([
+    { u: `${DEBUG_DOMAIN}/`, e: [{ t: "PageView" }] },
+    { u: `${DEBUG_DOMAIN}/profile/[id]`, e: [{ t: "PageView" }] }
+  ]);
+});
+
+// ─── Expo Web: Per-screen default props (useAnalyticsProps) ─────────────────
+
+test("Expo Screen Props: auto PageView carries screen props, manual event merges with explicit props", async ({ reqs, page, goto }: Context) => {
+  await goto(`${EXPO_URL}/with-screen-props`);
+  await clickAndWaitForRequest(page, reqs, "text/Fire Event");
+
+  expect(reqs).toStrictEqual([
+    {
+      u: `${DEBUG_DOMAIN}/with-screen-props`,
+      e: [{ t: "PageView", p: { section: "admin" } }]
+    },
+    {
+      u: `${DEBUG_DOMAIN}/with-screen-props`,
+      e: [{ t: "cta_click", p: { section: "admin", extra: "x" } }]
+    }
+  ]);
+});
+
 // ─── Expo Web: Navigation Tests ─────────────────────────────────────────────
 
 test("Expo Nav: page to page via Link", async ({ reqs, page, goto }: Context) => {

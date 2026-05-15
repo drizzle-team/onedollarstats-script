@@ -5,13 +5,13 @@ export default defineConfig({
     projects: [
       {
         test: {
-          name: "Unit Tests",
+          name: "Web Unit Tests",
           include: ["src/**/*.test.ts"],
         },
       },
       {
         test: {
-          name: "Script E2E Tests",
+          name: "Web E2E Tests",
           environment: "node",
           globalSetup: "./test/setup.ts",
           include: ["test/script.test.ts"],

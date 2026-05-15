@@ -30,12 +30,43 @@ type InternalConfig = {
   includePages?: string[];
 };
 
+type OverrideSource = 'hook' | 'component';
+type Override = { realPath: string; customPath: string; source: OverrideSource } | null;
+type PropsOverride =
+  | { realPath: string; props: Record<string, string>; source: OverrideSource }
+  | null;
+
 type ContextValue = {
   config: InternalConfig;
   lastPathRef: MutableRefObject<string | null>;
+  overrideRef: MutableRefObject<Override>;
+  propsOverrideRef: MutableRefObject<PropsOverride>;
 };
 
 const Context = createContext<ContextValue | null>(null);
+
+function resolvePath(pathname: string, overrideRef: MutableRefObject<Override>): string {
+  const o = overrideRef.current;
+  return o && o.realPath === pathname ? o.customPath : pathname;
+}
+
+function resolveProps(
+  pathname: string,
+  propsOverrideRef: MutableRefObject<PropsOverride>
+): Record<string, string> | undefined {
+  const o = propsOverrideRef.current;
+  return o && o.realPath === pathname ? o.props : undefined;
+}
+
+function mergeProps(
+  screenProps: Record<string, string> | undefined,
+  explicitProps: Record<string, string> | undefined
+): Record<string, string> | undefined {
+  if (!screenProps && !explicitProps) return undefined;
+  if (!screenProps) return explicitProps;
+  if (!explicitProps) return screenProps;
+  return { ...screenProps, ...explicitProps };
+}
 
 function mergeConfig(config: ExpoAnalyticsConfig): InternalConfig {
   return {
@@ -88,6 +119,8 @@ export function OneDollarStatsProvider({ config, children }: OneDollarStatsProvi
   );
 
   const lastPathRef = useRef<string | null>(null);
+  const overrideRef = useRef<Override>(null);
+  const propsOverrideRef = useRef<PropsOverride>(null);
   const announcedRef = useRef(false);
   const pathname = usePathname();
 
@@ -103,10 +136,11 @@ export function OneDollarStatsProvider({ config, children }: OneDollarStatsProvi
 
   useEffect(() => {
     if (!merged.autocollect) return;
-    if (isExcluded(pathname, merged)) return;
-    if (lastPathRef.current === pathname) return;
-    lastPathRef.current = pathname;
-    send('PageView', pathname, merged);
+    const resolved = resolvePath(pathname, overrideRef);
+    if (isExcluded(resolved, merged)) return;
+    if (lastPathRef.current === resolved) return;
+    lastPathRef.current = resolved;
+    send('PageView', resolved, merged, resolveProps(pathname, propsOverrideRef));
   }, [pathname, merged]);
 
   useEffect(() => {
@@ -115,13 +149,16 @@ export function OneDollarStatsProvider({ config, children }: OneDollarStatsProvi
       if (!merged.autocollect) return;
       const current = lastPathRef.current;
       if (!current || isExcluded(current, merged)) return;
-      send('PageView', current, merged);
+      send('PageView', current, merged, resolveProps(pathname, propsOverrideRef));
     };
     const sub = AppState.addEventListener('change', handler);
     return () => sub.remove();
-  }, [merged]);
+  }, [merged, pathname]);
 
-  const value = useMemo<ContextValue>(() => ({ config: merged, lastPathRef }), [merged]);
+  const value = useMemo<ContextValue>(
+    () => ({ config: merged, lastPathRef, overrideRef, propsOverrideRef }),
+    [merged]
+  );
 
   return createElement(Context.Provider, { value }, children);
 }
@@ -137,22 +174,82 @@ export function useAnalytics(): AnalyticsAPI {
 
   const event = useCallback(
     (eventName: string, props?: Record<string, string>) => {
-      const { config } = ctx;
-      send(eventName, pathname, config, props);
+      const { config, overrideRef, propsOverrideRef } = ctx;
+      const screenProps = resolveProps(pathname, propsOverrideRef);
+      send(eventName, resolvePath(pathname, overrideRef), config, mergeProps(screenProps, props));
     },
     [ctx, pathname]
   );
 
   const view = useCallback(
     (path?: string, props?: Record<string, string>) => {
-      const { config } = ctx;
-      const targetPath = path ?? pathname;
-      send('PageView', targetPath, config, props);
+      const { config, overrideRef, propsOverrideRef } = ctx;
+      const targetPath = path ?? resolvePath(pathname, overrideRef);
+      const screenProps = resolveProps(pathname, propsOverrideRef);
+      send('PageView', targetPath, config, mergeProps(screenProps, props));
     },
     [ctx, pathname]
   );
 
   return { event, view };
+}
+
+export function useAnalyticsPath(customPath: string): void {
+  const ctx = useRequiredContext('useAnalyticsPath');
+  const pathname = usePathname();
+  useEffect(() => {
+    const entry: Override = { realPath: pathname, customPath, source: 'hook' };
+    ctx.overrideRef.current = entry;
+    return () => {
+      if (ctx.overrideRef.current === entry) ctx.overrideRef.current = null;
+    };
+  }, [ctx, pathname, customPath]);
+}
+
+export type AnalyticsPathProps = { path: string };
+
+export function AnalyticsPath({ path }: AnalyticsPathProps): null {
+  const ctx = useRequiredContext('AnalyticsPath');
+  const pathname = usePathname();
+  useEffect(() => {
+    const existing = ctx.overrideRef.current;
+    if (existing && existing.realPath === pathname && existing.source === 'hook') return;
+    const entry: Override = { realPath: pathname, customPath: path, source: 'component' };
+    ctx.overrideRef.current = entry;
+    return () => {
+      if (ctx.overrideRef.current === entry) ctx.overrideRef.current = null;
+    };
+  }, [ctx, pathname, path]);
+  return null;
+}
+
+export function useAnalyticsProps(props: Record<string, string>): void {
+  const ctx = useRequiredContext('useAnalyticsProps');
+  const pathname = usePathname();
+  useEffect(() => {
+    const entry: PropsOverride = { realPath: pathname, props, source: 'hook' };
+    ctx.propsOverrideRef.current = entry;
+    return () => {
+      if (ctx.propsOverrideRef.current === entry) ctx.propsOverrideRef.current = null;
+    };
+  }, [ctx, pathname, props]);
+}
+
+export type AnalyticsPropsProps = Record<string, string>;
+
+export function AnalyticsProps(props: AnalyticsPropsProps): null {
+  const ctx = useRequiredContext('AnalyticsProps');
+  const pathname = usePathname();
+  useEffect(() => {
+    const existing = ctx.propsOverrideRef.current;
+    if (existing && existing.realPath === pathname && existing.source === 'hook') return;
+    const entry: PropsOverride = { realPath: pathname, props, source: 'component' };
+    ctx.propsOverrideRef.current = entry;
+    return () => {
+      if (ctx.propsOverrideRef.current === entry) ctx.propsOverrideRef.current = null;
+    };
+  }, [ctx, pathname, props]);
+  return null;
 }
 
 function shouldSkipSend(config: InternalConfig): boolean {
