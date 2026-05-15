@@ -13,8 +13,15 @@ vi.mock('expo-router', () => ({
 const appStateListeners: Array<(state: string) => void> = [];
 const removeMock = vi.fn();
 
+// Mutable Platform.OS so transport tests can flip between native/web
+let mockPlatformOS: 'ios' | 'android' | 'web' = 'ios';
+
 vi.mock('react-native', () => ({
-  Platform: { OS: 'ios' },
+  Platform: {
+    get OS() {
+      return mockPlatformOS;
+    }
+  },
   AppState: {
     addEventListener: vi.fn((_event: string, handler: (state: string) => void) => {
       appStateListeners.push(handler);
@@ -51,6 +58,7 @@ beforeEach(() => {
   fetchSpy = vi.fn().mockResolvedValue({ ok: true });
   vi.stubGlobal('fetch', fetchSpy);
   mockPathname = '/home';
+  mockPlatformOS = 'ios';
   appStateListeners.length = 0;
   removeMock.mockClear();
 });
@@ -1184,5 +1192,220 @@ describe('Override APIs — filtering and empty inputs', () => {
         })
       })
     );
+  });
+});
+
+describe('Transport — web platform fallback stack', () => {
+  // Capture Image constructions so tests can drive load/error
+  type StubImage = { src: string; onerror?: () => void };
+  let imageInstances: StubImage[];
+
+  beforeEach(() => {
+    imageInstances = [];
+    vi.stubGlobal(
+      'Image',
+      class StubImageCtor {
+        src = '';
+        onerror?: () => void;
+        constructor() {
+          imageInstances.push(this);
+        }
+      }
+    );
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  test('native (Platform.OS = "ios") uses fetch, no Image, no sendBeacon', () => {
+    const sendBeaconSpy = vi.fn().mockReturnValue(true);
+    vi.stubGlobal('fetch', fetchSpy);
+    Object.defineProperty(globalThis, 'navigator', {
+      value: { sendBeacon: sendBeaconSpy },
+      configurable: true,
+      writable: true
+    });
+
+    mockPlatformOS = 'ios';
+    renderProvider({ hostname: 'example.com' });
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(fetchSpy).toHaveBeenCalledWith(
+      'https://collector.onedollarstats.com/events',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          u: 'https://example.com/home',
+          e: [{ t: 'PageView' }]
+        })
+      })
+    );
+    // fetch options should NOT include keepalive on native
+    const lastCall = fetchSpy.mock.calls[0]![1] as RequestInit;
+    expect(lastCall.keepalive).toBeUndefined();
+    expect(sendBeaconSpy).not.toHaveBeenCalled();
+    expect(imageInstances.length).toBe(0);
+  });
+
+  test('native does NOT call navigator.sendBeacon even when defined', () => {
+    const sendBeaconSpy = vi.fn().mockReturnValue(true);
+    Object.defineProperty(globalThis, 'navigator', {
+      value: { sendBeacon: sendBeaconSpy },
+      configurable: true,
+      writable: true
+    });
+
+    mockPlatformOS = 'android';
+    renderProvider({ hostname: 'example.com' });
+
+    expect(sendBeaconSpy).not.toHaveBeenCalled();
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
+  test('web + small payload uses Image beacon with base64 data', () => {
+    mockPlatformOS = 'web';
+    renderProvider({ hostname: 'example.com', devmode: true });
+
+    expect(imageInstances.length).toBe(1);
+    expect(fetchSpy).not.toHaveBeenCalled();
+
+    const img = imageInstances[0]!;
+    expect(img.src).toMatch(/^https:\/\/collector\.onedollarstats\.com\/events\?data=/);
+
+    // Verify base64 decodes to expected JSON
+    const dataParam = img.src.split('?data=')[1]!;
+    const decoded = atob(dataParam);
+    expect(JSON.parse(decoded)).toEqual({
+      u: 'https://example.com/home',
+      e: [{ t: 'PageView' }]
+    });
+  });
+
+  test('web + image onerror falls back to navigator.sendBeacon', () => {
+    const sendBeaconSpy = vi.fn().mockReturnValue(true);
+    Object.defineProperty(globalThis, 'navigator', {
+      value: { sendBeacon: sendBeaconSpy },
+      configurable: true,
+      writable: true
+    });
+
+    mockPlatformOS = 'web';
+    renderProvider({ hostname: 'example.com', devmode: true });
+
+    expect(imageInstances.length).toBe(1);
+    expect(sendBeaconSpy).not.toHaveBeenCalled();
+
+    // Trigger image error → should call sendBeacon
+    imageInstances[0]!.onerror?.();
+    expect(sendBeaconSpy).toHaveBeenCalledTimes(1);
+    expect(sendBeaconSpy).toHaveBeenCalledWith(
+      'https://collector.onedollarstats.com/events',
+      JSON.stringify({
+        u: 'https://example.com/home',
+        e: [{ t: 'PageView' }]
+      })
+    );
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  test('web + sendBeacon returns true does NOT call fetch', () => {
+    const sendBeaconSpy = vi.fn().mockReturnValue(true);
+    Object.defineProperty(globalThis, 'navigator', {
+      value: { sendBeacon: sendBeaconSpy },
+      configurable: true,
+      writable: true
+    });
+
+    mockPlatformOS = 'web';
+    renderProvider({ hostname: 'example.com', devmode: true });
+    imageInstances[0]!.onerror?.();
+
+    expect(sendBeaconSpy).toHaveBeenCalledTimes(1);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  test('web + sendBeacon returns false falls back to fetch with keepalive', () => {
+    const sendBeaconSpy = vi.fn().mockReturnValue(false);
+    Object.defineProperty(globalThis, 'navigator', {
+      value: { sendBeacon: sendBeaconSpy },
+      configurable: true,
+      writable: true
+    });
+
+    mockPlatformOS = 'web';
+    renderProvider({ hostname: 'example.com', devmode: true });
+    imageInstances[0]!.onerror?.();
+
+    expect(sendBeaconSpy).toHaveBeenCalledTimes(1);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(fetchSpy).toHaveBeenCalledWith(
+      'https://collector.onedollarstats.com/events',
+      expect.objectContaining({
+        method: 'POST',
+        keepalive: true,
+        body: JSON.stringify({
+          u: 'https://example.com/home',
+          e: [{ t: 'PageView' }]
+        })
+      })
+    );
+  });
+
+  test('web + sendBeacon undefined goes straight to fetch with keepalive', () => {
+    Object.defineProperty(globalThis, 'navigator', {
+      value: {}, // no sendBeacon at all
+      configurable: true,
+      writable: true
+    });
+
+    mockPlatformOS = 'web';
+    renderProvider({ hostname: 'example.com', devmode: true });
+    imageInstances[0]!.onerror?.();
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    const opts = fetchSpy.mock.calls[0]![1] as RequestInit;
+    expect(opts.keepalive).toBe(true);
+  });
+
+  test('web + payload too large skips Image, goes to sendBeacon/fetch path', () => {
+    const sendBeaconSpy = vi.fn().mockReturnValue(true);
+    Object.defineProperty(globalThis, 'navigator', {
+      value: { sendBeacon: sendBeaconSpy },
+      configurable: true,
+      writable: true
+    });
+
+    mockPlatformOS = 'web';
+    // Build a screen with a huge prop to push the base64-encoded payload past the 1500-char threshold
+    const huge = 'x'.repeat(2000);
+    function HugePropScreen() {
+      useAnalyticsProps({ huge });
+      return createElement('div');
+    }
+    render(providerEl({ hostname: 'example.com', devmode: true }, createElement(HugePropScreen)));
+
+    // Image was NOT used
+    expect(imageInstances.length).toBe(0);
+    // sendBeacon was called directly
+    expect(sendBeaconSpy).toHaveBeenCalledTimes(1);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  test('web + small payload sends correct body via Image (props included)', () => {
+    mockPlatformOS = 'web';
+    function ScreenWithProps() {
+      useAnalyticsProps({ tier: 'pro' });
+      return createElement('div');
+    }
+    render(providerEl({ hostname: 'example.com', devmode: true }, createElement(ScreenWithProps)));
+
+    expect(imageInstances.length).toBe(1);
+    const img = imageInstances[0]!;
+    const dataParam = img.src.split('?data=')[1]!;
+    expect(JSON.parse(atob(dataParam))).toEqual({
+      u: 'https://example.com/home',
+      e: [{ t: 'PageView', p: { tier: 'pro' } }]
+    });
   });
 });

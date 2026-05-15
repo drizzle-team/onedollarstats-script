@@ -266,6 +266,8 @@ function devLog(label: string, url: string, props?: Record<string, string>): voi
   console.log(msg);
 }
 
+const SAFE_GET_THRESHOLD = 1500;
+
 function send(
   eventName: string,
   path: string,
@@ -275,13 +277,52 @@ function send(
   if (shouldSkipSend(config)) return;
   const url = `https://${config.hostname}${path}`;
   if (config.devmode) devLog(eventName, url, props);
-  fetch(config.collectorUrl, {
+
+  const body = JSON.stringify({
+    u: url,
+    e: [{ t: eventName, ...(props && { p: props }) }]
+  });
+
+  if (Platform.OS === 'web') {
+    sendWeb(config.collectorUrl, body);
+  } else {
+    sendNative(config.collectorUrl, body);
+  }
+}
+
+function sendNative(collectorUrl: string, body: string): void {
+  fetch(collectorUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      u: url,
-      e: [{ t: eventName, ...(props && { p: props }) }]
-    })
+    body
+  }).catch(() => {});
+}
+
+function sendWeb(collectorUrl: string, body: string): void {
+  const bytes = new TextEncoder().encode(body);
+  const bin = String.fromCharCode(...bytes);
+  const payloadBase64 = btoa(bin);
+
+  if (payloadBase64.length <= SAFE_GET_THRESHOLD) {
+    const img = new Image(1, 1);
+    img.onerror = () => sendBeaconOrFetch(collectorUrl, body);
+    img.src = `${collectorUrl}?data=${payloadBase64}`;
+    return;
+  }
+
+  sendBeaconOrFetch(collectorUrl, body);
+}
+
+function sendBeaconOrFetch(collectorUrl: string, body: string): void {
+  if (typeof navigator !== 'undefined' && navigator.sendBeacon?.(collectorUrl, body)) {
+    return;
+  }
+
+  fetch(collectorUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body,
+    keepalive: true
   }).catch(() => {});
 }
 
