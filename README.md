@@ -119,7 +119,7 @@ event("Purchase", "/product", { amount: 1, color: "green" });
 - `pathOrProps` – Optional, **string** represents the path, **object** represents custom properties.
 - `props` – Optional, properties if the second argument is a path string.
 
-## Expo / React Native
+## Expo
 
 `onedollarstats/expo` is a dedicated entry point for Expo apps using `expo-router`. It auto-collects pageviews on route change and on app foreground, supports dynamic-route templates (`/profile/[id]` instead of `/profile/abc123`), and sends events natively on iOS/Android and via image beacon + `sendBeacon` on web.
 
