@@ -39,12 +39,15 @@ jobs:
         run: pnpm test:unit:web
         
       # ── Pack and install into test apps ──────────────────────
+      # The packed tarball is renamed to a stable, version-less filename
+      # (onedollarstats.tgz) so test app package.json references stay
+      # the same across version bumps.
       - name: Pack and install npm package into test apps
         run: |
           TARBALL=$(pnpm pack | tail -1)
-          TARBALL_PATH="$(pwd)/$TARBALL"
-          cd test/mpa && pnpm add --save-dev "$TARBALL_PATH"
-          cd ../spa && pnpm add --save-dev "$TARBALL_PATH"
+          mv "$TARBALL" onedollarstats.tgz
+          cd test/mpa && pnpm add --save-dev "file:../../onedollarstats.tgz"
+          cd ../spa && pnpm add --save-dev "file:../../onedollarstats.tgz"
 
       # ── Build test apps ──────────────────────────────────────
       - name: Build MPA test app
