@@ -1,6 +1,6 @@
 import { spawn, execSync, type ChildProcess } from "node:child_process";
 import { createHash } from "node:crypto";
-import { readFileSync, writeFileSync, existsSync, copyFileSync, mkdirSync, readdirSync, statSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, copyFileSync, mkdirSync, readdirSync, renameSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 
 const ROOT_DIR = resolve(import.meta.dirname, "..");
@@ -120,27 +120,25 @@ function copyPackage(): void {
   // Pack the tarball (outputs something like onedollarstats-0.0.17.tgz)
   const packOutput = execSync("pnpm pack", { cwd: ROOT_DIR, encoding: "utf-8" }).trim();
   const tarballName = packOutput.split("\n").pop()!.trim();
-  const tarballPath = join(ROOT_DIR, tarballName);
+  const versionedPath = join(ROOT_DIR, tarballName);
 
-  console.log(`Installing ${tarballName} into test apps...`);
+  // Rename to a stable, version-less filename so test app package.json
+  // references don't churn on every version bump.
+  const stableTarballPath = join(ROOT_DIR, "onedollarstats.tgz");
+  renameSync(versionedPath, stableTarballPath);
 
-  // Install into MPA app
-  execSync(`pnpm add --save-dev "${tarballPath}"`, {
-    cwd: MPA_DIR,
-    stdio: "pipe",
-  });
+  // Use a relative path so pnpm writes a portable spec into each
+  // test app's package.json instead of an absolute developer-local path.
+  const relativeSpec = "file:../../onedollarstats.tgz";
 
-  // Install into SPA app
-  execSync(`pnpm add --save-dev "${tarballPath}"`, {
-    cwd: SPA_DIR,
-    stdio: "pipe",
-  });
+  console.log(`Installing onedollarstats.tgz into test apps...`);
 
-  // Install into Expo app
-  execSync(`pnpm add --save-dev "${tarballPath}"`, {
-    cwd: EXPO_DIR,
-    stdio: "pipe",
-  });
+  for (const dir of [MPA_DIR, SPA_DIR, EXPO_DIR]) {
+    execSync(`pnpm add --save-dev "${relativeSpec}"`, {
+      cwd: dir,
+      stdio: "pipe",
+    });
+  }
 
   console.log("Package installed in test apps");
 }
