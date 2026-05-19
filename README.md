@@ -158,6 +158,106 @@ view('/landing', { campaign: 'spring' }); // pageview with explicit path
 
 All other options (`hostname`, `collectorUrl`, `devmode`, `autocollect`, `excludePages`, `includePages`) behave the same as in the web tracker above.
 
+### Per-page overrides with `withAnalyticsPage`
+
+When you want to declare a custom path or attach properties to a specific page, wrap the page's default export with `withAnalyticsPage`. The wrapper is the only API that can set page-scoped path/props — there are no hooks for this, so a child component (like a Button) can't accidentally hijack the tracking.
+
+**Static options** — fixed at wrap time:
+
+```tsx
+// app/profile/[id].tsx
+import { withAnalyticsPage } from 'onedollarstats/expo';
+
+function ProfileScreen() {
+  // ...page content
+}
+
+export default withAnalyticsPage(ProfileScreen, {
+  path: '/profile/[id]',
+  props: { section: 'user' }
+});
+```
+
+**Dynamic options** — pass a hook that returns the options. Useful for tracking theme, auth state, locale, A/B variants, etc.:
+
+```tsx
+import { useTheme } from '@/hooks/use-theme';
+import { useAuth } from '@/hooks/use-auth';
+import { withAnalyticsPage } from 'onedollarstats/expo';
+
+function ProfileScreen() {
+  // ...page content
+}
+
+function useProfileAnalytics() {
+  const theme = useTheme();
+  const { isAuthed, plan } = useAuth();
+  return {
+    path: '/profile/[id]',
+    props: {
+      theme,
+      authed: String(isAuthed),
+      plan: plan ?? 'guest',
+    }
+  };
+}
+
+export default withAnalyticsPage(ProfileScreen, useProfileAnalytics);
+```
+
+**Important:** changing a dynamic prop does **not** trigger a new PageView. The PageView is keyed only on the route path. A theme flip from `light` to `dark` updates the props in-place, and the next event (or AppState refire) picks up the new value — but the original PageView is not re-sent.
+
+| Moment                            | Pathname        | Theme | What fires                                                              |
+| --------------------------------- | --------------- | ----- | ----------------------------------------------------------------------- |
+| Page mount                        | `/profile/abc`  | light | `PageView` with `{ theme: 'light', authed: 'false', plan: 'guest' }`    |
+| User logs in                      | `/profile/abc`  | light | nothing                                                                 |
+| User flips theme                  | `/profile/abc`  | dark  | nothing                                                                 |
+| Button → `event('cta')`           | `/profile/abc`  | dark  | `cta` event with `{ theme: 'dark', authed: 'true', plan: 'pro' }`       |
+| Navigate to `/settings`           | `/settings`     | dark  | `PageView` for `/settings` with whatever `SettingsScreen`'s HOC declares|
+| App backgrounds → returns         | `/settings`     | dark  | `PageView` refire reading current props                                 |
+
+For session attributes that apply to every page (theme, auth, locale), build a shared hook and spread it from each page's options hook — there's no separate "session props" API, just standard React composition.
+
+**Merge precedence** (lowest → highest):
+
+1. `withAnalyticsPage(C, { props })` — page-level props
+2. Call-site `event(name, { foo })` / `view({ foo })` — call-site props
+
+Call-site keys overwrite page-level keys.
+
+**Explicit `view('/x')` always wins** over a page-level `path` override.
+
+#### Skipping pages from auto-tracking
+
+Set `skip: true` to exclude a page from auto-collected PageViews entirely. This overrides `includePages` from the Provider config. Manual `view()` and `event()` calls from the page still fire — `skip` only affects automatic tracking.
+
+```tsx
+// app/internal-debug.tsx
+import { withAnalyticsPage } from 'onedollarstats/expo';
+
+function DebugScreen() {
+  // ...
+}
+
+export default withAnalyticsPage(DebugScreen, { skip: true });
+```
+
+Dynamic skip works the same way — return `skip` from the options hook based on any runtime state (feature flag, user consent, A/B variant):
+
+```tsx
+function useDebugOptions() {
+  const { hasAnalyticsConsent } = useConsent();
+  return { skip: !hasAnalyticsConsent };
+}
+
+export default withAnalyticsPage(DebugScreen, useDebugOptions);
+```
+
+**Notes:**
+- `skip` takes precedence over `includePages` and `excludePages`.
+- AppState foreground refire is also suppressed while `skip` is true.
+- Flipping `skip` from `false` → `true` mid-mount does NOT retroactively "undo" an already-sent PageView. It only suppresses future auto fires (AppState refire). Use manual `event()` / `view()` from the page if you need control after that point.
+
 ## Autocapture
 
 **Page view events**

@@ -26,6 +26,12 @@ export default function Home() {
       <Link href="/with-screen-props" style={styles.link} className="link-screen-props">
         <Text>Screen Props</Text>
       </Link>
+      <Link href="/skipped" style={styles.link} className="link-skipped">
+        <Text>Skipped Page (no auto-PageView)</Text>
+      </Link>
+      <Link href="/skipped-with-event" style={styles.link} className="link-skipped-event">
+        <Text>Skipped + manual event/view</Text>
+      </Link>
     </View>
   );
 }

@@ -1,9 +1,8 @@
 import { useLocalSearchParams } from 'expo-router';
-import { View } from 'onedollarstats/expo';
+import { withAnalyticsPage } from 'onedollarstats/expo';
 import { View, Text, StyleSheet } from 'react-native';
 
-export default function Profile() {
-  useAnalyticsPath('/profile/[id]');
+function Profile() {
   const { id } = useLocalSearchParams<{ id: string }>();
 
   return (
@@ -13,6 +12,8 @@ export default function Profile() {
     </View>
   );
 }
+
+export default withAnalyticsPage(Profile, { path: '/profile/[id]' });
 
 const styles = StyleSheet.create({
   container: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 20 },

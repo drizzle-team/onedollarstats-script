@@ -23,6 +23,7 @@
     "react-native-web": "~0.19.0"
   },
   "devDependencies": {
+    "onedollarstats": "file:/Users/kyrylousichenko/Dev/onedollarstats-script/onedollarstats-0.0.22.tgz",
     "serve": "^14.0.0",
     "typescript": "^5.0.0"
   }

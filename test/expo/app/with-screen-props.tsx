@@ -1,8 +1,7 @@
-import { useAnalyticsProps, useAnalytics } from 'onedollarstats/expo';
+import { useAnalytics, withAnalyticsPage } from 'onedollarstats/expo';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 
-export default function WithScreenProps() {
-  useAnalyticsProps({ section: 'admin' });
+function WithScreenProps() {
   const { event } = useAnalytics();
 
   return (
@@ -14,6 +13,8 @@ export default function WithScreenProps() {
     </View>
   );
 }
+
+export default withAnalyticsPage(WithScreenProps, { props: { section: 'admin' } });
 
 const styles = StyleSheet.create({
   container: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 20 },
