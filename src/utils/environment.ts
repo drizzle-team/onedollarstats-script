@@ -4,8 +4,9 @@ export const getEnvironment = (): {
 } => ({
   isLocalhost:
     (/^localhost$|^127(\.[0-9]+){0,2}\.[0-9]+$|^\[::1?\]$/.test(location.hostname) &&
+      //TODO revisit
       (location.protocol === "http:" || location.protocol === "https:")) ||
-    location.protocol === "file:",
+    (location.protocol === "file:" && !navigator.userAgent.toLowerCase().includes("electron")),
   isHeadlessBrowser: Boolean(
     window.navigator.webdriver ||
     ("_phantom" in window && window._phantom) ||
