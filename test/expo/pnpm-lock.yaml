@@ -34,8 +34,8 @@ importers:
         version: 0.19.13(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
     devDependencies:
       onedollarstats:
-        specifier: file:/Users/kyrylousichenko/Dev/onedollarstats-script/onedollarstats-0.0.22.tgz
-        version: file:../../onedollarstats-0.0.22.tgz(expo-router@4.0.22(9f73c43c0f029090ffaac3bc2f5baa73))(react-native@0.76.5(@babel/core@7.29.0)(@babel/preset-env@7.29.5(@babel/core@7.29.0))(react@18.3.1))(react@18.3.1)
+        specifier: file:../../onedollarstats.tgz
+        version: file:../../onedollarstats.tgz(expo-router@4.0.22(9f73c43c0f029090ffaac3bc2f5baa73))(react-native@0.76.5(@babel/core@7.29.0)(@babel/preset-env@7.29.5(@babel/core@7.29.0))(react@18.3.1))(react@18.3.1)
       serve:
         specifier: ^14.0.0
         version: 14.2.6
@@ -2736,9 +2736,9 @@ packages:
   once@1.4.0:
     resolution: {integrity: sha512-lNaJgI+2Q5URQBkccEKHTQOPaXdUxnZZElQTZY0MFUAuaEqe1E+Nyvgdz/aIyNi6Z9MzO5dv1H8n58/GELp3+w==}
 
-  onedollarstats@file:../../onedollarstats-0.0.22.tgz:
-    resolution: {integrity: sha512-vHaAwL47MDDpgGnXJWu/hX753BznYUtZxR5SvrwrpleymmAKaA8v8GwjE+VR83+xdMYH/U9nN95Crjk7afJTJQ==, tarball: file:../../onedollarstats-0.0.22.tgz}
-    version: 0.0.22
+  onedollarstats@file:../../onedollarstats.tgz:
+    resolution: {integrity: sha512-vpQHQZDaAb5A8Fahlv7cpit+Ur6pu9bLx7e5wsQrFIXeynlk/pXOZ7vTwPKvtOGH/jYPv9RbxiIQWKvN4Q7ZrQ==, tarball: file:../../onedollarstats.tgz}
+    version: 0.0.23
     peerDependencies:
       expo-router: '>=3.0.0'
       react: '>=18.0.0'
@@ -7149,7 +7149,7 @@ snapshots:
     dependencies:
       wrappy: 1.0.2
 
-  onedollarstats@file:../../onedollarstats-0.0.22.tgz(expo-router@4.0.22(9f73c43c0f029090ffaac3bc2f5baa73))(react-native@0.76.5(@babel/core@7.29.0)(@babel/preset-env@7.29.5(@babel/core@7.29.0))(react@18.3.1))(react@18.3.1):
+  onedollarstats@file:../../onedollarstats.tgz(expo-router@4.0.22(9f73c43c0f029090ffaac3bc2f5baa73))(react-native@0.76.5(@babel/core@7.29.0)(@babel/preset-env@7.29.5(@babel/core@7.29.0))(react@18.3.1))(react@18.3.1):
     optionalDependencies:
       expo-router: 4.0.22(9f73c43c0f029090ffaac3bc2f5baa73)
       react: 18.3.1
