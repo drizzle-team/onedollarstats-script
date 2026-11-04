@@ -1,5 +1,13 @@
-import type { AnalyticsConfig, BaseProps, BodyToSend, Event, InternalAnalyticsConfig, ViewArguments } from "./types";
+import type {
+  AnalyticsConfig,
+  BaseProps,
+  BodyToSend,
+  Event,
+  InternalAnalyticsConfig,
+  ViewArguments,
+} from "./types";
 import { detectBot } from "./utils/bot";
+import { getDeviceInfo } from "./utils/device-info";
 import { getEnvironment, isClient } from "./utils/environment";
 import { mergeConfig } from "./utils/merge-config";
 import { parseUtmParams } from "./utils/parse-utm-params";
@@ -36,10 +44,15 @@ class AnalyticsTracker {
 
     // Debug log on localhost
     if (isLocalhost && this.config.devmode && this.config.hostname) {
-      console.log(`[onedollarstats]\nOneDollarStats connected! Tracking localhost as ${this.config.hostname}`);
+      console.log(
+        `[onedollarstats]\nOneDollarStats connected! Tracking localhost as ${this.config.hostname}`,
+      );
 
       // Set up debug modal loading: store config + queue, then dynamically load the debug script
-      window.__stonksDebugConfig = { hostname: this.config.hostname, collectorUrl: this.config.collectorUrl };
+      window.__stonksDebugConfig = {
+        hostname: this.config.hostname,
+        collectorUrl: this.config.collectorUrl,
+      };
       window.__stonksModalQueue = [];
       window.__stonksModalReady = false;
 
@@ -56,7 +69,10 @@ class AnalyticsTracker {
     this.setupAutocollect();
   }
 
-  private async sendWithBeaconOrFetch(stringifiedBody: string, callback: (success: boolean) => void): Promise<void> {
+  private async sendWithBeaconOrFetch(
+    stringifiedBody: string,
+    callback: (success: boolean) => void,
+  ): Promise<void> {
     // First fallback: try sendBeacon
     if (navigator.sendBeacon?.(this.config.collectorUrl, stringifiedBody)) {
       callback(true);
@@ -68,7 +84,7 @@ class AnalyticsTracker {
       method: "POST",
       body: stringifiedBody,
       headers: { "Content-Type": "application/json" },
-      keepalive: true
+      keepalive: true,
     })
       .then(({ ok }) => callback(ok))
       .catch((err: Error) => {
@@ -87,7 +103,9 @@ class AnalyticsTracker {
 
     if (isBot && botKind !== "human") return;
 
-    const urlToSend = new URL(this.config.hostname ? `https://${this.config.hostname}${location.pathname}` : location.href);
+    const urlToSend = new URL(
+      this.config.hostname ? `https://${this.config.hostname}${location.pathname}` : location.href,
+    );
 
     // Clean query string unless UTM is explicitly provided
     urlToSend.search = "";
@@ -104,6 +122,7 @@ class AnalyticsTracker {
       }
     } catch {} // ignore malformed referrer
 
+    const deviceInfo = getDeviceInfo();
     // Build request body
     const body: BodyToSend = {
       u: cleanUrl,
@@ -112,17 +131,19 @@ class AnalyticsTracker {
           t: data.type,
           h: this.config.hashRouting,
           r: referrer,
-          p: data.props
-        }
+          p: data.props,
+        },
       ],
-      debug: this.config.devmode
+      ...deviceInfo,
+      debug: this.config.devmode,
     };
 
     if (data.utm && Object.keys(data.utm).length > 0) body.qs = data.utm;
 
     if (body.debug) {
       let logMessage = `[onedollarstats]\nEvent name: ${data.type}\nEvent collected from: ${cleanUrl}`;
-      if (data.props && Object.keys(data.props).length > 0) logMessage += `\nProps: ${JSON.stringify(data.props, null, 2)}`;
+      if (data.props && Object.keys(data.props).length > 0)
+        logMessage += `\nProps: ${JSON.stringify(data.props, null, 2)}`;
       if (referrer) logMessage += `\nReferrer: ${referrer}`;
       if (this.config.hashRouting) logMessage += `\nHashRouting: ${this.config.hashRouting}`;
       if (data.utm && Object.keys(data.utm).length > 0) logMessage += `\nUTM: ${data.utm}`;
@@ -174,7 +195,8 @@ class AnalyticsTracker {
     const elements = document.querySelectorAll("[data-s\\:view-props], [data-s-view-props]");
 
     for (const el of Array.from(elements)) {
-      const propsString = el.getAttribute("data-s-view-props") || el.getAttribute("data-s:view-props");
+      const propsString =
+        el.getAttribute("data-s-view-props") || el.getAttribute("data-s:view-props");
       if (!propsString) continue;
       const parsedProps = parseProps(propsString);
       Object.assign(collectedProps, parsedProps);
@@ -324,11 +346,18 @@ class AnalyticsTracker {
       while (el) {
         const eventName = el.getAttribute("data-s-event") || el.getAttribute("data-s:event");
         if (eventName) {
-          const propsAttr = el.getAttribute("data-s-event-props") || el.getAttribute("data-s:event-props");
+          const propsAttr =
+            el.getAttribute("data-s-event-props") || el.getAttribute("data-s:event-props");
           const props = propsAttr ? parseProps(propsAttr) : undefined;
-          const path = el.getAttribute("data-s-event-path") || el.getAttribute("data-s:event-path") || undefined;
+          const path =
+            el.getAttribute("data-s-event-path") ||
+            el.getAttribute("data-s:event-path") ||
+            undefined;
 
-          if ((path && !shouldTrackPath(path, this.config)) || !shouldTrackPath(location.pathname, this.config)) {
+          if (
+            (path && !shouldTrackPath(path, this.config)) ||
+            !shouldTrackPath(location.pathname, this.config)
+          ) {
             return;
           }
 
@@ -355,7 +384,11 @@ export const configure = (userConfig: AnalyticsConfig = {}) => {
   AnalyticsTracker.getInstance(userConfig);
 };
 
-export const event = async (eventName: string, pathOrProps?: string | BaseProps, props?: BaseProps) => {
+export const event = async (
+  eventName: string,
+  pathOrProps?: string | BaseProps,
+  props?: BaseProps,
+) => {
   const instance = AnalyticsTracker.getInstance();
   await instance.event(eventName, pathOrProps, props);
 };

@@ -1,5 +1,6 @@
 import type { BodyToSend, Event, ViewArguments } from "./types";
 import { detectBot } from "./utils/bot";
+import { getDeviceInfo } from "./utils/device-info";
 import { getEnvironment } from "./utils/environment";
 import { extractHostName } from "./utils/extract-hostname";
 import { defaultConfig } from "./utils/merge-config";
@@ -32,7 +33,9 @@ declare const DEBUG_SCRIPT_URL: string;
   if (isLocalEnvironment) {
     const { hostname, devmode } = extractHostName(stonksScript, isLocalEnvironment);
 
-    console.log(`[onedollarstats]\nScript successfully connected! ${hostname ? `Tracking your localhost as ${hostname}` : "Debug domain not set"}`);
+    console.log(
+      `[onedollarstats]\nScript successfully connected! ${hostname ? `Tracking your localhost as ${hostname}` : "Debug domain not set"}`,
+    );
 
     if (devmode && hostname) {
       const analyticsUrl = stonksScript?.getAttribute("data-url") || defaultConfig.collectorUrl;
@@ -78,12 +81,13 @@ declare const DEBUG_SCRIPT_URL: string;
   }
 
   async function send(data: Event): Promise<void> {
-    const analyticsUrl =
-      stonksScript?.getAttribute("data-url") || defaultConfig.collectorUrl;
+    const analyticsUrl = stonksScript?.getAttribute("data-url") || defaultConfig.collectorUrl;
 
     const { hostname, devmode } = extractHostName(stonksScript, isLocalEnvironment);
 
-    const urlToSend: URL = new URL(hostname ? `https://${hostname}${location.pathname}` : location.href);
+    const urlToSend: URL = new URL(
+      hostname ? `https://${hostname}${location.pathname}` : location.href,
+    );
 
     urlToSend.search = "";
     if (data.path) {
@@ -96,9 +100,7 @@ declare const DEBUG_SCRIPT_URL: string;
 
     if (!referrer) {
       const docReferrer =
-        document.referrer && document.referrer !== "null"
-          ? document.referrer
-          : undefined;
+        document.referrer && document.referrer !== "null" ? document.referrer : undefined;
 
       if (docReferrer) {
         const referrerURL = new URL(docReferrer);
@@ -109,6 +111,8 @@ declare const DEBUG_SCRIPT_URL: string;
       }
     }
 
+    const deviceInfo = getDeviceInfo();
+
     const body: BodyToSend = {
       u: cleanUrl,
       e: [
@@ -116,10 +120,11 @@ declare const DEBUG_SCRIPT_URL: string;
           t: data.type,
           h: useHashRouting,
           r: referrer,
-          p: data.props
-        }
+          p: data.props,
+        },
       ],
-      debug: devmode
+      ...deviceInfo,
+      debug: devmode,
     };
 
     if (data.utm && Object.keys(data.utm).length > 0) {
@@ -132,8 +137,7 @@ declare const DEBUG_SCRIPT_URL: string;
         logMessage += `\nProps: ${JSON.stringify(data.props, null, 2)}`;
       if (referrer) logMessage += `\nReferrer: ${referrer}`;
       if (useHashRouting) logMessage += `\nHashRouting: ${useHashRouting}`;
-      if (data.utm && Object.keys(data.utm).length > 0)
-        logMessage += `\nUTM: ${data.utm}`;
+      if (data.utm && Object.keys(data.utm).length > 0) logMessage += `\nUTM: ${data.utm}`;
 
       console.log(logMessage);
     }
@@ -163,13 +167,11 @@ declare const DEBUG_SCRIPT_URL: string;
 
       img.onload = () => onComplete(true);
       // If loading image fails (server unavailable, blocked, etc.)
-      img.onerror = () =>
-        sendWithBeaconOrFetch(analyticsUrl, stringifiedBody, onComplete);
+      img.onerror = () => sendWithBeaconOrFetch(analyticsUrl, stringifiedBody, onComplete);
 
       // Primary attempt: send data via image beacon (GET request with query string)
       img.src = `${analyticsUrl}?data=${payloadBase64}`;
-    } else
-      await sendWithBeaconOrFetch(analyticsUrl, stringifiedBody, onComplete);
+    } else await sendWithBeaconOrFetch(analyticsUrl, stringifiedBody, onComplete);
   }
 
   async function event(
@@ -193,7 +195,11 @@ declare const DEBUG_SCRIPT_URL: string;
 
     const path = resolvePath(options?.path || undefined);
 
-    send({ type: name, props: options?.props, path: path !== location.pathname ? path : undefined });
+    send({
+      type: name,
+      props: options?.props,
+      path: path !== location.pathname ? path : undefined,
+    });
   }
 
   function handleTaggedElementClickEvent(clickEvent: MouseEvent) {
@@ -209,17 +215,13 @@ declare const DEBUG_SCRIPT_URL: string;
     let depth = 0;
 
     while (el) {
-      const eventName =
-        el.getAttribute("data-s-event") || el.getAttribute("data-s:event");
+      const eventName = el.getAttribute("data-s-event") || el.getAttribute("data-s:event");
       if (eventName) {
         const propsAttr =
-          el.getAttribute("data-s-event-props") ||
-          el.getAttribute("data-s:event-props");
+          el.getAttribute("data-s-event-props") || el.getAttribute("data-s:event-props");
         const props = propsAttr ? parseProps(propsAttr) : undefined;
         const path =
-          el.getAttribute("data-s-event-path") ||
-          el.getAttribute("data-s:event-path") ||
-          undefined;
+          el.getAttribute("data-s-event-path") || el.getAttribute("data-s:event-path") || undefined;
 
         event(eventName, path ?? props, props);
 
@@ -234,10 +236,7 @@ declare const DEBUG_SCRIPT_URL: string;
     }
   }
 
-  async function view(
-    arg1?: string | Record<string, string>,
-    arg2?: Record<string, string>,
-  ) {
+  async function view(arg1?: string | Record<string, string>, arg2?: Record<string, string>) {
     const options: {
       path?: string;
       props?: Record<string, string>;
@@ -259,10 +258,7 @@ declare const DEBUG_SCRIPT_URL: string;
     );
   }
 
-  async function trackPageView(
-    data: ViewArguments,
-    checkBlock: boolean = true,
-  ) {
+  async function trackPageView(data: ViewArguments, checkBlock: boolean = true) {
     if (checkBlock && shouldBlockEvent()) return;
 
     const urlParams = new URLSearchParams(location.search);
@@ -276,13 +272,10 @@ declare const DEBUG_SCRIPT_URL: string;
     const collectedProps: Record<string, string> = pageViewProps
       ? parseProps(pageViewProps) || {}
       : {};
-    const elements = document.querySelectorAll(
-      "[data-s\\:view-props], [data-s-view-props]",
-    );
+    const elements = document.querySelectorAll("[data-s\\:view-props], [data-s-view-props]");
     for (const el of Array.from(elements)) {
       const propsString =
-        el.getAttribute("data-s-view-props") ||
-        el.getAttribute("data-s:view-props");
+        el.getAttribute("data-s-view-props") || el.getAttribute("data-s:view-props");
       if (!propsString) continue;
       const parsedProps = parseProps(propsString);
       Object.assign(collectedProps, parsedProps);
@@ -296,8 +289,7 @@ declare const DEBUG_SCRIPT_URL: string;
     if (data.props) {
       Object.assign(collectedProps, data.props);
     }
-    const props =
-      Object.keys(collectedProps).length > 0 ? collectedProps : undefined;
+    const props = Object.keys(collectedProps).length > 0 ? collectedProps : undefined;
     send({
       type: "PageView",
       props,
@@ -319,14 +311,9 @@ declare const DEBUG_SCRIPT_URL: string;
       lastPage = null;
       return;
     }
-    const isAutocollect =
-      stonksScript?.getAttribute("data-autocollect") !== "false";
+    const isAutocollect = stonksScript?.getAttribute("data-autocollect") !== "false";
 
-    if (
-      !isAutocollect &&
-      shouldCollectPage1 !== "true" &&
-      shouldCollectPage2 !== "true"
-    ) {
+    if (!isAutocollect && shouldCollectPage1 !== "true" && shouldCollectPage2 !== "true") {
       lastPage = null;
       return;
     }
@@ -342,13 +329,10 @@ declare const DEBUG_SCRIPT_URL: string;
 
     const pageViewProps = stonksScript?.getAttribute("data-props");
     const props = pageViewProps ? parseProps(pageViewProps) || {} : {};
-    const elements = document.querySelectorAll(
-      "[data-s\\:view-props], [data-s-view-props]",
-    );
+    const elements = document.querySelectorAll("[data-s\\:view-props], [data-s-view-props]");
     for (const el of Array.from(elements)) {
       const propsString =
-        el.getAttribute("data-s-view-props") ||
-        el.getAttribute("data-s:view-props");
+        el.getAttribute("data-s-view-props") || el.getAttribute("data-s:view-props");
       if (!propsString) continue;
       const parsedProps = parseProps(propsString);
       Object.assign(props, parsedProps);

@@ -21,6 +21,13 @@ export type Event = {
 // p: properties
 // e: events
 // qs: utm params
+// sw / sh: screen width / height in CSS pixels
+// n: network info (Chromium only)
+//   et: effective type (slow-2g | 2g | 3g | 4g)
+//   t: connection type (wifi | cellular | ethernet | ...)
+//   dl: downlink estimate in Mbps
+//   rtt: round-trip time estimate in ms
+//   sd: data saver enabled
 type MinimizedEvent = {
   t: string;
   h?: boolean;
@@ -28,10 +35,21 @@ type MinimizedEvent = {
   p?: BaseProps;
 };
 
+export type NetworkInfo = {
+  et?: string;
+  t?: string;
+  dl?: number;
+  rtt?: number;
+  sd?: boolean;
+};
+
 export type BodyToSend = {
   u: string;
   e: [MinimizedEvent];
   qs?: Record<string, string>;
+  sw?: number;
+  sh?: number;
+  n?: NetworkInfo;
   debug?: boolean;
 };
 

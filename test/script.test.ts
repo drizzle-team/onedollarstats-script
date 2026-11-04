@@ -4,6 +4,7 @@ import { afterAll, afterEach, beforeEach, expect, test, type TestContext } from 
 interface Context extends TestContext {
   page: Page;
   reqs: any[];
+  devices: any[];
   goto: (path: string) => Promise<void>;
 }
 const MPA_URL = "http://localhost:4321";
@@ -20,6 +21,13 @@ const browser = await puppeteer.launch({
 
 beforeEach(async (ctx: Context) => {
   const reqs: any[] = [];
+  const devices: any[] = [];
+
+  // Screen size and network info vary per machine, so keep them out of the exact payload assertions
+  const record = ({ sw, sh, n, ...payload }: any) => {
+    devices.push({ sw, sh, n });
+    reqs.push(payload);
+  };
 
   const page = await browser.newPage();
   // Make Puppeteer look like a normal browser so the tracker's detectBot()
@@ -43,12 +51,12 @@ beforeEach(async (ctx: Context) => {
       try {
         const body = interceptedRequest.postData();
         if (body) {
-          reqs.push(JSON.parse(body));
+          record(JSON.parse(body));
         } else {
           const dataParam = new URL(url).searchParams.get("data");
           if (dataParam) {
             const json = Buffer.from(dataParam, "base64").toString("utf-8");
-            reqs.push(JSON.parse(json));
+            record(JSON.parse(json));
           }
         }
       } catch (e) {
@@ -71,6 +79,7 @@ beforeEach(async (ctx: Context) => {
     });
   };
   ctx.reqs = reqs;
+  ctx.devices = devices;
 });
 
 afterEach(async (ctx: Context) => {
@@ -122,6 +131,18 @@ test("View: default page view", async ({ reqs, goto }: Context) => {
       debug: true
     }
   ]);
+});
+
+test("Device: screen size and network info are sent", async ({ reqs, devices, page, goto }: Context) => {
+  await goto(MPA_URL);
+
+  const screenSize = await page.evaluate(() => ({ sw: screen.width, sh: screen.height }));
+
+  expect(reqs).toHaveLength(1);
+  expect(devices[0]).toMatchObject({
+    ...screenSize,
+    n: { et: expect.stringMatching(/^(slow-2g|2g|3g|4g)$/) }
+  });
 });
 
 test("View: no local host allowed", async ({ reqs, goto }: Context) => {

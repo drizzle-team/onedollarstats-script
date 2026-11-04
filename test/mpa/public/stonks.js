@@ -148,9 +148,30 @@ function isNativeToString(str) {
   return /^function\s[^{]*\{\s*\[native code\]\s*\}$/.test(str) || str === "function () { [native code] }" || /^\(\)\s*=>\s*\{\s*\[native code\]\s*\}$/.test(str);
 }
 
+// src/utils/device-info.ts
+function getDeviceInfo() {
+  const info = {};
+  if (typeof screen !== "undefined" && screen.width && screen.height) {
+    info.sw = screen.width;
+    info.sh = screen.height;
+  }
+  const connection = navigator.connection;
+  if (connection) {
+    info.n = {
+      et: connection.effectiveType,
+      t: connection.type,
+      dl: connection.downlink,
+      rtt: connection.rtt,
+      sd: connection.saveData
+    };
+  }
+  return info;
+}
+
 // src/utils/environment.ts
 var getEnvironment = () => ({
-  isLocalhost: /^localhost$|^127(\.[0-9]+){0,2}\.[0-9]+$|^\[::1?\]$/.test(location.hostname) && (location.protocol === "http:" || location.protocol === "https:") || location.protocol === "file:",
+  isLocalhost: /^localhost$|^127(\.[0-9]+){0,2}\.[0-9]+$|^\[::1?\]$/.test(location.hostname) && //TODO revisit
+  (location.protocol === "http:" || location.protocol === "https:") || location.protocol === "file:" && !navigator.userAgent.toLowerCase().includes("electron"),
   isHeadlessBrowser: Boolean(
     window.navigator.webdriver || "_phantom" in window && window._phantom || "__nightmare" in window && window.__nightmare || "Cypress" in window && window.Cypress
   )
@@ -325,6 +346,7 @@ Script successfully connected! ${hostname ? `Tracking your localhost as ${hostna
           p: data.props
         }
       ],
+      ...getDeviceInfo(),
       debug: devmode
     };
     if (data.utm && Object.keys(data.utm).length > 0) {
