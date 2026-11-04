@@ -71,6 +71,21 @@ describe("Environment Tests", () => {
         const { getEnvironment } = await import("./environment");
         expect(getEnvironment().isLocalhost).toBe(false);
       });
+
+      test("Electron served from http://localhost is not localhost", async () => {
+        vi.stubGlobal("location", { hostname: "localhost", protocol: "http:" });
+        vi.stubGlobal("window", { navigator: { webdriver: false } });
+        vi.stubGlobal("navigator", { webdriver: false, userAgent: "Mozilla/5.0 AppleWebKit/537.36 MyApp/1.2.0 Chrome/128 Electron/32.0.0 Safari/537.36" });
+        const { getEnvironment } = await import("./environment");
+        expect(getEnvironment().isLocalhost).toBe(false);
+      });
+
+      test("Neutralino served from http://localhost is not localhost", async () => {
+        vi.stubGlobal("location", { hostname: "localhost", protocol: "http:" });
+        vi.stubGlobal("window", { navigator: { webdriver: false }, NL_VERSION: "6.0.0" });
+        const { getEnvironment } = await import("./environment");
+        expect(getEnvironment().isLocalhost).toBe(false);
+      });
     });
 
     describe("isHeadlessBrowser", () => {

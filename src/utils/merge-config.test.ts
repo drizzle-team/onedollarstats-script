@@ -137,4 +137,26 @@ describe("Merge config Tests", () => {
       expect(result).toEqual(expect.objectContaining({ hostname, devmode: false }));
     });
   });
+
+  describe("on desktop", () => {
+    beforeEach(() => {
+      vi.spyOn(environment, "getEnvironment").mockReturnValue({
+        isLocalhost: false,
+        isHeadlessBrowser: false,
+        isDesktop: true
+      });
+    });
+
+    test("devmode=true is kept", () => {
+      const result = mergeConfig({ hostname, devmode: true });
+
+      expect(result).toEqual(expect.objectContaining({ hostname, devmode: true }));
+    });
+
+    test("devmode defaults to false", () => {
+      const result = mergeConfig({ hostname });
+
+      expect(result).toEqual(expect.objectContaining({ hostname, devmode: false }));
+    });
+  });
 });

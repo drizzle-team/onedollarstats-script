@@ -8,13 +8,17 @@ export const defaultConfig: InternalAnalyticsConfig = {
   hashRouting: false,
   autocollect: true,
   excludePages: [],
-  includePages: []
+  includePages: [],
 };
 
 export const mergeConfig = (userConfig: AnalyticsConfig = {}): InternalAnalyticsConfig => {
-  const { isLocalhost } = getEnvironment();
+  const { isLocalhost, isDesktop } = getEnvironment();
 
-  const devmode = !isLocalhost ? false : (userConfig.devmode ?? !!userConfig.trackLocalhostAs);
+  // Desktop can't tell dev from production by URL, so devmode is used as passed
+  // TODO: auto-detect desktop dev: process.env.NODE_ENV === "development" (replaced by the app's bundler),
+  // Tauri/Electron served from http://localhost, Electron file:// without app.asar; then block unless devmode like web localhost
+  const devmode =
+    !isLocalhost && !isDesktop ? false : (userConfig.devmode ?? !!userConfig.trackLocalhostAs);
 
   let hostname: string | null;
   if (userConfig.hostname) {
