@@ -104,7 +104,8 @@ declare const DEBUG_SCRIPT_URL: string;
       if (docReferrer) {
         const referrerURL = new URL(docReferrer);
 
-        if (referrerURL.hostname !== urlToSend.hostname) {
+        // Skip internal (tracked or real host) and non-http referrers (file://, app://, tauri://)
+        if (/^https?:$/.test(referrerURL.protocol) && referrerURL.hostname !== urlToSend.hostname && referrerURL.hostname !== location.hostname) {
           referrer = referrerURL.href;
         }
       }

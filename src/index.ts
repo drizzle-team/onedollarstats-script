@@ -101,7 +101,8 @@ class AnalyticsTracker {
     try {
       if (!referrer && document.referrer && document.referrer !== "null") {
         const referrerURL = new URL(document.referrer);
-        if (referrerURL.hostname !== urlToSend.hostname) referrer = referrerURL.href;
+        // Skip internal (tracked or real host) and non-http referrers (file://, app://, tauri://)
+        if (/^https?:$/.test(referrerURL.protocol) && referrerURL.hostname !== urlToSend.hostname && referrerURL.hostname !== location.hostname) referrer = referrerURL.href;
       }
     } catch {} // ignore malformed referrer
 
