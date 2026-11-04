@@ -86,6 +86,7 @@ declare const DEBUG_SCRIPT_URL: string;
     const urlToSend: URL = new URL(hostname ? `https://${hostname}${location.pathname}` : location.href);
 
     urlToSend.search = "";
+    urlToSend.hash = "";
     if (data.path) {
       urlToSend.pathname = data.path;
     }
@@ -191,7 +192,7 @@ declare const DEBUG_SCRIPT_URL: string;
       options.props = arg2;
     }
 
-    const path = resolvePath(options?.path || undefined);
+    const path = resolvePath(options?.path || undefined, useHashRouting);
 
     send({ type: name, props: options?.props, path: path !== location.pathname ? path : undefined });
   }
@@ -268,7 +269,7 @@ declare const DEBUG_SCRIPT_URL: string;
     const urlParams = new URLSearchParams(location.search);
     const utm = parseUtmParams(urlParams);
 
-    const path = resolvePath(data?.path || undefined);
+    const path = resolvePath(data?.path || undefined, useHashRouting);
     // Only pass path if it differs from the current pathname
     const customPath = path !== location.pathname ? path : undefined;
 
@@ -331,14 +332,16 @@ declare const DEBUG_SCRIPT_URL: string;
       return;
     }
 
-    if (!useHashRouting && lastPage === location.pathname) {
+    const currentPath = useHashRouting ? location.hash.split("?")[0] : location.pathname;
+
+    if (lastPage === currentPath) {
       console.warn(`Ignoring event PageView - pathname has not changed`);
       return;
     }
 
     if (shouldBlockEvent()) return;
 
-    lastPage = location.pathname;
+    lastPage = currentPath;
 
     const pageViewProps = stonksScript?.getAttribute("data-props");
     const props = pageViewProps ? parseProps(pageViewProps) || {} : {};

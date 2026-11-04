@@ -1,4 +1,4 @@
-export const resolvePath = (pathOrProps?: string): string => {
+export const resolvePath = (pathOrProps?: string, hashRouting: boolean = false): string => {
   if (pathOrProps) return pathOrProps;
 
   const sources = [
@@ -14,6 +14,9 @@ export const resolvePath = (pathOrProps?: string): string => {
     console.warn("[onedollarstats] Multiple path sources found. Using priority order:", existing.map(({ name }) => name).join(" > "));
   }
 
-  // Return first available value, fallback to location.pathname
-  return existing[0]?.value ?? location.pathname;
+  // Hash route as path: "#/users?tab=1" -> "/users"
+  const hashPath = hashRouting && location.hash.replace(/^#!?\/?/, "/").split("?")[0];
+
+  // Return first available value, fallback to hash route or location.pathname
+  return existing[0]?.value ?? (hashPath || location.pathname);
 };

@@ -91,6 +91,7 @@ class AnalyticsTracker {
 
     // Clean query string unless UTM is explicitly provided
     urlToSend.search = "";
+    urlToSend.hash = "";
     if (data.path) urlToSend.pathname = data.path;
 
     const cleanUrl = urlToSend.href.replace(/\/$/, "");
@@ -167,7 +168,7 @@ class AnalyticsTracker {
   private trackPageView({ path, props }: ViewArguments, checkBlock: boolean = false) {
     if (!isClient()) return;
 
-    const viewPath = resolvePath(path);
+    const viewPath = resolvePath(path, this.config.hashRouting);
 
     // Collect props from DOM attributes
     const collectedProps: Record<string, string> = {};
@@ -196,7 +197,7 @@ class AnalyticsTracker {
     const viewProps = Object.keys(collectedProps).length > 0 ? collectedProps : undefined;
 
     // Skip duplicate pageviews or excluded pages
-    if (!this.config.hashRouting && this.lastPage === viewPath) return;
+    if (this.lastPage === viewPath) return;
 
     // Skip page if checkBlock is true and the path should be excluded
     if (checkBlock && !shouldTrackPath(viewPath, this.config)) return;
@@ -221,7 +222,7 @@ class AnalyticsTracker {
     const { isLocalhost, isHeadlessBrowser } = getEnvironment();
     if ((isLocalhost && !this.config.devmode) || isHeadlessBrowser) return;
 
-    const path = resolvePath(typeof pathOrProps === "string" ? pathOrProps : undefined);
+    const path = resolvePath(typeof pathOrProps === "string" ? pathOrProps : undefined, this.config.hashRouting);
     const props = typeof pathOrProps === "object" ? pathOrProps : rawProps;
 
     this.send({ type: eventName, path, props });
@@ -328,7 +329,7 @@ class AnalyticsTracker {
           const props = propsAttr ? parseProps(propsAttr) : undefined;
           const path = el.getAttribute("data-s-event-path") || el.getAttribute("data-s:event-path") || undefined;
 
-          if ((path && !shouldTrackPath(path, this.config)) || !shouldTrackPath(location.pathname, this.config)) {
+          if ((path && !shouldTrackPath(path, this.config)) || !shouldTrackPath(resolvePath(undefined, this.config.hashRouting), this.config)) {
             return;
           }
 

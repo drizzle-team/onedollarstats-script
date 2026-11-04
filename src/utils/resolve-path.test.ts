@@ -106,3 +106,55 @@ describe("resolvePath Tests", () => {
     expect(resolvePath("")).toBe("/body-path");
   });
 });
+
+describe("hash routing", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+    vi.resetModules();
+  });
+
+  const setupDOM = (url: string, bodyAttrs: Record<string, string> = {}) => {
+    const attrs = Object.entries(bodyAttrs).map(([key, val]) => ` ${key}="${val}"`).join("");
+    const dom = new JSDOM(`<!DOCTYPE html><html><head></head><body${attrs}></body></html>`, { url });
+    vi.stubGlobal("document", dom.window.document);
+    vi.stubGlobal("location", dom.window.location);
+  };
+
+  test.each([
+    ["#/users", "/users"],
+    ["#/users/42?tab=billing", "/users/42"],
+    ["#!/users", "/users"],
+    ["#users", "/users"],
+    ["#/", "/"]
+  ])("normalizes hash route %s to %s", async (hash, expected) => {
+    setupDOM(`https://example.com/app${hash}`);
+    const { resolvePath } = await import("./resolve-path");
+    expect(resolvePath(undefined, true)).toBe(expected);
+  });
+
+  test("uses the hash route when hashRouting is enabled", async () => {
+    setupDOM("https://example.com/#/settings/profile");
+    const { resolvePath } = await import("./resolve-path");
+    expect(resolvePath(undefined, true)).toBe("/settings/profile");
+  });
+
+  test("ignores the hash when hashRouting is disabled", async () => {
+    setupDOM("https://example.com/app#/settings");
+    const { resolvePath } = await import("./resolve-path");
+    expect(resolvePath()).toBe("/app");
+  });
+
+  test("falls back to location.pathname when the hash is empty", async () => {
+    setupDOM("https://example.com/app");
+    const { resolvePath } = await import("./resolve-path");
+    expect(resolvePath(undefined, true)).toBe("/app");
+  });
+
+  test("explicit path and data-s-path still win over the hash route", async () => {
+    setupDOM("https://example.com/#/settings", { "data-s-path": "/body-path" });
+    const { resolvePath } = await import("./resolve-path");
+    expect(resolvePath("/explicit", true)).toBe("/explicit");
+    expect(resolvePath(undefined, true)).toBe("/body-path");
+  });
+});
