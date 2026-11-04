@@ -17,6 +17,9 @@ export const resolvePath = (pathOrProps?: string, hashRouting: boolean = false):
   // Hash route as path: "#/users?tab=1" -> "/users"
   const hashPath = hashRouting && location.hash.replace(/^#!?\/?/, "/").split("?")[0];
 
-  // Return first available value, fallback to hash route or location.pathname
-  return existing[0]?.value ?? (hashPath || location.pathname);
+  // file:// pathname is a file system path (desktop apps), never send it
+  const urlPath = location.protocol === "file:" ? "/" : location.pathname;
+
+  // Return first available value, fallback to hash route or URL path
+  return existing[0]?.value ?? (hashPath || urlPath);
 };

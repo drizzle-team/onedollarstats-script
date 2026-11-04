@@ -157,4 +157,13 @@ describe("hash routing", () => {
     expect(resolvePath("/explicit", true)).toBe("/explicit");
     expect(resolvePath(undefined, true)).toBe("/body-path");
   });
+
+  test("never returns the file system path for file:// pages", async () => {
+    setupDOM("file:///Users/john/MyApp.app/Contents/Resources/app.asar/dist/index.html#/settings", { "data-s-path": "/body-path" });
+    const { resolvePath } = await import("./resolve-path");
+    expect(resolvePath(undefined, true)).toBe("/body-path");
+    document.body.removeAttribute("data-s-path");
+    expect(resolvePath(undefined, true)).toBe("/settings");
+    expect(resolvePath()).toBe("/");
+  });
 });
