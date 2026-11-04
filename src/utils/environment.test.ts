@@ -104,6 +104,41 @@ describe("Environment Tests", () => {
         expect(getEnvironment().isHeadlessBrowser).toBe(true);
       });
     });
+
+    describe("isDesktop", () => {
+      const ELECTRON_UA = "Mozilla/5.0 AppleWebKit/537.36 MyApp/1.2.0 Chrome/128 Electron/32.0.0 Safari/537.36";
+
+      test.each([
+        { expected: true, url: "file:///app/index.html", ua: ELECTRON_UA },
+        { expected: true, url: "tauri://localhost/" },
+        { expected: true, url: "http://tauri.localhost/" },
+        { expected: true, url: "http://localhost:1420/", globals: { __TAURI_INTERNALS__: { invoke: () => {} } } },
+        { expected: true, url: "http://localhost:1420/", globals: { __TAURI_IPC__: () => {} } },
+        { expected: true, url: "wails://wails/" },
+        { expected: true, url: "http://wails.localhost/" },
+        { expected: true, url: "http://localhost:5678/", globals: { NL_VERSION: "6.0.0" } },
+        { expected: true, url: "chrome-extension://app/index.html", globals: { nw: { App: {} } } },
+        { expected: false, url: "https://example.com/" },
+        { expected: false, url: "http://localhost:3000/" }
+      ])("$url → $expected", async ({ expected, url, ua = "Mozilla/5.0 Chrome/128 Safari/537.36", globals = {} }) => {
+        const { hostname, protocol } = new URL(url);
+        vi.stubGlobal("location", { hostname, protocol });
+        vi.stubGlobal("window", { navigator: { webdriver: false }, ...globals });
+        vi.stubGlobal("navigator", { webdriver: false, userAgent: ua });
+        const { getEnvironment } = await import("./environment");
+        expect(getEnvironment().isDesktop).toBe(expected);
+      });
+
+      test("elements with runtime-like ids on a website are not detected as desktop", async () => {
+        const dom = new JSDOM('<!DOCTYPE html><html><body><div id="nw"></div><div id="NL_VERSION"></div><div id="__TAURI_INTERNALS__"></div><div id="__TAURI_IPC__"></div></body></html>', { url: "https://example.com/" });
+        vi.stubGlobal("window", dom.window);
+        vi.stubGlobal("navigator", dom.window.navigator);
+        vi.stubGlobal("location", dom.window.location);
+        expect(typeof (dom.window as any).nw).toBe("object"); // named access really exposes the element
+        const { getEnvironment } = await import("./environment");
+        expect(getEnvironment().isDesktop).toBe(false);
+      });
+    });
   });
 
   describe("isClient", () => {

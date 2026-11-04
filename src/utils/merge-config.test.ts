@@ -12,7 +12,8 @@ describe("Merge config Tests", () => {
     beforeEach(() => {
       vi.spyOn(environment, "getEnvironment").mockReturnValue({
         isLocalhost: true,
-        isHeadlessBrowser: false
+        isHeadlessBrowser: false,
+        isDesktop: false
       });
     });
 
@@ -105,7 +106,8 @@ describe("Merge config Tests", () => {
     beforeEach(() => {
       vi.spyOn(environment, "getEnvironment").mockReturnValue({
         isLocalhost: false,
-        isHeadlessBrowser: false
+        isHeadlessBrowser: false,
+        isDesktop: false
       });
     });
 
