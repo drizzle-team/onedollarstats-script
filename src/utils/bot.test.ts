@@ -61,6 +61,7 @@ describe("Bot Detection Tests", () => {
     vi.stubGlobal("window", win);
     vi.stubGlobal("navigator", win.navigator);
     vi.stubGlobal("document", win.document);
+    vi.stubGlobal("location", win.location);
     vi.stubGlobal("Notification", { permission: "default" });
     vi.stubGlobal("Navigator", win.Navigator ?? class {});
     vi.stubGlobal("HTMLCanvasElement", win.HTMLCanvasElement ?? class { prototype: any });
@@ -328,6 +329,37 @@ describe("Bot Detection Tests", () => {
       const { detectBot } = await import("./bot");
       const result = detectBot();
       expect(result.botKind).toBe("automation");
+    });
+  });
+
+  describe("Desktop apps", () => {
+    // Real Electron 45 UA; the app name ("botanica") contains "bot"
+    const ELECTRON_UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) botanica/1.0.0 Chrome/156.0.8078.80 Electron/45.2.2 Safari/537.36";
+
+    test("app name in the UA is not a bot signal", async () => {
+      setupDOM({ userAgent: ELECTRON_UA });
+      const { detectBot } = await import("./bot");
+      expect(detectBot().signals.userAgentBot).toBe(false);
+    });
+
+    test("headless heuristics are skipped", async () => {
+      setupDOM({ userAgent: ELECTRON_UA, chrome: null });
+      const { detectBot } = await import("./bot");
+      expect(detectBot().signals.headless).toBe(false);
+    });
+
+    test("automation is still detected", async () => {
+      setupDOM({ userAgent: ELECTRON_UA, webdriver: true });
+      const { detectBot } = await import("./bot");
+      const result = detectBot();
+      expect(result.isBot).toBe(true);
+      expect(result.botKind).toBe("automation");
+    });
+
+    test("same UA token on a website is still a bot signal", async () => {
+      setupDOM({ userAgent: "Mozilla/5.0 Chrome/120.0.0.0 botanica/1.0.0 Safari/537.36" });
+      const { detectBot } = await import("./bot");
+      expect(detectBot().signals.userAgentBot).toBe(true);
     });
   });
 });

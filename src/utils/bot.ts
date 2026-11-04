@@ -9,6 +9,8 @@
  * - API tampering / lie detection (prototype spoofing, proxy wrapping)
  */
 
+import { getEnvironment } from './environment'
+
 // ---------------------------------------------------------------------------
 // Public types
 // ---------------------------------------------------------------------------
@@ -106,6 +108,10 @@ const AUTOMATION_GLOBALS = [
  */
 export function detectBot(): BotDetectionResult {
   const signals = collectBotSignals()
+  const { isDesktop } = getEnvironment()
+
+  // Desktop webviews: the app name is in the UA (e.g. "botanica/1.0.0") and headless heuristics don't apply
+  if (isDesktop) signals.userAgentBot = signals.headless = false
 
   const isBot =
     signals.userAgentBot ||
