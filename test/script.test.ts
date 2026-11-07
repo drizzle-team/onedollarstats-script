@@ -130,6 +130,42 @@ test("View: no local host allowed", async ({ reqs, goto }: Context) => {
   expect(reqs).toStrictEqual([]);
 });
 
+test("View: no local host allowed for manual view and event", async ({ reqs, goto }: Context) => {
+  await goto(MPA_URL + "/no-localhost-allowed-manually");
+
+  expect(reqs).toStrictEqual([]);
+});
+
+test("View: manual view is blocked for bots", async ({ reqs, page, goto }: Context) => {
+  await page.evaluateOnNewDocument(() => {
+    Object.defineProperty(Navigator.prototype, "webdriver", { get: () => true, configurable: true });
+  });
+  await goto(`${MPA_URL}/manually-view`);
+
+  expect(reqs).toStrictEqual([]);
+});
+
+test("View: manual view is blocked in Cypress", async ({ reqs, page, goto }: Context) => {
+  await page.evaluateOnNewDocument(() => {
+    (window as any).Cypress = { version: "13.0.0" };
+  });
+  await goto(`${MPA_URL}/manually-view`);
+
+  expect(reqs).toStrictEqual([]);
+});
+
+test("View: manual view with the same path twice is sent once", async ({ reqs, goto }: Context) => {
+  await goto(`${MPA_URL}/manually-view-twice`);
+
+  expect(reqs).toStrictEqual([
+    {
+      u: `${DEBUG_DOMAIN}/manually-view-twice`,
+      e: [{ t: "PageView", h: false }],
+      debug: true
+    }
+  ]);
+});
+
 test("View: autocollect disabled", async ({ reqs, goto }: Context) => {
   await goto(`${MPA_URL}/view-autocollect-disabled`);
 
@@ -981,11 +1017,10 @@ test("shouldBlockEvent: blocks events in headless browser", async () => {
   const headlessReqs: unknown[] = [];
   await headlessPage.setRequestInterception(true);
   headlessPage.on("request", (interceptedRequest) => {
-    if (interceptedRequest.url() === "https://collector.onedollarstats.com/events") {
-      const body = interceptedRequest.postData();
-      if (body) {
-        headlessReqs.push(JSON.parse(body));
-      }
+    if (interceptedRequest.url().startsWith("https://collector.onedollarstats.com/events")) {
+      // Image beacon sends GET ?data=<base64>; fallbacks send a POST body
+      const data = interceptedRequest.postData() ?? Buffer.from(new URL(interceptedRequest.url()).searchParams.get("data") ?? "", "base64").toString("utf-8");
+      if (data) headlessReqs.push(JSON.parse(data));
     }
     if (interceptedRequest.isInterceptResolutionHandled()) return;
     if (interceptedRequest.url().endsWith(".png") || interceptedRequest.url().endsWith(".jpg")) interceptedRequest.abort();
@@ -1018,11 +1053,10 @@ async function createBotPage(userAgent?: string, extraCdpCommands?: (page: any) 
   const reqs: unknown[] = [];
   await page.setRequestInterception(true);
   page.on("request", (interceptedRequest) => {
-    if (interceptedRequest.url() === "https://collector.onedollarstats.com/events") {
-      const body = interceptedRequest.postData();
-      if (body) {
-        reqs.push(JSON.parse(body));
-      }
+    if (interceptedRequest.url().startsWith("https://collector.onedollarstats.com/events")) {
+      // Image beacon sends GET ?data=<base64>; fallbacks send a POST body
+      const data = interceptedRequest.postData() ?? Buffer.from(new URL(interceptedRequest.url()).searchParams.get("data") ?? "", "base64").toString("utf-8");
+      if (data) reqs.push(JSON.parse(data));
     }
     if (interceptedRequest.isInterceptResolutionHandled()) return;
     if (interceptedRequest.url().endsWith(".png") || interceptedRequest.url().endsWith(".jpg")) interceptedRequest.abort();
@@ -1084,9 +1118,23 @@ test("shouldBlockEvent: blocks events with Chrome runtime missing", async () => 
   expect(reqs).toStrictEqual([]);
   await browser.close();
 });
+
+test("Hash routing: hash route is the path, one page view per route", async ({ reqs, page }: Context) => {
+  await page.goto(`${MPA_URL}/hash-routing#/settings`);
+  await page.waitForNetworkIdle({ idleTime: 100 });
+  await clickAndWaitForPageView(page, reqs, ".link");
+  await clickAndWaitForPageView(page, reqs, ".event-button");
+  // Settle so duplicate page views (e.g. popstate + hashchange) would be caught
+  await page.waitForNetworkIdle({ idleTime: 300 });
+
+  expect(reqs).toStrictEqual([
+    { u: `${DEBUG_DOMAIN}/settings`, e: [{ t: "PageView", h: true }], debug: true },
+    { u: `${DEBUG_DOMAIN}/users`, e: [{ t: "PageView", h: true }], debug: true },
+    { u: `${DEBUG_DOMAIN}/users`, e: [{ t: "Event", h: true }], debug: true }
+  ]);
+});
 // --- Release
 // --- Release
 // ToDo:
-// - Hash Routing
 // - navigator.sendBeacon works
 // - https://tigerabrodi.blog/patterns-for-improving-inp#heading-introduction-to-inp

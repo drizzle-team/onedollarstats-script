@@ -1,5 +1,5 @@
 import type { AnalyticsConfig, BaseProps, BodyToSend, Event, InternalAnalyticsConfig, ViewArguments } from "./types";
-import { detectBot } from "./utils/bot";
+import { shouldBlock } from "./utils/bot";
 import { getEnvironment, isClient } from "./utils/environment";
 import { mergeConfig } from "./utils/merge-config";
 import { parseUtmParams } from "./utils/parse-utm-params";
@@ -80,12 +80,8 @@ class AnalyticsTracker {
   // Handles localhost replacement, referrer, UTM parameters, and debug mode.
   // Uses img beacon then `navigator.sendBeacon` if available, otherwise falls back to `fetch`.
   private async send(data: Event): Promise<void> {
-    const { isLocalhost, isHeadlessBrowser } = getEnvironment();
-    if ((isLocalhost && !this.config.devmode) || isHeadlessBrowser) return;
-
-    const { isBot, botKind } = detectBot();
-
-    if (isBot && botKind !== "human") return;
+    // Same gate as the CDN script: localhost without devmode, headless browsers and bots never send
+    if (shouldBlock(this.config.devmode)) return;
 
     const urlToSend = new URL(this.config.hostname ? `https://${this.config.hostname}${location.pathname}` : location.href);
 
@@ -219,9 +215,6 @@ class AnalyticsTracker {
    */
   public async event(eventName: string, pathOrProps?: string | BaseProps, rawProps?: BaseProps) {
     if (!isClient()) return;
-
-    const { isLocalhost, isHeadlessBrowser } = getEnvironment();
-    if ((isLocalhost && !this.config.devmode) || isHeadlessBrowser) return;
 
     const path = resolvePath(typeof pathOrProps === "string" ? pathOrProps : undefined, this.config.hashRouting);
     const props = typeof pathOrProps === "object" ? pathOrProps : rawProps;

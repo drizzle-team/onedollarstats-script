@@ -1,5 +1,5 @@
 import type { BodyToSend, Event, ViewArguments } from "./types";
-import { detectBot } from "./utils/bot";
+import { shouldBlock } from "./utils/bot";
 import { getEnvironment } from "./utils/environment";
 import { extractHostName } from "./utils/extract-hostname";
 import { defaultConfig } from "./utils/merge-config";
@@ -27,10 +27,10 @@ declare const DEBUG_SCRIPT_URL: string;
 
   const stonksScript = document.currentScript as HTMLScriptElement;
   const useHashRouting = stonksScript?.getAttribute("data-hash-routing") !== null;
-  const { isLocalhost: isLocalEnvironment } = getEnvironment();
+  const { isLocalhost: isLocalEnvironment, isDesktop } = getEnvironment();
 
   if (isLocalEnvironment) {
-    const { hostname, devmode } = extractHostName(stonksScript, isLocalEnvironment);
+    const { hostname, devmode } = extractHostName(stonksScript, isLocalEnvironment, isDesktop);
 
     console.log(`[onedollarstats]\nScript successfully connected! ${hostname ? `Tracking your localhost as ${hostname}` : "Debug domain not set"}`);
 
@@ -81,7 +81,10 @@ declare const DEBUG_SCRIPT_URL: string;
     const analyticsUrl =
       stonksScript?.getAttribute("data-url") || defaultConfig.collectorUrl;
 
-    const { hostname, devmode } = extractHostName(stonksScript, isLocalEnvironment);
+    const { hostname, devmode } = extractHostName(stonksScript, isLocalEnvironment, isDesktop);
+
+    // Same gate as the npm package: localhost without devmode, headless browsers and bots never send
+    if (shouldBlock(devmode)) return;
 
     const urlToSend: URL = new URL(hostname ? `https://${hostname}${location.pathname}` : location.href);
 
@@ -179,8 +182,6 @@ declare const DEBUG_SCRIPT_URL: string;
     arg2?: string | Record<string, string>,
     props?: Record<string, string>,
   ) {
-    if (shouldBlockEvent()) return;
-
     const options: {
       path?: string;
       props?: Record<string, string>;
@@ -257,20 +258,25 @@ declare const DEBUG_SCRIPT_URL: string;
         path: options?.path,
         props: options?.props,
       },
-      false,
     );
   }
 
   async function trackPageView(
     data: ViewArguments,
-    checkBlock: boolean = true,
   ) {
-    if (checkBlock && shouldBlockEvent()) return;
-
     const urlParams = new URLSearchParams(location.search);
     const utm = parseUtmParams(urlParams);
 
     const path = resolvePath(data?.path || undefined, useHashRouting);
+
+    // Skip duplicate page views (auto and manual), same as the npm package
+    if (lastPage === path) {
+      console.warn(`Ignoring event PageView - pathname has not changed`);
+      return;
+    }
+
+    lastPage = path;
+
     // Only pass path if it differs from the current pathname
     const customPath = path !== location.pathname ? path : undefined;
 
@@ -333,17 +339,6 @@ declare const DEBUG_SCRIPT_URL: string;
       return;
     }
 
-    const currentPath = useHashRouting ? location.hash.split("?")[0] : location.pathname;
-
-    if (lastPage === currentPath) {
-      console.warn(`Ignoring event PageView - pathname has not changed`);
-      return;
-    }
-
-    if (shouldBlockEvent()) return;
-
-    lastPage = currentPath;
-
     const pageViewProps = stonksScript?.getAttribute("data-props");
     const props = pageViewProps ? parseProps(pageViewProps) || {} : {};
     const elements = document.querySelectorAll(
@@ -368,24 +363,7 @@ declare const DEBUG_SCRIPT_URL: string;
       {
         props: Object.keys(props).length > 0 ? props : undefined,
       },
-      false,
     );
-  }
-
-  function shouldBlockEvent(): boolean {
-    const { hostname, devmode } = extractHostName(stonksScript, isLocalEnvironment);
-
-    if (isLocalEnvironment && (!devmode || !hostname)) {
-      return true;
-    }
-
-    const { isBot, botKind } = detectBot();
-
-    if (isBot && botKind !== "human") {
-      return true;
-    }
-
-    return false;
   }
 
   if (window.history.pushState) {

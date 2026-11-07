@@ -1,4 +1,4 @@
-export const extractHostName = (script: HTMLScriptElement, isLocalhost: boolean): { hostname: string | null; devmode: boolean } => {
+export const extractHostName = (script: HTMLScriptElement, isLocalhost: boolean, isDesktop: boolean = false): { hostname: string | null; devmode: boolean } => {
   // Depricated attr
   const debugAttr = script.getAttribute("data-debug");
 
@@ -8,7 +8,7 @@ export const extractHostName = (script: HTMLScriptElement, isLocalhost: boolean)
 
   let devmode: boolean;
 
-  if (!isLocalhost) {
+  if (!isLocalhost && !isDesktop) {
     devmode = false;
   } else if (devmodeAttr !== null) {
     const normalized = devmodeAttr.toLowerCase().trim();

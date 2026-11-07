@@ -228,4 +228,12 @@ describe("Extract hostname Tests", () => {
     expect(resultDev).toEqual({ hostname, devmode: true });
     expect(resultProd).toEqual({ hostname, devmode: false });
   });
+
+  test("desktop app: data-devmode is used as passed, same as the npm package", () => {
+    const withDevmode = createScriptElement({ "data-hostname": hostname, "data-devmode": "" });
+    const withoutDevmode = createScriptElement({ "data-hostname": hostname });
+
+    expect(extractHostName(withDevmode, false, true)).toEqual({ hostname, devmode: true });
+    expect(extractHostName(withoutDevmode, false, true)).toEqual({ hostname, devmode: false });
+  });
 });

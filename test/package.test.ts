@@ -127,6 +127,42 @@ test("Pkg View: no local host allowed", async ({ reqs, goto }: Context) => {
   expect(reqs).toStrictEqual([]);
 });
 
+test("Pkg View: no local host allowed for manual view and event", async ({ reqs, goto }: Context) => {
+  await goto(`${MPA_URL}/pkg/no-localhost-allowed-manually`);
+
+  expect(reqs).toStrictEqual([]);
+});
+
+test("Pkg View: manual view is blocked for bots", async ({ reqs, page, goto }: Context) => {
+  await page.evaluateOnNewDocument(() => {
+    Object.defineProperty(Navigator.prototype, "webdriver", { get: () => true, configurable: true });
+  });
+  await goto(`${MPA_URL}/pkg/manually-view`);
+
+  expect(reqs).toStrictEqual([]);
+});
+
+test("Pkg View: manual view is blocked in Cypress", async ({ reqs, page, goto }: Context) => {
+  await page.evaluateOnNewDocument(() => {
+    (window as any).Cypress = { version: "13.0.0" };
+  });
+  await goto(`${MPA_URL}/pkg/manually-view`);
+
+  expect(reqs).toStrictEqual([]);
+});
+
+test("Pkg View: manual view with the same path twice is sent once", async ({ reqs, goto }: Context) => {
+  await goto(`${MPA_URL}/pkg/manually-view-twice`);
+
+  expect(reqs).toStrictEqual([
+    {
+      u: `${DEBUG_DOMAIN}/pkg/manually-view-twice`,
+      e: [{ t: "PageView", h: false }],
+      debug: true
+    }
+  ]);
+});
+
 test("Pkg View: autocollect disabled", async ({ reqs, goto }: Context) => {
   await goto(`${MPA_URL}/pkg/view-autocollect-disabled`);
 
@@ -835,5 +871,22 @@ test("Pkg View: UTM params", async ({ reqs, goto }: Context) => {
       },
       debug: true
     }
+  ]);
+});
+
+// ─── Hash routing test ───────────────────────────────────────────────────────
+
+test("Pkg Hash routing: hash route is the path, one page view per route", async ({ reqs, page }: Context) => {
+  await page.goto(`${MPA_URL}/pkg/hash-routing#/settings`);
+  await page.waitForNetworkIdle({ idleTime: 100 });
+  await clickAndWaitForPageView(page, reqs, ".link");
+  await clickAndWaitForPageView(page, reqs, ".event-button");
+  // Settle so duplicate page views (e.g. popstate + hashchange) would be caught
+  await page.waitForNetworkIdle({ idleTime: 300 });
+
+  expect(reqs).toStrictEqual([
+    { u: `${DEBUG_DOMAIN}/settings`, e: [{ t: "PageView", h: true }], debug: true },
+    { u: `${DEBUG_DOMAIN}/users`, e: [{ t: "PageView", h: true }], debug: true },
+    { u: `${DEBUG_DOMAIN}/users`, e: [{ t: "Event", h: true }], debug: true }
   ]);
 });
