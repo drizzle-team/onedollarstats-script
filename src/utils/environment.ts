@@ -1,6 +1,5 @@
 export const getEnvironment = (): {
   isLocalhost: boolean;
-  isHeadlessBrowser: boolean;
   isDesktop: boolean;
 } => {
   // Electron, Tauri, Wails, Neutralino, NW.js
@@ -22,12 +21,6 @@ export const getEnvironment = (): {
         //TODO revisit
         (location.protocol === "http:" || location.protocol === "https:")) ||
         (location.protocol === "file:" && !navigator.userAgent.toLowerCase().includes("electron"))),
-    isHeadlessBrowser: Boolean(
-      window.navigator.webdriver ||
-      ("_phantom" in window && window._phantom) ||
-      ("__nightmare" in window && window.__nightmare) ||
-      ("Cypress" in window && window.Cypress)
-    ),
     isDesktop
   };
 };

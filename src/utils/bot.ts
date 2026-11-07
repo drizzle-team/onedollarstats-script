@@ -2,11 +2,12 @@
  * Bot & crawler detection module.
  *
  * Detects:
- * - Known search engine crawlers (Googlebot, Bingbot, Yandex, Baidu, etc.)
- * - Social media crawlers (Facebook, Twitter, LinkedIn, etc.)
+ * - Crawlers and services that run JS: search, social, AI, page speed, prerender
  * - Headless browsers (Puppeteer, Playwright, Selenium, PhantomJS)
  * - General automation tools via navigator.webdriver and injected globals
- * - API tampering / lie detection (prototype spoofing, proxy wrapping)
+ *
+ * A wrong match silently drops a real visitor, so only signals humans can't trip
+ * belong here. Patched browser APIs are not one: privacy extensions do that.
  */
 
 import { getEnvironment } from "./environment";
@@ -16,11 +17,8 @@ import { getEnvironment } from "./environment";
 // ---------------------------------------------------------------------------
 
 export type BotKind =
-  | "search_engine" // Googlebot, Bingbot, Yandex, Baidu, DuckDuckBot, etc.
-  | "social_crawler" // Facebook, Twitter/X, LinkedIn, Slack, Discord, etc.
   | "headless" // Headless Chrome/Firefox, PhantomJS
   | "automation" // Selenium, Puppeteer, Playwright (non-headless)
-  | "library" // curl, wget, python-requests, node-fetch, etc.
   | "unknown_bot" // Signals say bot, but can't classify further
   | "human"; // No bot signals detected
 
@@ -33,14 +31,6 @@ export interface BotSignals {
   headless: boolean;
   /** Automation globals found on window. */
   automationGlobals: string[];
-  /** Number of API lies (toString/proxy tampering) detected. */
-  liesDetected: number;
-  /** Proxy wrapping detected on native functions. */
-  hasProxy: boolean;
-  /** navigator.languages is empty or missing. */
-  missingLanguages: boolean;
-  /** navigator.plugins is empty (non-mobile). */
-  missingPlugins: boolean;
 }
 
 export interface BotDetectionResult {
@@ -58,14 +48,20 @@ export interface BotDetectionResult {
 
 // Single alternation. The generic tokens (bot, crawl, spider, slurp, fetch,
 // archiver) subsume most named crawlers; only names that don't contain one of
-// those tokens are listed explicitly.
+// those tokens are listed explicitly. Clients that can't run JS (curl, Scrapy,
+// python-requests, ...) never load this script, so they aren't listed.
+//
+// "bot" must end a word and not follow "u": the CUBOT phone brand and app names
+// like "botanica/1.0.0" are real visitors. Don't use a lookbehind here: Safari
+// before 16.4 can't parse it, which would break the whole script.
 const BOT_UA_PATTERN =
-  /Google-InspectionTool|Mediapartners-Google|Sogou|ChatGPT-User|anthropic-ai|facebookexternalhit|WhatsApp|Snapchat|HeadlessChrome|PhantomJS|Selenium|Puppeteer|curl\/|Wget\/|python-requests|python-urllib|axios\/|Go-http-client|Java\/|libwww-perl|Apache-HttpClient|okhttp|Scrapy|bot|crawl|spider|slurp|fetch|archiver/i;
+  /Google-InspectionTool|Google-Read-Aloud|Google-PageRenderer|GoogleOther|Mediapartners-Google|BingPreview|Yeti\/|ChatGPT-User|Claude-User|Perplexity-User|MistralAI-User|anthropic-ai|cohere-ai|facebookexternalhit|vkShare|Embedly|^WhatsApp\/|Chrome-Lighthouse|GTmetrix|PTST\/|StatusCake|Site24x7|DatadogSynthetics|Checkly|Siteimprove|Prerender|Rendertron|HeadlessChrome|PhantomJS|Selenium|Puppeteer|Cypress\/|jsdom\/|(?:^|[^u])bot(?![a-z])|crawl|spider|slurp|fetch|archiver/i;
 
 // ---------------------------------------------------------------------------
 // Automation globals injected by common frameworks
 // ---------------------------------------------------------------------------
 
+// Don't add plain "phantom": the Phantom crypto wallet extension injects window.phantom
 const AUTOMATION_GLOBALS = [
   // Selenium
   "__selenium_unwrapped",
@@ -82,7 +78,6 @@ const AUTOMATION_GLOBALS = [
   // PhantomJS
   "callPhantom",
   "_phantom",
-  "phantom",
   // Nightmare.js
   "__nightmare",
   // Playwright (injects page.exposeFunction bindings)
@@ -92,8 +87,9 @@ const AUTOMATION_GLOBALS = [
   "__casper",
   // TestCafe
   "__testcafe",
-  // WebDriver (generic)
-  "webdriver",
+  // Cypress
+  "Cypress",
+  // Chrome automation
   "domAutomation",
   "domAutomationController",
 ] as const;
@@ -110,16 +106,10 @@ export function detectBot(): BotDetectionResult {
   const signals = collectBotSignals();
   const { isDesktop } = getEnvironment();
 
-  // Desktop webviews: the app name is in the UA (e.g. "botanica/1.0.0") and headless heuristics don't apply
+  // Desktop webviews: the app name is in the UA (e.g. "mybot/1.0.0") and headless heuristics don't apply
   if (isDesktop) signals.userAgentBot = signals.headless = false;
 
-  const isBot =
-    signals.userAgentBot ||
-    signals.webdriver ||
-    signals.headless ||
-    signals.automationGlobals.length > 0 ||
-    signals.liesDetected > 2 ||
-    (signals.liesDetected > 0 && signals.hasProxy);
+  const isBot = signals.userAgentBot || signals.webdriver || signals.headless || signals.automationGlobals.length > 0;
 
   let botKind: BotKind = "human";
   if (isBot) {
@@ -136,9 +126,11 @@ export function detectBot(): BotDetectionResult {
 }
 
 export function shouldBlock(devmode: boolean): boolean {
-  const { isLocalhost, isHeadlessBrowser } = getEnvironment();
-  const { isBot, botKind } = detectBot();
-  return (isLocalhost && !devmode) || isHeadlessBrowser || (isBot && botKind !== "human");
+  if (getEnvironment().isLocalhost && !devmode) return true;
+
+  const { isBot, botKind, signals } = detectBot();
+  if (isBot && devmode) console.log(`[onedollarstats]\nEvent blocked as bot (${botKind}): ${JSON.stringify(signals)}`);
+  return isBot;
 }
 
 // ---------------------------------------------------------------------------
@@ -151,9 +143,6 @@ function collectBotSignals(): BotSignals {
     webdriver: detectWebdriver(),
     headless: detectHeadless(),
     automationGlobals: detectAutomationGlobals(),
-    ...detectLies(),
-    missingLanguages: detectMissingLanguages(),
-    missingPlugins: detectMissingPlugins(),
   };
 }
 
@@ -169,31 +158,13 @@ function detectWebdriver(): boolean {
   return !!(navigator as any).webdriver;
 }
 
-/** Headless browser indicators. */
+/**
+ * Headless browser indicators. Browser feature heuristics don't work here, real users trip them:
+ * - no window.chrome: Android WebViews, which is what in-app browsers run on
+ * - denied notifications with no plugins: Chrome set to download PDFs, on any http site
+ */
 function detectHeadless(): boolean {
-  const w = window as any;
-  const n = navigator as any;
-
-  // Chrome-specific: headless mode omits the chrome runtime object
-  if (/Chrome/.test(n.userAgent) && !w.chrome) return true;
-
-  // HeadlessChrome in UA
-  if (/HeadlessChrome/.test(n.userAgent)) return true;
-
-  // Notification permission is always "denied" in headless Chrome
-  // (in headed mode it defaults to "default")
-  try {
-    if (Notification.permission === "denied" && n.permissions) {
-      // Double-check: headless also lacks plugins
-      if ((!n.plugins || n.plugins.length === 0) && !/Mobile|Android/i.test(n.userAgent)) {
-        return true;
-      }
-    }
-  } catch {
-    /* permissions API unavailable */
-  }
-
-  return false;
+  return /HeadlessChrome/.test(navigator.userAgent);
 }
 
 /** Detect automation framework globals on window. */
@@ -201,93 +172,10 @@ function detectAutomationGlobals(): string[] {
   const w = window as any;
   return AUTOMATION_GLOBALS.filter((key) => {
     try {
-      return key in w && w[key] !== undefined;
+      // Own properties only: elements with a matching id are exposed through window's prototype chain
+      return Object.prototype.hasOwnProperty.call(w, key) && w[key] !== undefined;
     } catch {
       return false;
     }
   }) as string[];
-}
-
-/**
- * Lie detection — detect API tampering (proxies, toString spoofing).
- * Extracted from the fingerprint lies module; self-contained here.
- */
-function detectLies(): { liesDetected: number; hasProxy: boolean } {
-  let liesDetected = 0;
-  let hasProxy = false;
-
-  const apisToTest: Array<[object, string]> = [
-    [Navigator.prototype, "userAgent"],
-    [Navigator.prototype, "languages"],
-    [Navigator.prototype, "platform"],
-    [Navigator.prototype, "hardwareConcurrency"],
-    [Navigator.prototype, "webdriver"],
-    [HTMLCanvasElement.prototype, "toDataURL"],
-    [CanvasRenderingContext2D.prototype, "fillText"],
-    [Date.prototype, "getTimezoneOffset"],
-  ];
-
-  for (const [proto, prop] of apisToTest) {
-    try {
-      const d = Object.getOwnPropertyDescriptor(proto, prop);
-      if (!d) continue;
-      const fn = d.value ?? d.get;
-      if (typeof fn !== "function") continue;
-
-      // toString integrity for methods and accessor getters
-      const str = Function.prototype.toString.call(fn);
-      if (!isNativeToString(str)) liesDetected++;
-
-      // Proxy detection — only for value-bound methods (not getters)
-      if (d.value && fn.toString !== Function.prototype.toString) {
-        try {
-          const native = Function.prototype.toString.call(fn);
-          const custom = fn.toString();
-          if (native !== custom) {
-            liesDetected++;
-            hasProxy = true;
-          }
-        } catch {
-          liesDetected++;
-          hasProxy = true;
-        }
-      }
-    } catch {
-      /* skip inaccessible */
-    }
-  }
-
-  // Meta-test: toString integrity
-  try {
-    const s = Function.prototype.toString.call(Function.prototype.toString);
-    if (!isNativeToString(s)) liesDetected++;
-  } catch {
-    /* skip */
-  }
-
-  return { liesDetected, hasProxy };
-}
-
-/** Missing navigator.languages is a strong headless indicator. */
-function detectMissingLanguages(): boolean {
-  const langs = navigator.languages;
-  return !langs || langs.length === 0;
-}
-
-/** Missing plugins on desktop is a headless indicator. */
-function detectMissingPlugins(): boolean {
-  if (/Mobile|Android/i.test(navigator.userAgent)) return false;
-  return !navigator.plugins || navigator.plugins.length === 0;
-}
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function isNativeToString(str: string): boolean {
-  return (
-    /^function\s[^{]*\{\s*\[native code\]\s*\}$/.test(str) ||
-    str === "function () { [native code] }" ||
-    /^\(\)\s*=>\s*\{\s*\[native code\]\s*\}$/.test(str)
-  );
 }

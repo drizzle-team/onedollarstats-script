@@ -4,9 +4,6 @@
  */
 declare global {
   interface Window {
-    Cypress?: unknown;
-    __nightmare?: unknown;
-    _phantom?: unknown;
     unexpected?: {
       q?: Event[];
     };

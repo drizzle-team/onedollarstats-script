@@ -25,12 +25,10 @@ beforeEach(async (ctx: Context) => {
   // Make Puppeteer look like a normal browser so the tracker's detectBot()
   // doesn't block events during tests. Suppresses bot signals:
   // 1. "HeadlessChrome" in UA  — detectHeadless() checks /HeadlessChrome/.test(ua)
-  // 2. window.chrome missing   — detectHeadless() checks /Chrome/.test(ua) && !window.chrome
-  // 3. navigator.webdriver     — detectWebdriver() checks navigator.webdriver
+  // 2. navigator.webdriver     — detectWebdriver() checks navigator.webdriver
   const defaultUA = await browser.userAgent();
   await page.setUserAgent(defaultUA.replace("HeadlessChrome", "Chrome"));
   await page.evaluateOnNewDocument(() => {
-    (window as any).chrome = { runtime: {} };
     Object.defineProperty(Navigator.prototype, "webdriver", {
       get: () => false,
       configurable: true,
@@ -1035,16 +1033,15 @@ test("shouldBlockEvent: blocks events in headless browser", async () => {
   await headlessBrowser.close();
 });
 
-async function createBotPage(userAgent?: string, extraCdpCommands?: (page: any) => Promise<void>) {
+// Starts from a browser with no bot signals, so each test isolates the one signal it adds
+async function createBotPage(userAgent?: string, extraCdpCommands?: (page: any) => Promise<void>, path = "") {
   const browser = await puppeteer.launch({
     headless: true,
-    args: [...(process.env.CI ? ["--no-sandbox"] : [])],
+    args: ["--disable-blink-features=AutomationControlled", ...(process.env.CI ? ["--no-sandbox"] : [])],
   });
   const page = await browser.newPage();
 
-  if (userAgent) {
-    await page.setUserAgent(userAgent);
-  }
+  await page.setUserAgent(userAgent ?? (await browser.userAgent()).replace("HeadlessChrome", "Chrome"));
 
   if (extraCdpCommands) {
     await extraCdpCommands(page);
@@ -1063,11 +1060,27 @@ async function createBotPage(userAgent?: string, extraCdpCommands?: (page: any) 
     else interceptedRequest.continue();
   });
 
-  await page.goto(MPA_URL);
+  await page.goto(`${MPA_URL}${path}`);
   await page.waitForNetworkIdle({ idleTime: 100 });
 
   return { browser, page, reqs };
 }
+
+test("shouldBlockEvent: sends events with no bot signals", async () => {
+  const { browser, reqs } = await createBotPage();
+
+  expect(reqs.length).toBeGreaterThan(0);
+  await browser.close();
+});
+
+test("shouldBlockEvent: blocks events with HeadlessChrome UA", async () => {
+  const { browser, reqs } = await createBotPage(
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/120.0.0.0 Safari/537.36",
+  );
+
+  expect(reqs).toStrictEqual([]);
+  await browser.close();
+});
 
 test("shouldBlockEvent: blocks events with webdriver flag", async () => {
   const { browser, page, reqs } = await createBotPage(undefined, async (p) => {
@@ -1105,17 +1118,60 @@ test("shouldBlockEvent: blocks events with automation globals", async () => {
   await browser.close();
 });
 
-test("shouldBlockEvent: blocks events with Chrome runtime missing", async () => {
-  const { browser, page, reqs } = await createBotPage(
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+test("shouldBlockEvent: sends events without window.chrome (Android WebView)", async () => {
+  const { browser, reqs } = await createBotPage(
+    "Mozilla/5.0 (Linux; Android 14; Pixel 8; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/120.0.0.0 Mobile Safari/537.36",
     async (p) => {
       await p.evaluateOnNewDocument(() => {
-        delete (window as any).chrome;
+        (window as any).chrome = undefined; // non-configurable, so delete is a no-op
       });
-    }
+    },
   );
 
-  expect(reqs).toStrictEqual([]);
+  expect(reqs.length).toBeGreaterThan(0);
+  await browser.close();
+});
+
+test("shouldBlockEvent: sends events with the Phantom wallet extension", async () => {
+  const { browser, reqs } = await createBotPage(undefined, async (p) => {
+    await p.evaluateOnNewDocument(() => {
+      (window as any).phantom = { solana: { isPhantom: true }, ethereum: { isPhantom: true } };
+    });
+  });
+
+  expect(reqs.length).toBeGreaterThan(0);
+  await browser.close();
+});
+
+test("shouldBlockEvent: sends events with privacy extension API wrappers", async () => {
+  const { browser, reqs } = await createBotPage(undefined, async (p) => {
+    await p.evaluateOnNewDocument(() => {
+      // Same wrapper as DuckDuckGo Privacy Essentials uses for canvas fingerprinting protection
+      const wrap = (target: any, property: string) => {
+        target[property] = new Proxy(target[property], {
+          get(fn, prop, receiver) {
+            if (prop !== "toString") return Reflect.get(fn, prop, receiver);
+            const method = Reflect.get(fn, prop, receiver).bind(fn);
+            Object.defineProperty(method, "toString", { value: String.toString.bind(String.toString) });
+            return method;
+          },
+        });
+      };
+      wrap(HTMLCanvasElement.prototype, "toDataURL");
+      wrap(CanvasRenderingContext2D.prototype, "fillText");
+    });
+  });
+
+  expect(reqs.length).toBeGreaterThan(0);
+  await browser.close();
+});
+
+test("shouldBlockEvent: sends events when elements are named like automation globals", async () => {
+  const { browser, page, reqs } = await createBotPage(undefined, undefined, "/automation-element-ids");
+
+  // Guards the test itself: named access must really expose these on window
+  expect(await page.evaluate(() => ["phantom", "_phantom", "Cypress", "__nightmare", "callPhantom", "__playwright", "__testcafe", "domAutomation"].every((name) => name in window))).toBe(true);
+  expect(reqs.length).toBeGreaterThan(0);
   await browser.close();
 });
 

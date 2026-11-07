@@ -88,38 +88,6 @@ describe("Environment Tests", () => {
       });
     });
 
-    describe("isHeadlessBrowser", () => {
-      test("normal browser is not headless", async () => {
-        setupLocation("example.com", "https:");
-        const { getEnvironment } = await import("./environment");
-        expect(getEnvironment().isHeadlessBrowser).toBe(false);
-      });
-
-      test("webdriver = true is headless", async () => {
-        vi.stubGlobal("location", { hostname: "example.com", protocol: "https:" });
-        vi.stubGlobal("window", {
-          navigator: { webdriver: true },
-          _phantom: undefined,
-          __nightmare: undefined,
-          Cypress: undefined,
-        });
-        vi.stubGlobal("navigator", { webdriver: true });
-        const { getEnvironment } = await import("./environment");
-        expect(getEnvironment().isHeadlessBrowser).toBe(true);
-      });
-
-      test("Cypress detected", async () => {
-        vi.stubGlobal("location", { hostname: "example.com", protocol: "https:" });
-        vi.stubGlobal("window", {
-          navigator: { webdriver: false },
-          Cypress: { version: "12.0" },
-        });
-        vi.stubGlobal("navigator", { webdriver: false });
-        const { getEnvironment } = await import("./environment");
-        expect(getEnvironment().isHeadlessBrowser).toBe(true);
-      });
-    });
-
     describe("isDesktop", () => {
       const ELECTRON_UA = "Mozilla/5.0 AppleWebKit/537.36 MyApp/1.2.0 Chrome/128 Electron/32.0.0 Safari/537.36";
 

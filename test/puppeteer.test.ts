@@ -25,12 +25,10 @@ beforeEach(async (ctx: Context) => {
   // Make Puppeteer look like a normal browser so the tracker's detectBot()
   // doesn't block events during tests. Suppresses bot signals:
   // 1. "HeadlessChrome" in UA  — detectHeadless() checks /HeadlessChrome/.test(ua)
-  // 2. window.chrome missing   — detectHeadless() checks /Chrome/.test(ua) && !window.chrome
-  // 3. navigator.webdriver     — detectWebdriver() checks navigator.webdriver
+  // 2. navigator.webdriver     — detectWebdriver() checks navigator.webdriver
   const defaultUA = await browser.userAgent();
   await page.setUserAgent(defaultUA.replace("HeadlessChrome", "Chrome"));
   await page.evaluateOnNewDocument(() => {
-    (window as any).chrome = { runtime: {} };
     Object.defineProperty(Navigator.prototype, "webdriver", {
       get: () => false,
       configurable: true,
