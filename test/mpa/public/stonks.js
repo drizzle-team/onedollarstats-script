@@ -1,7 +1,18 @@
 "use strict";
 
+// src/utils/environment.ts
+var getEnvironment = () => {
+  const isDesktop = /Electron\//.test(navigator.userAgent) || typeof window.__TAURI_INTERNALS__?.invoke === "function" || typeof window.__TAURI_IPC__ === "function" || /^(tauri|wails):$/.test(location.protocol) || /^(tauri|wails)\.localhost$/.test(location.hostname) || typeof window.NL_VERSION === "string" || typeof window.nw?.App === "object";
+  return {
+    // Desktop apps are served from localhost/file:// in production too, so they are never "localhost"
+    isLocalhost: !isDesktop && (/^localhost$|^127(\.[0-9]+){0,2}\.[0-9]+$|^\[::1?\]$/.test(location.hostname) && //TODO revisit
+    (location.protocol === "http:" || location.protocol === "https:") || location.protocol === "file:" && !navigator.userAgent.toLowerCase().includes("electron")),
+    isDesktop
+  };
+};
+
 // src/utils/bot.ts
-var BOT_UA_PATTERN = /Google-InspectionTool|Mediapartners-Google|Sogou|ChatGPT-User|anthropic-ai|facebookexternalhit|WhatsApp|Snapchat|HeadlessChrome|PhantomJS|Selenium|Puppeteer|curl\/|Wget\/|python-requests|python-urllib|axios\/|Go-http-client|Java\/|libwww-perl|Apache-HttpClient|okhttp|Scrapy|bot|crawl|spider|slurp|fetch|archiver/i;
+var BOT_UA_PATTERN = /Google-InspectionTool|Google-Read-Aloud|Google-PageRenderer|GoogleOther|Mediapartners-Google|BingPreview|Yeti\/|ChatGPT-User|Claude-User|Perplexity-User|MistralAI-User|anthropic-ai|cohere-ai|facebookexternalhit|vkShare|Embedly|^WhatsApp\/|Chrome-Lighthouse|GTmetrix|PTST\/|StatusCake|Site24x7|DatadogSynthetics|Checkly|Siteimprove|Prerender|Rendertron|HeadlessChrome|PhantomJS|Selenium|Puppeteer|Cypress\/|jsdom\/|(?:^|[^u])bot(?![a-z])|crawl|spider|slurp|fetch|archiver/i;
 var AUTOMATION_GLOBALS = [
   // Selenium
   "__selenium_unwrapped",
@@ -18,7 +29,6 @@ var AUTOMATION_GLOBALS = [
   // PhantomJS
   "callPhantom",
   "_phantom",
-  "phantom",
   // Nightmare.js
   "__nightmare",
   // Playwright (injects page.exposeFunction bindings)
@@ -28,14 +38,17 @@ var AUTOMATION_GLOBALS = [
   "__casper",
   // TestCafe
   "__testcafe",
-  // WebDriver (generic)
-  "webdriver",
+  // Cypress
+  "Cypress",
+  // Chrome automation
   "domAutomation",
   "domAutomationController"
 ];
 function detectBot() {
   const signals = collectBotSignals();
-  const isBot = signals.userAgentBot || signals.webdriver || signals.headless || signals.automationGlobals.length > 0 || signals.liesDetected > 2 || signals.liesDetected > 0 && signals.hasProxy;
+  const { isDesktop } = getEnvironment();
+  if (isDesktop) signals.userAgentBot = signals.headless = false;
+  const isBot = signals.userAgentBot || signals.webdriver || signals.headless || signals.automationGlobals.length > 0;
   let botKind = "human";
   if (isBot) {
     if (signals.headless) {
@@ -48,15 +61,19 @@ function detectBot() {
   }
   return { isBot, botKind, signals };
 }
+function shouldBlock(devmode) {
+  if (getEnvironment().isLocalhost && !devmode) return true;
+  const { isBot, botKind, signals } = detectBot();
+  if (isBot && devmode) console.log(`[onedollarstats]
+Event blocked as bot (${botKind}): ${JSON.stringify(signals)}`);
+  return isBot;
+}
 function collectBotSignals() {
   return {
     userAgentBot: detectUserAgentBot(),
     webdriver: detectWebdriver(),
     headless: detectHeadless(),
-    automationGlobals: detectAutomationGlobals(),
-    ...detectLies(),
-    missingLanguages: detectMissingLanguages(),
-    missingPlugins: detectMissingPlugins()
+    automationGlobals: detectAutomationGlobals()
   };
 }
 function detectUserAgentBot() {
@@ -68,101 +85,26 @@ function detectWebdriver() {
   return !!navigator.webdriver;
 }
 function detectHeadless() {
-  const w = window;
-  const n = navigator;
-  if (/Chrome/.test(n.userAgent) && !w.chrome) return true;
-  if (/HeadlessChrome/.test(n.userAgent)) return true;
-  try {
-    if (Notification.permission === "denied" && n.permissions) {
-      if ((!n.plugins || n.plugins.length === 0) && !/Mobile|Android/i.test(n.userAgent)) {
-        return true;
-      }
-    }
-  } catch {
-  }
-  return false;
+  return /HeadlessChrome/.test(navigator.userAgent);
 }
 function detectAutomationGlobals() {
   const w = window;
   return AUTOMATION_GLOBALS.filter((key) => {
     try {
-      return key in w && w[key] !== void 0;
+      return Object.prototype.hasOwnProperty.call(w, key) && w[key] !== void 0;
     } catch {
       return false;
     }
   });
 }
-function detectLies() {
-  let liesDetected = 0;
-  let hasProxy = false;
-  const apisToTest = [
-    [Navigator.prototype, "userAgent"],
-    [Navigator.prototype, "languages"],
-    [Navigator.prototype, "platform"],
-    [Navigator.prototype, "hardwareConcurrency"],
-    [Navigator.prototype, "webdriver"],
-    [HTMLCanvasElement.prototype, "toDataURL"],
-    [CanvasRenderingContext2D.prototype, "fillText"],
-    [Date.prototype, "getTimezoneOffset"]
-  ];
-  for (const [proto, prop] of apisToTest) {
-    try {
-      const d = Object.getOwnPropertyDescriptor(proto, prop);
-      if (!d) continue;
-      const fn = d.value ?? d.get;
-      if (typeof fn !== "function") continue;
-      const str = Function.prototype.toString.call(fn);
-      if (!isNativeToString(str)) liesDetected++;
-      if (d.value && fn.toString !== Function.prototype.toString) {
-        try {
-          const native = Function.prototype.toString.call(fn);
-          const custom = fn.toString();
-          if (native !== custom) {
-            liesDetected++;
-            hasProxy = true;
-          }
-        } catch {
-          liesDetected++;
-          hasProxy = true;
-        }
-      }
-    } catch {
-    }
-  }
-  try {
-    const s = Function.prototype.toString.call(Function.prototype.toString);
-    if (!isNativeToString(s)) liesDetected++;
-  } catch {
-  }
-  return { liesDetected, hasProxy };
-}
-function detectMissingLanguages() {
-  const langs = navigator.languages;
-  return !langs || langs.length === 0;
-}
-function detectMissingPlugins() {
-  if (/Mobile|Android/i.test(navigator.userAgent)) return false;
-  return !navigator.plugins || navigator.plugins.length === 0;
-}
-function isNativeToString(str) {
-  return /^function\s[^{]*\{\s*\[native code\]\s*\}$/.test(str) || str === "function () { [native code] }" || /^\(\)\s*=>\s*\{\s*\[native code\]\s*\}$/.test(str);
-}
-
-// src/utils/environment.ts
-var getEnvironment = () => ({
-  isLocalhost: /^localhost$|^127(\.[0-9]+){0,2}\.[0-9]+$|^\[::1?\]$/.test(location.hostname) && (location.protocol === "http:" || location.protocol === "https:") || location.protocol === "file:",
-  isHeadlessBrowser: Boolean(
-    window.navigator.webdriver || "_phantom" in window && window._phantom || "__nightmare" in window && window.__nightmare || "Cypress" in window && window.Cypress
-  )
-});
 
 // src/utils/extract-hostname.ts
-var extractHostName = (script, isLocalhost) => {
+var extractHostName = (script, isLocalhost, isDesktop = false) => {
   const debugAttr = script.getAttribute("data-debug");
   const hostnameAttr = script.getAttribute("data-hostname");
   const devmodeAttr = script.getAttribute("data-devmode");
   let devmode;
-  if (!isLocalhost) {
+  if (!isLocalhost && !isDesktop) {
     devmode = false;
   } else if (devmodeAttr !== null) {
     const normalized = devmodeAttr.toLowerCase().trim();
@@ -237,7 +179,7 @@ var parseProps = (propsString) => {
 };
 
 // src/utils/resolve-path.ts
-var resolvePath = (pathOrProps) => {
+var resolvePath = (pathOrProps, hashRouting = false) => {
   if (pathOrProps) return pathOrProps;
   const sources = [
     { value: document.body?.getAttribute("data-s-path"), name: "data-s-path" },
@@ -248,7 +190,9 @@ var resolvePath = (pathOrProps) => {
   if (existing.length > 1) {
     console.warn("[onedollarstats] Multiple path sources found. Using priority order:", existing.map(({ name }) => name).join(" > "));
   }
-  return existing[0]?.value ?? location.pathname;
+  const hashPath = hashRouting && location.hash.replace(/^#!?\/?/, "/").split("?")[0];
+  const urlPath = location.protocol === "file:" ? "/" : location.pathname;
+  return existing[0]?.value ?? (hashPath || urlPath);
 };
 
 // src/script.ts
@@ -263,9 +207,9 @@ var resolvePath = (pathOrProps) => {
   };
   const stonksScript = document.currentScript;
   const useHashRouting = stonksScript?.getAttribute("data-hash-routing") !== null;
-  const { isLocalhost: isLocalEnvironment } = getEnvironment();
+  const { isLocalhost: isLocalEnvironment, isDesktop } = getEnvironment();
   if (isLocalEnvironment) {
-    const { hostname, devmode } = extractHostName(stonksScript, isLocalEnvironment);
+    const { hostname, devmode } = extractHostName(stonksScript, isLocalEnvironment, isDesktop);
     console.log(`[onedollarstats]
 Script successfully connected! ${hostname ? `Tracking your localhost as ${hostname}` : "Debug domain not set"}`);
     if (devmode && hostname) {
@@ -298,9 +242,11 @@ Script successfully connected! ${hostname ? `Tracking your localhost as ${hostna
   }
   async function send(data) {
     const analyticsUrl = stonksScript?.getAttribute("data-url") || defaultConfig.collectorUrl;
-    const { hostname, devmode } = extractHostName(stonksScript, isLocalEnvironment);
+    const { hostname, devmode } = extractHostName(stonksScript, isLocalEnvironment, isDesktop);
+    if (shouldBlock(devmode)) return;
     const urlToSend = new URL(hostname ? `https://${hostname}${location.pathname}` : location.href);
     urlToSend.search = "";
+    urlToSend.hash = "";
     if (data.path) {
       urlToSend.pathname = data.path;
     }
@@ -310,7 +256,7 @@ Script successfully connected! ${hostname ? `Tracking your localhost as ${hostna
       const docReferrer = document.referrer && document.referrer !== "null" ? document.referrer : void 0;
       if (docReferrer) {
         const referrerURL = new URL(docReferrer);
-        if (referrerURL.hostname !== urlToSend.hostname) {
+        if (/^https?:$/.test(referrerURL.protocol) && referrerURL.hostname !== urlToSend.hostname && referrerURL.hostname !== location.hostname) {
           referrer = referrerURL.href;
         }
       }
@@ -369,7 +315,6 @@ UTM: ${data.utm}`;
       await sendWithBeaconOrFetch(analyticsUrl, stringifiedBody, onComplete);
   }
   async function event(name, arg2, props) {
-    if (shouldBlockEvent()) return;
     const options = {};
     if (typeof arg2 === "string") {
       options.path = arg2;
@@ -377,7 +322,7 @@ UTM: ${data.utm}`;
     } else if (typeof arg2 === "object") {
       options.props = arg2;
     }
-    const path = resolvePath(options?.path || void 0);
+    const path = resolvePath(options?.path || void 0, useHashRouting);
     send({ type: name, props: options?.props, path: path !== location.pathname ? path : void 0 });
   }
   function handleTaggedElementClickEvent(clickEvent) {
@@ -413,15 +358,18 @@ UTM: ${data.utm}`;
       {
         path: options?.path,
         props: options?.props
-      },
-      false
+      }
     );
   }
-  async function trackPageView(data, checkBlock = true) {
-    if (checkBlock && shouldBlockEvent()) return;
+  async function trackPageView(data) {
     const urlParams = new URLSearchParams(location.search);
     const utm = parseUtmParams(urlParams);
-    const path = resolvePath(data?.path || void 0);
+    const path = resolvePath(data?.path || void 0, useHashRouting);
+    if (lastPage === path) {
+      console.warn(`Ignoring event PageView - pathname has not changed`);
+      return;
+    }
+    lastPage = path;
     const customPath = path !== location.pathname ? path : void 0;
     const pageViewProps = stonksScript?.getAttribute("data-props");
     const collectedProps = pageViewProps ? parseProps(pageViewProps) || {} : {};
@@ -461,12 +409,6 @@ UTM: ${data.utm}`;
       lastPage = null;
       return;
     }
-    if (!useHashRouting && lastPage === location.pathname) {
-      console.warn(`Ignoring event PageView - pathname has not changed`);
-      return;
-    }
-    if (shouldBlockEvent()) return;
-    lastPage = location.pathname;
     const pageViewProps = stonksScript?.getAttribute("data-props");
     const props = pageViewProps ? parseProps(pageViewProps) || {} : {};
     const elements = document.querySelectorAll(
@@ -485,20 +427,8 @@ UTM: ${data.utm}`;
     trackPageView(
       {
         props: Object.keys(props).length > 0 ? props : void 0
-      },
-      false
+      }
     );
-  }
-  function shouldBlockEvent() {
-    const { hostname, devmode } = extractHostName(stonksScript, isLocalEnvironment);
-    if (isLocalEnvironment && (!devmode || !hostname)) {
-      return true;
-    }
-    const { isBot, botKind } = detectBot();
-    if (isBot && botKind !== "human") {
-      return true;
-    }
-    return false;
   }
   if (window.history.pushState) {
     const originalPushState = window.history.pushState;
