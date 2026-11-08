@@ -25,6 +25,7 @@ export default defineConfig({
           include: ["test/package.test.ts"],
         },
       },
+      // TODO: add "Desktop E2E Tests" for test/desktop
       {
         test: {
           name: "Expo E2E Tests",

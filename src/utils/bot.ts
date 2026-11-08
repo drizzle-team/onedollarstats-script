@@ -8,6 +8,14 @@
  *
  * A wrong match silently drops a real visitor, so only signals humans can't trip
  * belong here. Patched browser APIs are not one: privacy extensions do that.
+ *
+ * TODO: filter the bots this can't catch in the collector. These look like real users in the browser:
+ * - Stealth bots (puppeteer-extra stealth) and headless Chrome with a spoofed UA
+ * - TikTok's DM link scanner: a real Android WebView from datacenter IPs (seen from Datacamp
+ *   Limited, AS212238), sometimes with a fake iPhone UA
+ * First step: drop events with TikTok UA tokens (BytedanceWebview, musical_ly, trill_) from
+ * hosting-provider ASNs, after 1–2 weeks of only counting matches. Blocking all datacenter IPs
+ * would also drop real VPN users (Datacamp hosts VPN servers), so measure that first.
  */
 
 import { getEnvironment } from "./environment";
