@@ -47,12 +47,14 @@ jobs:
           cp build/stonks.js test/mpa/public/stonks.js
           cp build/stonks.js test/spa/static/stonks.js
 
+      # Same stable tarball name as release-package.yml, which the test
+      # apps' package.json files reference (file:../../onedollarstats.tgz).
       - name: Pack and install npm package into test apps
         run: |
           TARBALL=$(pnpm pack | tail -1)
-          TARBALL_PATH="$(pwd)/$TARBALL"
-          cd test/mpa && pnpm add --save-dev "$TARBALL_PATH"
-          cd ../spa && pnpm add --save-dev "$TARBALL_PATH"
+          mv "$TARBALL" onedollarstats.tgz
+          cd test/mpa && pnpm add --save-dev "file:../../onedollarstats.tgz"
+          cd ../spa && pnpm add --save-dev "file:../../onedollarstats.tgz"
 
       - name: Build MPA test app
         run: pnpm build

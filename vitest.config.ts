@@ -12,6 +12,8 @@ export default defineConfig({
       {
         test: {
           name: "Web E2E Tests",
+          // Page loads plus waitForNetworkIdle can pass the 5s default on slow runs
+          testTimeout: 20000,
           environment: "node",
           globalSetup: "./test/setup.ts",
           include: ["test/script.test.ts"],
@@ -20,6 +22,8 @@ export default defineConfig({
       {
         test: {
           name: "Package E2E Tests",
+          // Page loads plus waitForNetworkIdle can pass the 5s default on slow runs
+          testTimeout: 20000,
           environment: "node",
           globalSetup: "./test/setup.ts",
           include: ["test/package.test.ts"],
@@ -29,6 +33,8 @@ export default defineConfig({
       {
         test: {
           name: "Expo E2E Tests",
+          // Page loads plus waitForNetworkIdle can pass the 5s default on slow runs
+          testTimeout: 20000,
           environment: "node",
           globalSetup: "./test/setup.ts",
           include: ["test/expo.test.ts"],
