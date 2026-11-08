@@ -163,5 +163,18 @@ describe("Environment Tests", () => {
       const { isClient } = await import("./environment");
       expect(isClient()).toBe(false);
     });
+
+    test("returns true for desktop apps with 'node' in the app name", async () => {
+      vi.stubGlobal("window", {});
+      vi.stubGlobal("document", {});
+      const { isClient } = await import("./environment");
+      for (const userAgent of [
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) NodeNotes/1.2.0 Chrome/128.0.0.0 Electron/32.0.0 Safari/537.36",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) codenode/0.3.1 Chrome/128.0.0.0 Electron/32.0.0 Safari/537.36",
+      ]) {
+        vi.stubGlobal("navigator", { userAgent });
+        expect(isClient()).toBe(true);
+      }
+    });
   });
 });

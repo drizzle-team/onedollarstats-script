@@ -31,7 +31,8 @@ export const isClient = (): boolean => {
 
     // Check for navigator safely
     const ua = typeof navigator !== "undefined" ? navigator.userAgent : "";
-    if (/node|jsdom/i.test(ua)) return false;
+    // Node's UA starts with "Node.js/"; a bare "node" match would also hit desktop apps named e.g. "NodeNotes"
+    if (/^Node\.js\/|jsdom/i.test(ua)) return false;
     return true;
   } catch {
     return false;
