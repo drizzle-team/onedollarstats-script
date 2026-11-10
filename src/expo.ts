@@ -180,7 +180,11 @@ export function OneDollarStatsProvider({ config, children }: OneDollarStatsProvi
   useEffect(() => {
     currentPathRef.current = trackedPath;
     if (!merged.autocollect) return;
-    if (isExcluded(trackedPath, merged)) return;
+    if (isExcluded(trackedPath, merged)) {
+      // Forget the last page, or A → excluded → A would look like a duplicate
+      lastPathRef.current = null;
+      return;
+    }
     // Re-renders and /profile/a → /profile/b (same template) aren't new views
     if (lastPathRef.current === trackedPath) return;
     lastPathRef.current = trackedPath;

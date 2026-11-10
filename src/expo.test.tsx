@@ -492,6 +492,36 @@ describe('Path filtering logic (smoke)', () => {
   });
 });
 
+describe('Dedup after an excluded page', () => {
+  const urls = () => fetchSpy.mock.calls.map(c => JSON.parse(c[1].body).u);
+  const visit = (rerender: (ui: ReactNode) => void, config: ExpoAnalyticsConfig, ...paths: string[]) =>
+    paths.forEach(p => {
+      mockPathname = p;
+      rerender(providerEl(config));
+    });
+
+  test('A → excluded B → A counts A twice', () => {
+    const config = { hostname: 'example.com', excludePages: ['/settings'] };
+    const { rerender } = renderProvider(config);
+    visit(rerender, config, '/settings', '/home');
+    expect(urls()).toEqual(['https://example.com/home', 'https://example.com/home']);
+  });
+
+  test('A → B outside includePages → A counts A twice', () => {
+    const config = { hostname: 'example.com', includePages: ['/home'] };
+    const { rerender } = renderProvider(config);
+    visit(rerender, config, '/about', '/home');
+    expect(urls()).toEqual(['https://example.com/home', 'https://example.com/home']);
+  });
+
+  test('re-rendering the same tracked page is still deduped', () => {
+    const config = { hostname: 'example.com', excludePages: ['/settings'] };
+    const { rerender } = renderProvider(config);
+    visit(rerender, config, '/home', '/home');
+    expect(urls()).toEqual(['https://example.com/home']);
+  });
+});
+
 describe('collapseDynamicRoutes', () => {
   test('default (true) collapses dynamic segments using useSegments', () => {
     mockPathname = '/profile/abc123';
