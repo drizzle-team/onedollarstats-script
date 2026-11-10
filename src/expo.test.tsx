@@ -228,6 +228,54 @@ describe('OneDollarStatsProvider — AppState foreground', () => {
     expect(fetchSpy).toHaveBeenCalledTimes(2);
   });
 
+  const lastUrl = () => JSON.parse(fetchSpy.mock.calls.at(-1)![1].body).u;
+
+  test('return from background on an excluded screen sends nothing', () => {
+    const config = { hostname: 'example.com', excludePages: ['/settings'] };
+    const { rerender } = renderProvider(config);
+    mockPathname = '/settings';
+    rerender(providerEl(config));
+    expect(fetchSpy).toHaveBeenCalledTimes(1); // only /home
+
+    emit('background', 'active');
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
+  test('return from background on a screen outside includePages sends nothing', () => {
+    const config = { hostname: 'example.com', includePages: ['/home'] };
+    const { rerender } = renderProvider(config);
+    mockPathname = '/about';
+    rerender(providerEl(config));
+
+    emit('background', 'active');
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
+  test('return from background reports the current screen after navigating', () => {
+    const config = { hostname: 'example.com' };
+    const { rerender } = renderProvider(config);
+    mockPathname = '/about';
+    rerender(providerEl(config));
+
+    emit('background', 'active');
+    expect(fetchSpy).toHaveBeenCalledTimes(3);
+    expect(lastUrl()).toBe('https://example.com/about');
+  });
+
+  test('tracked → excluded → tracked: return from background reports the screen the user is on', () => {
+    const config = { hostname: 'example.com', excludePages: ['/settings'] };
+    const { rerender } = renderProvider(config);
+    mockPathname = '/settings';
+    rerender(providerEl(config));
+    mockPathname = '/about';
+    rerender(providerEl(config));
+    expect(lastUrl()).toBe('https://example.com/about');
+
+    emit('background', 'active');
+    expect(fetchSpy).toHaveBeenCalledTimes(3);
+    expect(lastUrl()).toBe('https://example.com/about');
+  });
+
   test('cleans up AppState listener on unmount', () => {
     const { unmount } = renderProvider({ hostname: 'example.com' });
 

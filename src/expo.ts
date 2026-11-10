@@ -156,6 +156,8 @@ export function OneDollarStatsProvider({ config, children }: OneDollarStatsProvi
   );
 
   const lastPathRef = useRef<string | null>(null);
+  // For the AppState handler, which only re-subscribes on config changes
+  const currentPathRef = useRef<string | null>(null);
   // TODO(page-scope): restore when page-scope detection is designed.
   // const overrideRef = useRef<Override>(null);
   // const propsOverrideRef = useRef<PropsOverride>(null);
@@ -176,6 +178,7 @@ export function OneDollarStatsProvider({ config, children }: OneDollarStatsProvi
   }, [merged.devmode, merged.hostname]);
 
   useEffect(() => {
+    currentPathRef.current = trackedPath;
     if (!merged.autocollect) return;
     if (isExcluded(trackedPath, merged)) return;
     // Re-renders and /profile/a → /profile/b (same template) aren't new views
@@ -197,9 +200,10 @@ export function OneDollarStatsProvider({ config, children }: OneDollarStatsProvi
       if (state !== 'active' || !wasInBackground) return;
       wasInBackground = false;
       if (!merged.autocollect) return;
-      // TODO: this is the last tracked path, not the current one (wrong on excluded screens)
-      const current = lastPathRef.current;
+      // The screen the user is on now, not the last tracked one (that's stale on excluded screens)
+      const current = currentPathRef.current;
       if (!current || isExcluded(current, merged)) return;
+      lastPathRef.current = current;
       send('PageView', current, merged);
     };
     const sub = AppState.addEventListener('change', handler);
