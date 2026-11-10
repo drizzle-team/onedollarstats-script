@@ -105,7 +105,7 @@ test("Expo View: initial page view", async ({ reqs, goto }: Context) => {
 
   expect(reqs).toStrictEqual([
     {
-      u: `${DEBUG_DOMAIN}/`,
+      u: `${DEBUG_DOMAIN}`,
       e: [{ t: "PageView" }]
     }
   ]);
@@ -140,7 +140,7 @@ test("Expo Override: navigating from / to /profile/abc123 fires the override pat
   await clickAndWaitForRequest(page, reqs, ".link-profile");
 
   expect(reqs).toStrictEqual([
-    { u: `${DEBUG_DOMAIN}/`, e: [{ t: "PageView" }] },
+    { u: `${DEBUG_DOMAIN}`, e: [{ t: "PageView" }] },
     { u: `${DEBUG_DOMAIN}/profile/[id]`, e: [{ t: "PageView" }] }
   ]);
 });
@@ -170,7 +170,7 @@ test("Expo Nav: page to page via Link", async ({ reqs, page, goto }: Context) =>
   await clickAndWaitForRequest(page, reqs, ".link");
 
   expect(reqs).toStrictEqual([
-    { u: `${DEBUG_DOMAIN}/`, e: [{ t: "PageView" }] },
+    { u: `${DEBUG_DOMAIN}`, e: [{ t: "PageView" }] },
     { u: `${DEBUG_DOMAIN}/page-1`, e: [{ t: "PageView" }] }
   ]);
 });
@@ -182,9 +182,9 @@ test("Expo Nav: home → page-1 → home (back via link)", async ({ reqs, page, 
   await clickAndWaitForRequest(page, reqs, ".link-back");
 
   expect(reqs).toStrictEqual([
-    { u: `${DEBUG_DOMAIN}/`, e: [{ t: "PageView" }] },
+    { u: `${DEBUG_DOMAIN}`, e: [{ t: "PageView" }] },
     { u: `${DEBUG_DOMAIN}/page-1`, e: [{ t: "PageView" }] },
-    { u: `${DEBUG_DOMAIN}/`, e: [{ t: "PageView" }] }
+    { u: `${DEBUG_DOMAIN}`, e: [{ t: "PageView" }] }
   ]);
 });
 
@@ -193,7 +193,7 @@ test("Expo Nav: navigation to nested page", async ({ reqs, page, goto }: Context
   await clickAndWaitForRequest(page, reqs, ".link-deep");
 
   expect(reqs).toStrictEqual([
-    { u: `${DEBUG_DOMAIN}/`, e: [{ t: "PageView" }] },
+    { u: `${DEBUG_DOMAIN}`, e: [{ t: "PageView" }] },
     { u: `${DEBUG_DOMAIN}/nested/deep`, e: [{ t: "PageView" }] }
   ]);
 });
@@ -206,9 +206,9 @@ test("Expo Nav: browser back triggers PageView", async ({ reqs, page, goto }: Co
   await promise;
 
   expect(reqs).toStrictEqual([
-    { u: `${DEBUG_DOMAIN}/`, e: [{ t: "PageView" }] },
+    { u: `${DEBUG_DOMAIN}`, e: [{ t: "PageView" }] },
     { u: `${DEBUG_DOMAIN}/page-1`, e: [{ t: "PageView" }] },
-    { u: `${DEBUG_DOMAIN}/`, e: [{ t: "PageView" }] }
+    { u: `${DEBUG_DOMAIN}`, e: [{ t: "PageView" }] }
   ]);
 });
 
@@ -299,9 +299,9 @@ test("Expo Dedup: same path re-navigation fires new PageView (no dedup across na
   await clickAndWaitForRequest(page, reqs, ".link-back");
 
   expect(reqs.length).toBe(3);
-  expect(reqs[0].u).toBe(`${DEBUG_DOMAIN}/`);
+  expect(reqs[0].u).toBe(`${DEBUG_DOMAIN}`);
   expect(reqs[1].u).toBe(`${DEBUG_DOMAIN}/page-1`);
-  expect(reqs[2].u).toBe(`${DEBUG_DOMAIN}/`);
+  expect(reqs[2].u).toBe(`${DEBUG_DOMAIN}`);
 });
 
 test("Expo Dedup: initial mount fires only once", async ({ reqs, goto }: Context) => {
@@ -332,5 +332,5 @@ test("Expo Foreground: visibility=visible refires PageView", async ({ reqs, page
   await promise;
 
   expect(reqs.length).toBe(2);
-  expect(reqs[1]).toStrictEqual({ u: `${DEBUG_DOMAIN}/`, e: [{ t: "PageView" }] });
+  expect(reqs[1]).toStrictEqual({ u: `${DEBUG_DOMAIN}`, e: [{ t: "PageView" }] });
 });

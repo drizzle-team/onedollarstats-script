@@ -323,6 +323,24 @@ function devLog(label: string, url: string, props?: Record<string, string>): voi
   console.log(msg);
 }
 
+// Same URL as the web tracker: leading slash, no trailing slash, no query or hash, browser-style encoding.
+// Plain strings on purpose: React Native's URL throws "not implemented" for most properties.
+function buildUrl(hostname: string, path: string): string {
+  const bare = path.split(/[?#]/)[0];
+  const withSlash = bare.startsWith('/') ? bare : `/${bare}`;
+  // What browsers encode in a path; [ ] (route templates) and existing %XX stay as is
+  const encoded = withSlash.replace(/[^\x21-\x7E]|["<>`{}]/gu, encodeChar);
+  return `https://${hostname}${encoded}`.replace(/\/$/, '');
+}
+
+function encodeChar(char: string): string {
+  try {
+    return encodeURIComponent(char);
+  } catch {
+    return ''; // lone surrogate
+  }
+}
+
 // Longer GET URLs can get cut by proxies and CDNs
 const SAFE_GET_THRESHOLD = 1500;
 
@@ -333,7 +351,7 @@ function send(
   props?: Record<string, string>
 ): void {
   if (shouldSkipSend(config)) return;
-  const url = `https://${config.hostname}${path}`;
+  const url = buildUrl(config.hostname, path);
   if (config.devmode) devLog(eventName, url, props);
 
   const body = JSON.stringify({

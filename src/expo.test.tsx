@@ -567,7 +567,7 @@ describe('collapseDynamicRoutes', () => {
       expect.any(String),
       expect.objectContaining({
         body: JSON.stringify({
-          u: 'https://example.com/',
+          u: 'https://example.com',
           e: [{ t: 'PageView' }]
         })
       })
@@ -691,7 +691,7 @@ describe('collapseDynamicRoutes', () => {
       expect.any(String),
       expect.objectContaining({
         body: JSON.stringify({
-          u: 'https://example.com/',
+          u: 'https://example.com',
           e: [{ t: 'PageView' }]
         })
       })
@@ -2103,5 +2103,55 @@ describe('Development gating (__DEV__ / localhost) and devmode', () => {
     renderProvider({ hostname: 'example.com', devmode: true });
     expect(logSpy).not.toHaveBeenCalled();
     logSpy.mockRestore();
+  });
+});
+
+describe('URL shape matches the web tracker', () => {
+  const sentUrl = () => JSON.parse(fetchSpy.mock.calls.at(-1)![1].body).u;
+  const viewUrl = (path: string) => {
+    const { result } = renderHook(() => useAnalytics(), { wrapper: wrapper({ hostname: 'example.com' }) });
+    act(() => result.current.view(path));
+    return sentUrl();
+  };
+
+  // Expected values are what src/index.ts sends for the same path
+  test.each([
+    ['landing', 'https://example.com/landing'],
+    ['/landing', 'https://example.com/landing'],
+    ['/', 'https://example.com'],
+    ['', 'https://example.com'],
+    ['/blog/', 'https://example.com/blog'],
+    ['/profile/[id]', 'https://example.com/profile/[id]'],
+    ['/a//b', 'https://example.com/a//b'],
+    ['/café', 'https://example.com/caf%C3%A9'],
+    ['/my page', 'https://example.com/my%20page'],
+    ['/already%20encoded', 'https://example.com/already%20encoded']
+  ])('view(%j) → %s', (path, expected) => {
+    expect(viewUrl(path)).toBe(expected);
+  });
+
+  // Web turns these into %3F / %23 in the path; Expo drops them instead
+  test.each([
+    ['/x?utm_source=a', 'https://example.com/x'],
+    ['/x#top', 'https://example.com/x'],
+    ['landing?x=1#y', 'https://example.com/landing']
+  ])('view(%j) drops query and hash → %s', (path, expected) => {
+    expect(viewUrl(path)).toBe(expected);
+  });
+
+  test('event() with a path without leading slash', () => {
+    const { result } = renderHook(() => useAnalytics(), { wrapper: wrapper({ hostname: 'example.com' }) });
+    act(() => result.current.event('signup', 'pricing', { plan: 'pro' }));
+    expect(sentUrl()).toBe('https://example.com/pricing');
+  });
+
+  test('auto PageView on the root route has no trailing slash', () => {
+    mockPathname = '/';
+    renderProvider({ hostname: 'example.com' });
+    expect(sentUrl()).toBe('https://example.com');
+  });
+
+  test('a lone surrogate is dropped instead of throwing', () => {
+    expect(viewUrl('/bad\uD800path')).toBe('https://example.com/badpath');
   });
 });
