@@ -100,7 +100,8 @@ describe('OneDollarStatsProvider — auto page view tracking', () => {
         method: 'POST',
         body: JSON.stringify({
           u: 'https://example.com/home',
-          e: [{ t: 'PageView' }]
+          e: [{ t: 'PageView' }],
+          debug: false
         })
       })
     );
@@ -118,7 +119,8 @@ describe('OneDollarStatsProvider — auto page view tracking', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/about',
-          e: [{ t: 'PageView' }]
+          e: [{ t: 'PageView' }],
+          debug: false
         })
       })
     );
@@ -308,7 +310,8 @@ describe('useAnalytics — manual event() and view()', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/home',
-          e: [{ t: 'button_click' }]
+          e: [{ t: 'button_click' }],
+          debug: false
         })
       })
     );
@@ -326,7 +329,8 @@ describe('useAnalytics — manual event() and view()', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/home',
-          e: [{ t: 'signup', p: { plan: 'pro' } }]
+          e: [{ t: 'signup', p: { plan: 'pro' } }],
+          debug: false
         })
       })
     );
@@ -344,7 +348,8 @@ describe('useAnalytics — manual event() and view()', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/custom-path',
-          e: [{ t: 'PageView' }]
+          e: [{ t: 'PageView' }],
+          debug: false
         })
       })
     );
@@ -362,7 +367,8 @@ describe('useAnalytics — manual event() and view()', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/home',
-          e: [{ t: 'PageView' }]
+          e: [{ t: 'PageView' }],
+          debug: false
         })
       })
     );
@@ -380,7 +386,8 @@ describe('useAnalytics — manual event() and view()', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/landing',
-          e: [{ t: 'PageView', p: { campaign: 'spring' } }]
+          e: [{ t: 'PageView', p: { campaign: 'spring' } }],
+          debug: false
         })
       })
     );
@@ -409,7 +416,8 @@ describe('useAnalytics — manual event() and view()', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/home',
-          e: [{ t: 'PageView', p: { campaign: 'spring' } }]
+          e: [{ t: 'PageView', p: { campaign: 'spring' } }],
+          debug: false
         })
       })
     );
@@ -427,7 +435,8 @@ describe('useAnalytics — manual event() and view()', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/home',
-          e: [{ t: 'signup', p: { plan: 'pro' } }]
+          e: [{ t: 'signup', p: { plan: 'pro' } }],
+          debug: false
         })
       })
     );
@@ -445,7 +454,8 @@ describe('useAnalytics — manual event() and view()', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/landing',
-          e: [{ t: 'signup', p: { plan: 'pro' } }]
+          e: [{ t: 'signup', p: { plan: 'pro' } }],
+          debug: false
         })
       })
     );
@@ -463,7 +473,8 @@ describe('useAnalytics — manual event() and view()', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/landing',
-          e: [{ t: 'signup' }]
+          e: [{ t: 'signup' }],
+          debug: false
         })
       })
     );
@@ -534,7 +545,8 @@ describe('collapseDynamicRoutes', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/profile/[id]',
-          e: [{ t: 'PageView' }]
+          e: [{ t: 'PageView' }],
+          debug: false
         })
       })
     );
@@ -550,7 +562,8 @@ describe('collapseDynamicRoutes', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/profile/abc123',
-          e: [{ t: 'PageView' }]
+          e: [{ t: 'PageView' }],
+          debug: false
         })
       })
     );
@@ -566,7 +579,8 @@ describe('collapseDynamicRoutes', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/home',
-          e: [{ t: 'PageView' }]
+          e: [{ t: 'PageView' }],
+          debug: false
         })
       })
     );
@@ -582,7 +596,8 @@ describe('collapseDynamicRoutes', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/posts/[...slug]',
-          e: [{ t: 'PageView' }]
+          e: [{ t: 'PageView' }],
+          debug: false
         })
       })
     );
@@ -598,7 +613,8 @@ describe('collapseDynamicRoutes', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com',
-          e: [{ t: 'PageView' }]
+          e: [{ t: 'PageView' }],
+          debug: false
         })
       })
     );
@@ -618,7 +634,8 @@ describe('collapseDynamicRoutes', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/profile/[id]',
-          e: [{ t: 'cta_click' }]
+          e: [{ t: 'cta_click' }],
+          debug: false
         })
       })
     );
@@ -638,7 +655,8 @@ describe('collapseDynamicRoutes', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/profile/[id]',
-          e: [{ t: 'PageView' }]
+          e: [{ t: 'PageView' }],
+          debug: false
         })
       })
     );
@@ -658,7 +676,8 @@ describe('collapseDynamicRoutes', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/explicit/abc123',
-          e: [{ t: 'PageView' }]
+          e: [{ t: 'PageView' }],
+          debug: false
         })
       })
     );
@@ -674,7 +693,8 @@ describe('collapseDynamicRoutes', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/orgs/[org]/users/[userId]',
-          e: [{ t: 'PageView' }]
+          e: [{ t: 'PageView' }],
+          debug: false
         })
       })
     );
@@ -690,7 +710,8 @@ describe('collapseDynamicRoutes', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/home',
-          e: [{ t: 'PageView' }]
+          e: [{ t: 'PageView' }],
+          debug: false
         })
       })
     );
@@ -706,7 +727,8 @@ describe('collapseDynamicRoutes', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/profile/[id]',
-          e: [{ t: 'PageView' }]
+          e: [{ t: 'PageView' }],
+          debug: false
         })
       })
     );
@@ -722,7 +744,8 @@ describe('collapseDynamicRoutes', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com',
-          e: [{ t: 'PageView' }]
+          e: [{ t: 'PageView' }],
+          debug: false
         })
       })
     );
@@ -759,7 +782,8 @@ describe('collapseDynamicRoutes', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/profile/xyz',
-          e: [{ t: 'PageView' }]
+          e: [{ t: 'PageView' }],
+          debug: false
         })
       })
     );
@@ -839,7 +863,8 @@ describe('collapseDynamicRoutes', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/profile/[id]',
-          e: [{ t: 'PageView' }]
+          e: [{ t: 'PageView' }],
+          debug: false
         })
       })
     );
@@ -893,7 +918,8 @@ describe.skip('useAnalyticsPath / <AnalyticsPath>', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/profile/[id]',
-          e: [{ t: 'PageView' }]
+          e: [{ t: 'PageView' }],
+          debug: false
         })
       })
     );
@@ -916,7 +942,8 @@ describe.skip('useAnalyticsPath / <AnalyticsPath>', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/profile/[id]',
-          e: [{ t: 'cta_click' }]
+          e: [{ t: 'cta_click' }],
+          debug: false
         })
       })
     );
@@ -944,7 +971,8 @@ describe.skip('useAnalyticsPath / <AnalyticsPath>', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/about',
-          e: [{ t: 'PageView' }]
+          e: [{ t: 'PageView' }],
+          debug: false
         })
       })
     );
@@ -969,7 +997,8 @@ describe.skip('useAnalyticsPath / <AnalyticsPath>', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/profile/[id]',
-          e: [{ t: 'PageView' }]
+          e: [{ t: 'PageView' }],
+          debug: false
         })
       })
     );
@@ -987,7 +1016,8 @@ describe.skip('useAnalyticsPath / <AnalyticsPath>', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/profile/[id]',
-          e: [{ t: 'PageView' }]
+          e: [{ t: 'PageView' }],
+          debug: false
         })
       })
     );
@@ -1006,7 +1036,8 @@ describe.skip('useAnalyticsPath / <AnalyticsPath>', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/from-hook',
-          e: [{ t: 'PageView' }]
+          e: [{ t: 'PageView' }],
+          debug: false
         })
       })
     );
@@ -1038,7 +1069,8 @@ describe.skip('useAnalyticsPath / <AnalyticsPath>', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/profile/[id]',
-          e: [{ t: 'cta_click' }]
+          e: [{ t: 'cta_click' }],
+          debug: false
         })
       })
     );
@@ -1082,7 +1114,8 @@ describe.skip('useAnalyticsPath / <AnalyticsPath>', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/profile/[slug]',
-          e: [{ t: 'probe' }]
+          e: [{ t: 'probe' }],
+          debug: false
         })
       })
     );
@@ -1114,7 +1147,8 @@ describe.skip('useAnalyticsPath / <AnalyticsPath>', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/profile/abc123',
-          e: [{ t: 'probe' }]
+          e: [{ t: 'probe' }],
+          debug: false
         })
       })
     );
@@ -1188,7 +1222,8 @@ describe.skip('useAnalyticsPath / <AnalyticsPath>', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/profile/[slug]',
-          e: [{ t: 'probe' }]
+          e: [{ t: 'probe' }],
+          debug: false
         })
       })
     );
@@ -1211,7 +1246,8 @@ describe.skip('useAnalyticsPath / <AnalyticsPath>', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/explicitly-passed',
-          e: [{ t: 'PageView' }]
+          e: [{ t: 'PageView' }],
+          debug: false
         })
       })
     );
@@ -1258,7 +1294,8 @@ describe.skip('useAnalyticsProps / <AnalyticsProps>', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/admin/dashboard',
-          e: [{ t: 'PageView', p: { section: 'admin' } }]
+          e: [{ t: 'PageView', p: { section: 'admin' } }],
+          debug: false
         })
       })
     );
@@ -1281,7 +1318,8 @@ describe.skip('useAnalyticsProps / <AnalyticsProps>', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/admin/dashboard',
-          e: [{ t: 'cta_click', p: { section: 'admin' } }]
+          e: [{ t: 'cta_click', p: { section: 'admin' } }],
+          debug: false
         })
       })
     );
@@ -1304,7 +1342,8 @@ describe.skip('useAnalyticsProps / <AnalyticsProps>', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/admin/dashboard',
-          e: [{ t: 'signup', p: { section: 'override', tier: 'pro' } }]
+          e: [{ t: 'signup', p: { section: 'override', tier: 'pro' } }],
+          debug: false
         })
       })
     );
@@ -1327,7 +1366,8 @@ describe.skip('useAnalyticsProps / <AnalyticsProps>', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/admin/dashboard',
-          e: [{ t: 'signup', p: { section: 'admin', extra: 'x' } }]
+          e: [{ t: 'signup', p: { section: 'admin', extra: 'x' } }],
+          debug: false
         })
       })
     );
@@ -1356,7 +1396,8 @@ describe.skip('useAnalyticsProps / <AnalyticsProps>', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/admin/dashboard',
-          e: [{ t: 'after_unmount' }]
+          e: [{ t: 'after_unmount' }],
+          debug: false
         })
       })
     );
@@ -1374,7 +1415,8 @@ describe.skip('useAnalyticsProps / <AnalyticsProps>', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/admin/dashboard',
-          e: [{ t: 'PageView', p: { section: 'admin' } }]
+          e: [{ t: 'PageView', p: { section: 'admin' } }],
+          debug: false
         })
       })
     );
@@ -1393,7 +1435,8 @@ describe.skip('useAnalyticsProps / <AnalyticsProps>', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/admin/dashboard',
-          e: [{ t: 'PageView', p: { source: 'from-hook' } }]
+          e: [{ t: 'PageView', p: { source: 'from-hook' } }],
+          debug: false
         })
       })
     );
@@ -1416,7 +1459,8 @@ describe.skip('useAnalyticsProps / <AnalyticsProps>', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/about',
-          e: [{ t: 'PageView' }]
+          e: [{ t: 'PageView' }],
+          debug: false
         })
       })
     );
@@ -1441,7 +1485,8 @@ describe.skip('useAnalyticsProps / <AnalyticsProps>', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/admin/dashboard',
-          e: [{ t: 'PageView', p: { section: 'admin' } }]
+          e: [{ t: 'PageView', p: { section: 'admin' } }],
+          debug: false
         })
       })
     );
@@ -1461,7 +1506,8 @@ describe.skip('useAnalyticsProps / <AnalyticsProps>', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/profile/[id]',
-          e: [{ t: 'PageView', p: { section: 'profile' } }]
+          e: [{ t: 'PageView', p: { section: 'profile' } }],
+          debug: false
         })
       })
     );
@@ -1558,7 +1604,8 @@ describe.skip('Override APIs — cleanup race-safety', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/outer',
-          e: [{ t: 'probe' }]
+          e: [{ t: 'probe' }],
+          debug: false
         })
       })
     );
@@ -1608,7 +1655,8 @@ describe.skip('Override APIs — cleanup race-safety', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/admin/dashboard',
-          e: [{ t: 'probe', p: { source: 'outer' } }]
+          e: [{ t: 'probe', p: { source: 'outer' } }],
+          debug: false
         })
       })
     );
@@ -1646,7 +1694,8 @@ describe.skip('Override APIs — component priority edge cases', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/new-template',
-          e: [{ t: 'PageView' }]
+          e: [{ t: 'PageView' }],
+          debug: false
         })
       })
     );
@@ -1744,7 +1793,8 @@ describe.skip('Override APIs — filtering and empty inputs', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/admin/dashboard',
-          e: [{ t: 'PageView', p: {} }]
+          e: [{ t: 'PageView', p: {} }],
+          debug: false
         })
       })
     );
@@ -1765,7 +1815,8 @@ describe.skip('Override APIs — filtering and empty inputs', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com',
-          e: [{ t: 'PageView' }]
+          e: [{ t: 'PageView' }],
+          debug: false
         })
       })
     );
@@ -1815,7 +1866,8 @@ describe('Transport — web platform fallback stack', () => {
         method: 'POST',
         body: JSON.stringify({
           u: 'https://example.com/home',
-          e: [{ t: 'PageView' }]
+          e: [{ t: 'PageView' }],
+          debug: false
         })
       })
     );
@@ -1856,7 +1908,8 @@ describe('Transport — web platform fallback stack', () => {
     const decoded = atob(dataParam);
     expect(JSON.parse(decoded)).toEqual({
       u: 'https://example.com/home',
-      e: [{ t: 'PageView' }]
+      e: [{ t: 'PageView' }],
+      debug: true // devmode on localhost
     });
   });
 
@@ -1881,7 +1934,8 @@ describe('Transport — web platform fallback stack', () => {
       'https://collector.onedollarstats.com/events',
       JSON.stringify({
         u: 'https://example.com/home',
-        e: [{ t: 'PageView' }]
+        e: [{ t: 'PageView' }],
+        debug: true
       })
     );
     expect(fetchSpy).not.toHaveBeenCalled();
@@ -1924,7 +1978,8 @@ describe('Transport — web platform fallback stack', () => {
         keepalive: true,
         body: JSON.stringify({
           u: 'https://example.com/home',
-          e: [{ t: 'PageView' }]
+          e: [{ t: 'PageView' }],
+          debug: true
         })
       })
     );
@@ -2000,7 +2055,8 @@ describe('Transport — web platform fallback stack', () => {
     const dataParam = img.src.split('?data=')[1]!;
     expect(JSON.parse(atob(dataParam))).toEqual({
       u: 'https://example.com/home',
-      e: [{ t: 'signup', p: { tier: 'pro' } }]
+      e: [{ t: 'signup', p: { tier: 'pro' } }],
+      debug: true
     });
   });
 });

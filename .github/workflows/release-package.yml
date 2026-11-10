@@ -35,9 +35,9 @@ jobs:
         run: pnpm build
 
       # ── Unit tests ──────────────────────────────────────────
-      - name: Run unit tests
-        run: pnpm test:unit:web
-        
+      - name: Run unit tests (web + Expo)
+        run: pnpm test:unit
+
       # ── Pack and install into test apps ──────────────────────
       # The packed tarball is renamed to a stable, version-less filename
       # (onedollarstats.tgz) so test app package.json references stay
@@ -48,6 +48,7 @@ jobs:
           mv "$TARBALL" onedollarstats.tgz
           cd test/mpa && pnpm add --save-dev "file:../../onedollarstats.tgz"
           cd ../spa && pnpm add --save-dev "file:../../onedollarstats.tgz"
+          cd ../expo && pnpm add --save-dev "file:../../onedollarstats.tgz"
 
       # ── Build test apps ──────────────────────────────────────
       - name: Build MPA test app
@@ -58,6 +59,10 @@ jobs:
         run: pnpm build
         working-directory: test/spa
 
+      - name: Build Expo test app (web export, dev + prod configs)
+        run: pnpm build
+        working-directory: test/expo
+
       # ── Package E2E tests ───────────────────────────────────
       - name: Install Chromium for Puppeteer
         run: npx puppeteer browsers install chrome
@@ -66,6 +71,7 @@ jobs:
         run: |
           (cd test/mpa && pnpm preview --host 0.0.0.0) &
           (cd test/spa && pnpm preview --host 0.0.0.0) &
+          (cd test/expo && pnpm preview) &
 
           echo "Waiting for MPA server (port 4321)..."
           timeout 30 bash -c 'until curl -sf http://127.0.0.1:4321 > /dev/null 2>&1; do sleep 1; done'
@@ -75,8 +81,22 @@ jobs:
           timeout 30 bash -c 'until curl -s -o /dev/null http://127.0.0.1:5173 2>&1; do sleep 1; done'
           echo "SPA server is ready"
 
+          echo "Waiting for Expo server (port 8081)..."
+          timeout 30 bash -c 'until curl -sf http://127.0.0.1:8081 > /dev/null 2>&1; do sleep 1; done'
+          echo "Expo server is ready"
+
+          echo "Waiting for Expo production-build server (port 8082)..."
+          timeout 30 bash -c 'until curl -sf http://127.0.0.1:8082 > /dev/null 2>&1; do sleep 1; done'
+          echo "Expo production-build server is ready"
+
       - name: Run package E2E tests
         run: pnpm test:e2e:package
+        env:
+          SKIP_BUILD: "1"
+          SKIP_SERVERS: "1"
+
+      - name: Run Expo E2E tests
+        run: pnpm test:e2e:expo
         env:
           SKIP_BUILD: "1"
           SKIP_SERVERS: "1"
