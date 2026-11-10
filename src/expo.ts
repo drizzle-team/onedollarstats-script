@@ -82,7 +82,7 @@ function mergeConfig(config: ExpoAnalyticsConfig): InternalConfig {
     hostname: config.hostname,
     collectorUrl: config.collectorUrl ?? 'https://collector.onedollarstats.com/events',
     autocollect: config.autocollect ?? true,
-    // Same as web: devmode only applies in development, so a release build can't send debug events
+    // Only honoured in development, so a release build can't send debug events
     devmode: isDevEnvironment() ? (config.devmode ?? false) : false,
     collapseDynamicRoutes: config.collapseDynamicRoutes ?? true,
     excludePages: config.excludePages,
@@ -90,10 +90,12 @@ function mergeConfig(config: ExpoAnalyticsConfig): InternalConfig {
   };
 }
 
+// Groups like (tabs) aren't part of the URL
 function isGroupSegment(segment: string): boolean {
   return /^\(.+\)$/.test(segment);
 }
 
+// Segments keep the file names, so /profile/abc becomes /profile/[id]
 function collapsePath(segments: readonly string[]): string {
   const visible = segments.filter(s => !isGroupSegment(s));
   if (visible.length === 0) return '/';
@@ -111,13 +113,13 @@ function isWebLocalhost(): boolean {
   if (typeof window === 'undefined' || !window.location) return false;
   const { hostname, protocol } = window.location;
   return (
+    // localhost, 127.x.x.x, [::1]
     /^localhost$|^127(\.[0-9]+){0,2}\.[0-9]+$|^\[::1?\]$/.test(hostname) &&
     (protocol === 'http:' || protocol === 'https:')
   );
 }
 
-// Development is a dev bundle (Metro sets __DEV__ on native and web) or a web page on localhost.
-// Like web localhost, events from it are dropped unless devmode is on.
+// Dev bundle (Metro sets __DEV__, native and web) or Expo web on localhost
 function isDevEnvironment(): boolean {
   return (typeof __DEV__ !== 'undefined' && __DEV__ === true) || isWebLocalhost();
 }
@@ -139,6 +141,7 @@ export type OneDollarStatsProviderProps = {
 };
 
 export function OneDollarStatsProvider({ config, children }: OneDollarStatsProviderProps) {
+  // Fields, not `config`: an inline config object is new on every render
   const merged = useMemo(
     () => mergeConfig(config),
     [
@@ -159,6 +162,7 @@ export function OneDollarStatsProvider({ config, children }: OneDollarStatsProvi
   const announcedRef = useRef(false);
   const trackedPath = useTrackedPath(merged);
 
+  // Once per mount, not on every config change
   useEffect(() => {
     if (announcedRef.current) return;
     if (isDevEnvironment()) {
@@ -174,15 +178,26 @@ export function OneDollarStatsProvider({ config, children }: OneDollarStatsProvi
   useEffect(() => {
     if (!merged.autocollect) return;
     if (isExcluded(trackedPath, merged)) return;
+    // Re-renders and /profile/a → /profile/b (same template) aren't new views
     if (lastPathRef.current === trackedPath) return;
     lastPathRef.current = trackedPath;
     send('PageView', trackedPath, merged);
   }, [trackedPath, merged]);
 
   useEffect(() => {
+    // Count only returns from the background. iOS also flips to inactive and back
+    // for Face ID, permission prompts and Control Center.
+    // currentState, not 'active': this re-subscribes on config changes, maybe while backgrounded.
+    let wasInBackground = AppState.currentState === 'background';
     const handler = (state: AppStateStatus) => {
-      if (state !== 'active') return;
+      if (state === 'background') {
+        wasInBackground = true;
+        return;
+      }
+      if (state !== 'active' || !wasInBackground) return;
+      wasInBackground = false;
       if (!merged.autocollect) return;
+      // TODO: this is the last tracked path, not the current one (wrong on excluded screens)
       const current = lastPathRef.current;
       if (!current || isExcluded(current, merged)) return;
       send('PageView', current, merged);
@@ -304,6 +319,7 @@ function devLog(label: string, url: string, props?: Record<string, string>): voi
   console.log(msg);
 }
 
+// Longer GET URLs can get cut by proxies and CDNs
 const SAFE_GET_THRESHOLD = 1500;
 
 function send(
@@ -329,15 +345,18 @@ function send(
   }
 }
 
+// RN has no sendBeacon or keepalive, so an event sent while the app closes can be lost
 function sendNative(collectorUrl: string, body: string): void {
   fetch(collectorUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body
-  }).catch(() => {});
+  }).catch(() => {}); // analytics must never crash the app
 }
 
+// Pixel GET first, then sendBeacon, then fetch
 function sendWeb(collectorUrl: string, body: string): void {
+  // btoa only takes Latin-1, so encode to UTF-8 bytes first
   const bytes = new TextEncoder().encode(body);
   const bin = String.fromCharCode(...bytes);
   const payloadBase64 = btoa(bin);
@@ -365,10 +384,12 @@ function sendBeaconOrFetch(collectorUrl: string, body: string): void {
   }).catch(() => {});
 }
 
+// '/admin' matches '/admin' and '/admin/users', not '/administrator'
 function pathMatches(path: string, prefix: string): boolean {
   return path === prefix || path.startsWith(prefix.endsWith('/') ? prefix : prefix + '/');
 }
 
+// includePages wins: excludePages is ignored when both are set (web applies both)
 function isExcluded(path: string, config: InternalConfig): boolean {
   if (config.includePages?.length) {
     return !config.includePages.some(p => pathMatches(path, p));

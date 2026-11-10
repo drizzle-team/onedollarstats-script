@@ -21,6 +21,8 @@ const removeMock = vi.fn();
 
 // Mutable Platform.OS so transport tests can flip between native/web
 let mockPlatformOS: 'ios' | 'android' | 'web' = 'ios';
+// AppState.currentState when the provider subscribes
+let mockAppStateCurrent: 'active' | 'background' | 'inactive' = 'active';
 
 vi.mock('react-native', () => ({
   Platform: {
@@ -29,9 +31,19 @@ vi.mock('react-native', () => ({
     }
   },
   AppState: {
+    get currentState() {
+      return mockAppStateCurrent;
+    },
     addEventListener: vi.fn((_event: string, handler: (state: string) => void) => {
       appStateListeners.push(handler);
-      return { remove: removeMock };
+      return {
+        // Detach like the real subscription, so re-subscribing doesn't leave the old handler firing
+        remove: () => {
+          removeMock();
+          const i = appStateListeners.indexOf(handler);
+          if (i !== -1) appStateListeners.splice(i, 1);
+        }
+      };
     })
   }
 }));
@@ -67,6 +79,7 @@ beforeEach(() => {
   mockPathname = '/home';
   mockSegments = null;
   mockPlatformOS = 'ios';
+  mockAppStateCurrent = 'active';
   appStateListeners.length = 0;
   removeMock.mockClear();
 });
@@ -153,6 +166,7 @@ describe('OneDollarStatsProvider — AppState foreground', () => {
     expect(fetchSpy).toHaveBeenCalledTimes(1); // initial mount
 
     act(() => {
+      appStateListeners.forEach(h => h('background'));
       appStateListeners.forEach(h => h('active'));
     });
 
@@ -171,6 +185,49 @@ describe('OneDollarStatsProvider — AppState foreground', () => {
     expect(fetchSpy).toHaveBeenCalledTimes(1);
   });
 
+  const emit = (...states: string[]) =>
+    act(() => states.forEach(s => appStateListeners.forEach(h => h(s))));
+
+  test('inactive → active (Face ID, permission prompt, Control Center) does NOT fire', () => {
+    renderProvider({ hostname: 'example.com' });
+    emit('inactive', 'active', 'inactive', 'active');
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
+  test('iOS home-screen round trip (active → inactive → background → active) fires once', () => {
+    renderProvider({ hostname: 'example.com' });
+    emit('inactive', 'background', 'active');
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
+
+  test('background → inactive → active still counts as a return from the background', () => {
+    renderProvider({ hostname: 'example.com' });
+    emit('background', 'inactive', 'active');
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
+
+  test('extra active events after one return fire only once', () => {
+    renderProvider({ hostname: 'example.com' });
+    emit('background', 'active', 'active', 'inactive', 'active');
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
+
+  test('each return from the background fires', () => {
+    renderProvider({ hostname: 'example.com' });
+    emit('background', 'active', 'background', 'active');
+    expect(fetchSpy).toHaveBeenCalledTimes(3);
+  });
+
+  test('a config change while in the background does not lose the return', () => {
+    const { rerender } = renderProvider({ hostname: 'example.com', excludePages: ['/a'] });
+    emit('background');
+    // New array → new merged config → the AppState effect re-subscribes while backgrounded
+    mockAppStateCurrent = 'background';
+    rerender(providerEl({ hostname: 'example.com', excludePages: ['/b'] }));
+    emit('active');
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
+
   test('cleans up AppState listener on unmount', () => {
     const { unmount } = renderProvider({ hostname: 'example.com' });
 
@@ -182,6 +239,7 @@ describe('OneDollarStatsProvider — AppState foreground', () => {
     renderProvider({ hostname: 'example.com', autocollect: false });
 
     act(() => {
+      appStateListeners.forEach(h => h('background'));
       appStateListeners.forEach(h => h('active'));
     });
 
@@ -693,6 +751,7 @@ describe('collapseDynamicRoutes', () => {
     expect(fetchSpy).toHaveBeenCalledTimes(1);
 
     act(() => {
+      appStateListeners.forEach(h => h('background'));
       appStateListeners.forEach(h => h('active'));
     });
 
@@ -822,6 +881,7 @@ describe.skip('useAnalyticsPath / <AnalyticsPath>', () => {
     expect(fetchSpy).toHaveBeenCalledTimes(1);
 
     act(() => {
+      appStateListeners.forEach(h => h('background'));
       appStateListeners.forEach(h => h('active'));
     });
 
@@ -1293,6 +1353,7 @@ describe.skip('useAnalyticsProps / <AnalyticsProps>', () => {
     expect(fetchSpy).toHaveBeenCalledTimes(1);
 
     act(() => {
+      appStateListeners.forEach(h => h('background'));
       appStateListeners.forEach(h => h('active'));
     });
 
@@ -1580,6 +1641,7 @@ describe.skip('Override APIs — filtering and empty inputs', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
 
     act(() => {
+      appStateListeners.forEach(h => h('background'));
       appStateListeners.forEach(h => h('active'));
     });
 
@@ -1904,7 +1966,7 @@ describe('Development gating (__DEV__ / localhost) and devmode', () => {
   test('native dev build without devmode drops the AppState foreground PageView', () => {
     vi.stubGlobal('__DEV__', true);
     renderProvider({ hostname: 'example.com' });
-    act(() => appStateListeners.forEach(fn => fn('active')));
+    act(() => appStateListeners.forEach(fn => { fn('background'); fn('active'); }));
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
