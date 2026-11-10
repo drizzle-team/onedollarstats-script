@@ -156,7 +156,15 @@ view('/landing', { campaign: 'spring' }); // pageview with explicit path
 | ----------------------- | ---------- | ------- | -------------------------------------------------------------------------------------------- |
 | `collapseDynamicRoutes` | `boolean`  | `true`  | Use `useSegments()` to record routes as templates (`/profile/[id]`) instead of concrete paths. Group segments like `(tabs)` are stripped. |
 
-All other options (`hostname`, `collectorUrl`, `devmode`, `autocollect`, `excludePages`, `includePages`) behave the same as in the web tracker above.
+`hostname` is required. `collectorUrl` and `autocollect` work as in the web tracker above. `devmode` is covered under **Development builds** below. `trackLocalhostAs` and `hashRouting` aren't supported.
+
+**`excludePages` / `includePages` work differently from the web tracker:**
+
+- Entries match a path and everything under it, with no wildcards. `'/admin'` matches `/admin` and `/admin/users`, but not `/administrator`.
+- When `includePages` is set, `excludePages` is ignored. The web tracker applies both.
+- `includePages: ['/']` matches every screen, because every path is under `/`.
+- With `collapseDynamicRoutes` on (the default), match against the template, for example `'/profile/[id]'`, not `'/profile/abc123'`.
+- As on the web, manual `view()` and `event()` calls ignore both lists.
 
 **Development builds:** events are ignored in development, like `localhost` on the web. That covers dev bundles (`__DEV__`: Expo Go, dev clients, `npx expo start`) on iOS, Android and web, plus Expo web served from `localhost`. Set `devmode: true` to send them as debug events. In release builds and on your real domain, `devmode` is ignored, so leaving it on can't turn production traffic into debug events.
 
