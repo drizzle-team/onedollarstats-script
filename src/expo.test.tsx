@@ -1864,3 +1864,134 @@ describe('Transport — web platform fallback stack', () => {
     });
   });
 });
+
+describe('Development gating (__DEV__ / localhost) and devmode', () => {
+  type StubImage = { src: string; onerror?: () => void };
+  let imageInstances: StubImage[];
+  const fetchBody = (call = -1) => JSON.parse(fetchSpy.mock.calls.at(call)![1].body);
+  const imageBody = (i = -1) => JSON.parse(atob(imageInstances.at(i)!.src.split('?data=')[1]!));
+
+  beforeEach(() => {
+    imageInstances = [];
+    vi.stubGlobal(
+      'Image',
+      class StubImageCtor {
+        src = '';
+        onerror?: () => void;
+        constructor() {
+          imageInstances.push(this);
+        }
+      }
+    );
+  });
+
+  test('native dev build (__DEV__ = true) without devmode sends nothing', () => {
+    vi.stubGlobal('__DEV__', true);
+    renderProvider({ hostname: 'example.com' });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  test('native dev build without devmode drops manual event() and view() too', () => {
+    vi.stubGlobal('__DEV__', true);
+    const { result } = renderHook(() => useAnalytics(), { wrapper: wrapper({ hostname: 'example.com' }) });
+    act(() => {
+      result.current.event('signup');
+      result.current.view('/landing');
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  test('native dev build without devmode drops the AppState foreground PageView', () => {
+    vi.stubGlobal('__DEV__', true);
+    renderProvider({ hostname: 'example.com' });
+    act(() => appStateListeners.forEach(fn => fn('active')));
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  test('native dev build with devmode sends with debug: true', () => {
+    vi.stubGlobal('__DEV__', true);
+    renderProvider({ hostname: 'example.com', devmode: true });
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(fetchBody()).toEqual({ u: 'https://example.com/home', e: [{ t: 'PageView' }], debug: true });
+  });
+
+  test('native release build (__DEV__ = false) sends normally with debug: false', () => {
+    vi.stubGlobal('__DEV__', false);
+    renderProvider({ hostname: 'example.com' });
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(fetchBody().debug).toBe(false);
+  });
+
+  test('native release build ignores devmode: true (still sends, debug: false)', () => {
+    vi.stubGlobal('__DEV__', false);
+    const { result } = renderHook(() => useAnalytics(), {
+      wrapper: wrapper({ hostname: 'example.com', devmode: true })
+    });
+    act(() => result.current.event('signup'));
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    expect(fetchBody(0).debug).toBe(false);
+    expect(fetchBody(1)).toEqual({ u: 'https://example.com/home', e: [{ t: 'signup' }], debug: false });
+  });
+
+  test('missing __DEV__ (not a Metro bundle) is treated as production', () => {
+    renderProvider({ hostname: 'example.com', devmode: true });
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(fetchBody().debug).toBe(false);
+  });
+
+  test('web on localhost without devmode sends nothing', () => {
+    mockPlatformOS = 'web';
+    expect(window.location.hostname).toBe('localhost');
+    renderProvider({ hostname: 'example.com' });
+    expect(imageInstances).toHaveLength(0);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  test('web on localhost with devmode sends with debug: true', () => {
+    mockPlatformOS = 'web';
+    renderProvider({ hostname: 'example.com', devmode: true });
+    expect(imageInstances).toHaveLength(1);
+    expect(imageBody().debug).toBe(true);
+  });
+
+  test('web dev bundle on a LAN address without devmode sends nothing', () => {
+    mockPlatformOS = 'web';
+    vi.stubGlobal('__DEV__', true);
+    vi.stubGlobal('location', new URL('http://192.168.1.20:8081/home'));
+    renderProvider({ hostname: 'example.com' });
+    expect(imageInstances).toHaveLength(0);
+  });
+
+  test('web production host ignores devmode: true (still sends, debug: false)', () => {
+    mockPlatformOS = 'web';
+    vi.stubGlobal('location', new URL('https://example.com/home'));
+    expect(window.location.hostname).toBe('example.com');
+    renderProvider({ hostname: 'example.com', devmode: true });
+    expect(imageInstances).toHaveLength(1);
+    expect(imageBody().debug).toBe(false);
+  });
+
+  test('logs a hint in development when devmode is off', () => {
+    vi.stubGlobal('__DEV__', true);
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    renderProvider({ hostname: 'example.com' });
+    expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('events are not sent'));
+    logSpy.mockRestore();
+  });
+
+  test('logs "connected" for a native dev build with devmode', () => {
+    vi.stubGlobal('__DEV__', true);
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    renderProvider({ hostname: 'example.com', devmode: true });
+    expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('Tracking this dev build as example.com'));
+    logSpy.mockRestore();
+  });
+
+  test('logs nothing about development in a release build', () => {
+    vi.stubGlobal('__DEV__', false);
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    renderProvider({ hostname: 'example.com', devmode: true });
+    expect(logSpy).not.toHaveBeenCalled();
+    logSpy.mockRestore();
+  });
+});

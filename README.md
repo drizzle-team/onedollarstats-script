@@ -158,6 +158,8 @@ view('/landing', { campaign: 'spring' }); // pageview with explicit path
 
 All other options (`hostname`, `collectorUrl`, `devmode`, `autocollect`, `excludePages`, `includePages`) behave the same as in the web tracker above.
 
+**Development builds:** events are ignored in development, like `localhost` on the web. That covers dev bundles (`__DEV__`: Expo Go, dev clients, `npx expo start`) on iOS, Android and web, plus Expo web served from `localhost`. Set `devmode: true` to send them as debug events. In release builds and on your real domain, `devmode` is ignored, so leaving it on can't turn production traffic into debug events.
+
 ## Autocapture
 
 **Page view events**

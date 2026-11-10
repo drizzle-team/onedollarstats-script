@@ -82,7 +82,8 @@ function mergeConfig(config: ExpoAnalyticsConfig): InternalConfig {
     hostname: config.hostname,
     collectorUrl: config.collectorUrl ?? 'https://collector.onedollarstats.com/events',
     autocollect: config.autocollect ?? true,
-    devmode: config.devmode ?? false,
+    // Same as web: devmode only applies in development, so a release build can't send debug events
+    devmode: isDevEnvironment() ? (config.devmode ?? false) : false,
     collapseDynamicRoutes: config.collapseDynamicRoutes ?? true,
     excludePages: config.excludePages,
     includePages: config.includePages
@@ -113,6 +114,12 @@ function isWebLocalhost(): boolean {
     /^localhost$|^127(\.[0-9]+){0,2}\.[0-9]+$|^\[::1?\]$/.test(hostname) &&
     (protocol === 'http:' || protocol === 'https:')
   );
+}
+
+// Development is a dev bundle (Metro sets __DEV__ on native and web) or a web page on localhost.
+// Like web localhost, events from it are dropped unless devmode is on.
+function isDevEnvironment(): boolean {
+  return (typeof __DEV__ !== 'undefined' && __DEV__ === true) || isWebLocalhost();
 }
 
 function useRequiredContext(caller: string): ContextValue {
@@ -154,9 +161,11 @@ export function OneDollarStatsProvider({ config, children }: OneDollarStatsProvi
 
   useEffect(() => {
     if (announcedRef.current) return;
-    if (merged.devmode && isWebLocalhost()) {
+    if (isDevEnvironment()) {
       console.log(
-        `[onedollarstats]\nOneDollarStats connected! Tracking localhost as ${merged.hostname}`
+        merged.devmode
+          ? `[onedollarstats]\nOneDollarStats connected! Tracking ${isWebLocalhost() ? 'localhost' : 'this dev build'} as ${merged.hostname}`
+          : `[onedollarstats]\nDevelopment detected: events are not sent. Set devmode: true to test tracking.`
       );
     }
     announcedRef.current = true;
@@ -284,9 +293,7 @@ export function AnalyticsProps(props: AnalyticsPropsProps): null {
 */
 
 function shouldSkipSend(config: InternalConfig): boolean {
-  if (Platform.OS !== 'web') return false;
-  if (isWebLocalhost() && !config.devmode) return true;
-  return false;
+  return isDevEnvironment() && !config.devmode;
 }
 
 function devLog(label: string, url: string, props?: Record<string, string>): void {
