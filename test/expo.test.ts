@@ -221,15 +221,22 @@ test("Expo Manual View: custom path", async ({ reqs, page, goto }: Context) => {
   ]);
 });
 
-test("Expo Manual View: with props only", async ({ reqs, page, goto }: Context) => {
+test("Expo Manual View: with props only, deduped against the auto pageview", async ({ reqs, page, goto }: Context) => {
   await goto(`${EXPO_URL}/manual-view`);
+
+  // Same screen the auto pageview just counted: skipped, like the web tracker
+  await page.waitForSelector("text/Send View With Props", { visible: true });
+  await page.click("text/Send View With Props");
+
+  // After a view of another path, the same call counts the screen again
+  await clickAndWaitForRequest(page, reqs, "text/Send Custom Path");
   await clickAndWaitForRequest(page, reqs, "text/Send View With Props");
 
-  expect(reqs[1]).toStrictEqual({
-    u: `${DEBUG_DOMAIN}/manual-view`,
-    e: [{ t: "PageView", p: { campaign: "spring" } }],
-    debug: true
-  });
+  expect(reqs).toStrictEqual([
+    { u: `${DEBUG_DOMAIN}/manual-view`, e: [{ t: "PageView" }], debug: true },
+    { u: `${DEBUG_DOMAIN}/custom-path`, e: [{ t: "PageView" }], debug: true },
+    { u: `${DEBUG_DOMAIN}/manual-view`, e: [{ t: "PageView", p: { campaign: "spring" } }], debug: true }
+  ]);
 });
 
 test("Expo Manual View: path + props", async ({ reqs, page, goto }: Context) => {

@@ -43,6 +43,7 @@ type PropsOverride =
 
 type ContextValue = {
   config: InternalConfig;
+  // Last pageview sent (normalised path), shared by autocollect and manual view() for dedup
   lastPathRef: MutableRefObject<string | null>;
   // TODO(page-scope): restore when page-scope detection is designed.
   // overrideRef: MutableRefObject<Override>;
@@ -185,9 +186,10 @@ export function OneDollarStatsProvider({ config, children }: OneDollarStatsProvi
       lastPathRef.current = null;
       return;
     }
-    // Re-renders and /profile/a → /profile/b (same template) aren't new views
-    if (lastPathRef.current === trackedPath) return;
-    lastPathRef.current = trackedPath;
+    // Re-renders, /profile/a → /profile/b (same template) and a manual view() of this screen aren't new views
+    const page = normalizePath(trackedPath);
+    if (lastPathRef.current === page) return;
+    lastPathRef.current = page;
     send('PageView', trackedPath, merged);
   }, [trackedPath, merged]);
 
@@ -207,7 +209,7 @@ export function OneDollarStatsProvider({ config, children }: OneDollarStatsProvi
       // The screen the user is on now, not the last tracked one (that's stale on excluded screens)
       const current = currentPathRef.current;
       if (!current || isExcluded(current, merged)) return;
-      lastPathRef.current = current;
+      lastPathRef.current = normalizePath(current);
       send('PageView', current, merged);
     };
     const sub = AppState.addEventListener('change', handler);
@@ -246,6 +248,10 @@ export function useAnalytics(): AnalyticsAPI {
     (pathOrProps?: string | Props, props?: Props) => {
       const targetPath = typeof pathOrProps === 'string' ? pathOrProps : trackedPath;
       const viewProps = typeof pathOrProps === 'object' ? pathOrProps : props;
+      // Same page as the last pageview (auto or manual): skip, like the web tracker
+      const page = normalizePath(targetPath);
+      if (ctx.lastPathRef.current === page) return;
+      ctx.lastPathRef.current = page;
       send('PageView', targetPath, ctx.config, viewProps);
     },
     [ctx, trackedPath]
@@ -330,11 +336,16 @@ function devLog(label: string, url: string, props?: Record<string, string>): voi
 // Same URL as the web tracker: leading slash, no trailing slash, no query or hash, browser-style encoding.
 // Plain strings on purpose: React Native's URL throws "not implemented" for most properties.
 function buildUrl(hostname: string, path: string): string {
+  return `https://${hostname}${normalizePath(path)}`;
+}
+
+// The path part of buildUrl(), so paths that send the same URL count as the same page. Root is ''.
+function normalizePath(path: string): string {
   const bare = path.split(/[?#]/)[0];
   const withSlash = bare.startsWith('/') ? bare : `/${bare}`;
   // What browsers encode in a path; [ ] (route templates) and existing %XX stay as is
   const encoded = withSlash.replace(/[^\x21-\x7E]|["<>`{}]/gu, encodeChar);
-  return `https://${hostname}${encoded}`.replace(/\/$/, '');
+  return encoded.replace(/\/$/, '');
 }
 
 function encodeChar(char: string): string {

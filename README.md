@@ -150,6 +150,8 @@ view({ campaign: 'spring' });             // pageview with just props
 view('/landing', { campaign: 'spring' }); // pageview with explicit path
 ```
 
+As on the web, a `view()` of the page that was just counted is skipped, whether autocollect or an earlier `view()` counted it. Paths are compared by the URL they produce, so `'/landing'`, `'landing/'` and `'/landing?ref=ad'` are the same page. That means `view({ campaign: 'spring' })` on a screen autocollect already counted sends nothing. If you want to send props with each screen's pageview, set `autocollect: false` and call `view()` yourself. `event()` is never deduplicated.
+
 **Expo-specific config options:**
 
 | Option                  | Type       | Default | Description                                                                                  |

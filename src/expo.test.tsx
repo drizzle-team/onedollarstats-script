@@ -356,12 +356,14 @@ describe('useAnalytics — manual event() and view()', () => {
   });
 
   test('view() without path falls back to current pathname', () => {
+    // autocollect off: with it on, autocollect already counted /home and view() is deduped
     const { result } = renderHook(() => useAnalytics(), {
-      wrapper: wrapper({ hostname: 'example.com' })
+      wrapper: wrapper({ hostname: 'example.com', autocollect: false })
     });
 
     act(() => result.current.view());
 
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
     expect(fetchSpy).toHaveBeenLastCalledWith(
       expect.any(String),
       expect.objectContaining({
@@ -478,6 +480,118 @@ describe('useAnalytics — manual event() and view()', () => {
         })
       })
     );
+  });
+});
+
+describe('Manual view() dedup against autocollect', () => {
+  const sent = () => fetchSpy.mock.calls.map(c => JSON.parse(c[1].body));
+  const urls = () => sent().map(b => b.u);
+
+  function renderAnalytics(config: ExpoAnalyticsConfig = { hostname: 'example.com' }) {
+    return renderHook(() => useAnalytics(), { wrapper: wrapper(config) });
+  }
+
+  test('view() of the screen autocollect just counted is skipped', () => {
+    const { result } = renderAnalytics();
+    act(() => result.current.view());
+    expect(urls()).toEqual(['https://example.com/home']);
+  });
+
+  test('view(props) of the screen autocollect just counted is skipped, like the web tracker', () => {
+    const { result } = renderAnalytics();
+    act(() => result.current.view({ campaign: 'spring' }));
+    expect(sent()).toEqual([{ u: 'https://example.com/home', e: [{ t: 'PageView' }], debug: false }]);
+  });
+
+  test('the same manual path twice is sent once', () => {
+    const { result } = renderAnalytics({ hostname: 'example.com', autocollect: false });
+    act(() => result.current.view('/landing'));
+    act(() => result.current.view('/landing'));
+    expect(urls()).toEqual(['https://example.com/landing']);
+  });
+
+  test('paths that build the same URL count as the same page', () => {
+    const { result } = renderAnalytics({ hostname: 'example.com', autocollect: false });
+    act(() => result.current.view('/landing'));
+    act(() => result.current.view('landing/'));
+    act(() => result.current.view('/landing?ref=ad#top'));
+    expect(urls()).toEqual(['https://example.com/landing']);
+  });
+
+  test('root: view("") after autocollect counted / is skipped', () => {
+    mockPathname = '/';
+    const { result } = renderAnalytics();
+    act(() => result.current.view(''));
+    expect(urls()).toEqual(['https://example.com']);
+  });
+
+  test('dynamic route: view() matches the template autocollect sent', () => {
+    mockPathname = '/profile/abc123';
+    mockSegments = ['profile', '[id]'];
+    const { result } = renderAnalytics();
+    act(() => result.current.view());
+    expect(urls()).toEqual(['https://example.com/profile/[id]']);
+  });
+
+  test('a screen calling view(props) on mount sends one pageview, with its props', () => {
+    // Child effects run before the provider's, so the manual view goes first and autocollect skips
+    function Screen() {
+      const { view } = useAnalytics();
+      useEffect(() => view({ source: 'mount' }), [view]);
+      return null;
+    }
+    render(providerEl({ hostname: 'example.com' }, createElement(Screen)));
+    expect(sent()).toEqual([
+      { u: 'https://example.com/home', e: [{ t: 'PageView', p: { source: 'mount' } }], debug: false }
+    ]);
+  });
+
+  test('autocollect skips a screen that a manual view() already counted', () => {
+    const { result, rerender } = renderAnalytics();
+    act(() => result.current.view('/about'));
+    mockPathname = '/about';
+    rerender();
+    expect(urls()).toEqual(['https://example.com/home', 'https://example.com/about']);
+  });
+
+  test('a manual view of another path makes the current screen countable again', () => {
+    const { result } = renderAnalytics();
+    act(() => result.current.view('/landing'));
+    act(() => result.current.view());
+    expect(urls()).toEqual([
+      'https://example.com/home',
+      'https://example.com/landing',
+      'https://example.com/home'
+    ]);
+  });
+
+  test('navigating to a new screen after a manual view still counts it', () => {
+    const { result, rerender } = renderAnalytics();
+    act(() => result.current.view('/landing'));
+    mockPathname = '/about';
+    rerender();
+    expect(urls()).toEqual([
+      'https://example.com/home',
+      'https://example.com/landing',
+      'https://example.com/about'
+    ]);
+  });
+
+  test('view() right after a foreground pageview of the same screen is skipped', () => {
+    const { result } = renderAnalytics();
+    act(() => {
+      appStateListeners.forEach(h => h('background'));
+      appStateListeners.forEach(h => h('active'));
+    });
+    act(() => result.current.view());
+    expect(urls()).toEqual(['https://example.com/home', 'https://example.com/home']);
+  });
+
+  test('event() is never deduped', () => {
+    const { result } = renderAnalytics();
+    act(() => result.current.event('tap'));
+    act(() => result.current.event('tap'));
+    expect(sent().map(b => b.e[0].t)).toEqual(['PageView', 'tap', 'tap']);
   });
 });
 
