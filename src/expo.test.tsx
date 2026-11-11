@@ -23,11 +23,25 @@ const removeMock = vi.fn();
 let mockPlatformOS: 'ios' | 'android' | 'web' = 'ios';
 // AppState.currentState when the provider subscribes
 let mockAppStateCurrent: 'active' | 'background' | 'inactive' = 'active';
+// Platform.Version / isPad / constants, for the native User-Agent
+let mockPlatformVersion: string | number | undefined = '17.4';
+let mockIsPad = false;
+let mockPlatformConstants: Record<string, unknown> | undefined = { Release: '14', Model: 'Pixel 8' };
 
 vi.mock('react-native', () => ({
   Platform: {
     get OS() {
       return mockPlatformOS;
+    },
+    get Version() {
+      return mockPlatformVersion;
+    },
+    get isPad() {
+      return mockIsPad;
+    },
+    get constants() {
+      if (!mockPlatformConstants) throw new Error('constants unavailable');
+      return mockPlatformConstants;
     }
   },
   AppState: {
@@ -80,6 +94,9 @@ beforeEach(() => {
   mockSegments = null;
   mockPlatformOS = 'ios';
   mockAppStateCurrent = 'active';
+  mockPlatformVersion = '17.4';
+  mockIsPad = false;
+  mockPlatformConstants = { Release: '14', Model: 'Pixel 8' };
   appStateListeners.length = 0;
   removeMock.mockClear();
 });
@@ -2353,5 +2370,83 @@ describe('URL shape matches the web tracker', () => {
 
   test('a lone surrogate is dropped instead of throwing', () => {
     expect(viewUrl('/bad\uD800path')).toBe('https://example.com/badpath');
+  });
+});
+
+describe('Native User-Agent', () => {
+  // The header the last native request carried
+  const userAgent = () => fetchSpy.mock.lastCall?.[1]?.headers?.['User-Agent'];
+
+  test('iPhone: iOS version and device class the collector can parse', () => {
+    mockPlatformOS = 'ios';
+    renderProvider({ hostname: 'example.com' });
+    expect(userAgent()).toBe(
+      'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X; Apple) onedollarstats-expo'
+    );
+  });
+
+  test('iPad is sent as an iPad', () => {
+    mockPlatformOS = 'ios';
+    mockIsPad = true;
+    mockPlatformVersion = '18.0.1';
+    renderProvider({ hostname: 'example.com' });
+    expect(userAgent()).toBe('Mozilla/5.0 (iPad; CPU OS 18_0_1 like Mac OS X; Apple) onedollarstats-expo');
+  });
+
+  test('Android: release and model', () => {
+    mockPlatformOS = 'android';
+    renderProvider({ hostname: 'example.com' });
+    expect(userAgent()).toBe('Mozilla/5.0 (Linux; Android 14; Pixel 8) onedollarstats-expo');
+  });
+
+  test('characters that would break the UA are stripped from the model', () => {
+    mockPlatformOS = 'android';
+    mockPlatformConstants = { Release: '13', Model: 'Weird (Model); X\u00e9' };
+    renderProvider({ hostname: 'example.com' });
+    expect(userAgent()).toBe('Mozilla/5.0 (Linux; Android 13; Weird Model X) onedollarstats-expo');
+  });
+
+  test('missing versions and model still give a valid UA', () => {
+    mockPlatformOS = 'android';
+    mockPlatformConstants = {};
+    renderProvider({ hostname: 'example.com' });
+    expect(userAgent()).toBe('Mozilla/5.0 (Linux; Android) onedollarstats-expo');
+
+    fetchSpy.mockClear();
+    mockPlatformOS = 'ios';
+    mockPlatformVersion = undefined;
+    renderProvider({ hostname: 'other.com' });
+    // Not "CPU iPhone OS like Mac OS X": the parser reads that as macOS
+    expect(userAgent()).toBe('Mozilla/5.0 (iPhone; Apple) onedollarstats-expo');
+  });
+
+  test('if platform constants throw, the event is still sent with the default UA', () => {
+    mockPlatformOS = 'android';
+    mockPlatformConstants = undefined;
+    renderProvider({ hostname: 'example.com' });
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(fetchSpy.mock.lastCall?.[1]?.headers).toEqual({ 'Content-Type': 'application/json' });
+  });
+
+  test('custom events carry it too', () => {
+    mockPlatformOS = 'android';
+    const { result } = renderHook(() => useAnalytics(), {
+      wrapper: wrapper({ hostname: 'example.com', autocollect: false })
+    });
+    act(() => result.current.event('signup'));
+    expect(userAgent()).toBe('Mozilla/5.0 (Linux; Android 14; Pixel 8) onedollarstats-expo');
+  });
+
+  test('web never sets it: the browser UA is already right', () => {
+    mockPlatformOS = 'web';
+    // Too big for the pixel GET and no sendBeacon, so it goes straight to fetch
+    vi.stubGlobal('navigator', {});
+    const { result } = renderHook(() => useAnalytics(), {
+      wrapper: wrapper({ hostname: 'example.com', autocollect: false, devmode: true })
+    });
+    act(() => result.current.view('/big', { blob: 'a'.repeat(2000) }));
+    // (devmode: jsdom runs on localhost, which drops events otherwise)
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(fetchSpy.mock.lastCall?.[1]?.headers).toEqual({ 'Content-Type': 'application/json' });
   });
 });

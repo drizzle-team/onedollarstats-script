@@ -121,7 +121,7 @@ event("Purchase", "/product", { amount: 1, color: "green" });
 
 ## Expo
 
-`onedollarstats/expo` is a dedicated entry point for Expo apps using `expo-router`. It auto-collects pageviews on route change and when the app returns from the background (not for system overlays like Face ID or permission prompts), supports dynamic-route templates (`/profile/[id]` instead of `/profile/abc123`), and sends events natively on iOS/Android and via image beacon + `sendBeacon` on web.
+`onedollarstats/expo` is a dedicated entry point for Expo apps using `expo-router`. It auto-collects pageviews on route change and when the app returns from the background (not for system overlays like Face ID or permission prompts), supports dynamic-route templates (`/profile/[id]` instead of `/profile/abc123`), and sends events natively on iOS/Android and via image beacon + `sendBeacon` on web. Native requests carry a `User-Agent` such as `Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X; Apple) onedollarstats-expo`, so the dashboard shows the OS (iOS or Android) and the device type (phone or tablet). React Native's default UA (`okhttp` or `CFNetwork`) would show Android traffic as unknown and every iPad as a phone.
 
 ```tsx
 // app/_layout.tsx

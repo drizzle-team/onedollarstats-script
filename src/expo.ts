@@ -384,11 +384,44 @@ function send(
 
 // RN has no sendBeacon or keepalive, so an event sent while the app closes can be lost
 function sendNative(collectorUrl: string, body: string): void {
+  const userAgent = nativeUserAgent();
   fetch(collectorUrl, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...(userAgent && { 'User-Agent': userAgent }) },
     body
   }).catch(() => {}); // analytics must never crash the app
+}
+
+// Native fetch sends okhttp/x (Android) or CFNetwork (iOS), which the collector's UA parser reads as
+// an unknown OS and device. This browser-shaped UA parses as iOS 17.4 / iPhone or Android 14 / Pixel 8.
+// "; Apple" is what makes the parser see an iPad as a tablet.
+function nativeUserAgent(): string | undefined {
+  try {
+    if (Platform.OS === 'ios') {
+      const version = uaToken(Platform.Version).replace(/\./g, '_');
+      const device = Platform.isPad ? 'iPad' : 'iPhone';
+      // Without a version, "CPU iPhone OS like Mac OS X" parses as macOS, so leave the OS out
+      const os = version ? `; CPU ${Platform.isPad ? '' : 'iPhone '}OS ${version} like Mac OS X` : '';
+      return `Mozilla/5.0 (${device}${os}; Apple) ${UA_MARKER}`;
+    }
+    if (Platform.OS === 'android') {
+      const { Release, Model } = Platform.constants;
+      const release = uaToken(Release);
+      const details = ['Linux', release ? `Android ${release}` : 'Android', uaToken(Model)].filter(Boolean);
+      return `Mozilla/5.0 (${details.join('; ')}) ${UA_MARKER}`;
+    }
+  } catch {
+    // Missing platform constants: keep the default UA rather than fail the event
+  }
+  return undefined;
+}
+
+// Lets the collector tell events from this package apart
+const UA_MARKER = 'onedollarstats-expo';
+
+// Model names can hold anything; ; and ) would break the UA's structure
+function uaToken(value: unknown): string {
+  return String(value ?? '').replace(/[^\w .-]/g, '').trim().slice(0, 64);
 }
 
 // Pixel GET first, then sendBeacon, then fetch
