@@ -21,17 +21,43 @@ const removeMock = vi.fn();
 
 // Mutable Platform.OS so transport tests can flip between native/web
 let mockPlatformOS: 'ios' | 'android' | 'web' = 'ios';
+// AppState.currentState when the provider subscribes
+let mockAppStateCurrent: 'active' | 'background' | 'inactive' = 'active';
+// Platform.Version / isPad / constants, for the native User-Agent
+let mockPlatformVersion: string | number | undefined = '17.4';
+let mockIsPad = false;
+let mockPlatformConstants: Record<string, unknown> | undefined = { Release: '14', Model: 'Pixel 8' };
 
 vi.mock('react-native', () => ({
   Platform: {
     get OS() {
       return mockPlatformOS;
+    },
+    get Version() {
+      return mockPlatformVersion;
+    },
+    get isPad() {
+      return mockIsPad;
+    },
+    get constants() {
+      if (!mockPlatformConstants) throw new Error('constants unavailable');
+      return mockPlatformConstants;
     }
   },
   AppState: {
+    get currentState() {
+      return mockAppStateCurrent;
+    },
     addEventListener: vi.fn((_event: string, handler: (state: string) => void) => {
       appStateListeners.push(handler);
-      return { remove: removeMock };
+      return {
+        // Detach like the real subscription, so re-subscribing doesn't leave the old handler firing
+        remove: () => {
+          removeMock();
+          const i = appStateListeners.indexOf(handler);
+          if (i !== -1) appStateListeners.splice(i, 1);
+        }
+      };
     })
   }
 }));
@@ -67,6 +93,10 @@ beforeEach(() => {
   mockPathname = '/home';
   mockSegments = null;
   mockPlatformOS = 'ios';
+  mockAppStateCurrent = 'active';
+  mockPlatformVersion = '17.4';
+  mockIsPad = false;
+  mockPlatformConstants = { Release: '14', Model: 'Pixel 8' };
   appStateListeners.length = 0;
   removeMock.mockClear();
 });
@@ -87,7 +117,8 @@ describe('OneDollarStatsProvider — auto page view tracking', () => {
         method: 'POST',
         body: JSON.stringify({
           u: 'https://example.com/home',
-          e: [{ t: 'PageView' }]
+          e: [{ t: 'PageView' }],
+          debug: false
         })
       })
     );
@@ -105,7 +136,8 @@ describe('OneDollarStatsProvider — auto page view tracking', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/about',
-          e: [{ t: 'PageView' }]
+          e: [{ t: 'PageView' }],
+          debug: false
         })
       })
     );
@@ -153,6 +185,7 @@ describe('OneDollarStatsProvider — AppState foreground', () => {
     expect(fetchSpy).toHaveBeenCalledTimes(1); // initial mount
 
     act(() => {
+      appStateListeners.forEach(h => h('background'));
       appStateListeners.forEach(h => h('active'));
     });
 
@@ -171,6 +204,97 @@ describe('OneDollarStatsProvider — AppState foreground', () => {
     expect(fetchSpy).toHaveBeenCalledTimes(1);
   });
 
+  const emit = (...states: string[]) =>
+    act(() => states.forEach(s => appStateListeners.forEach(h => h(s))));
+
+  test('inactive → active (Face ID, permission prompt, Control Center) does NOT fire', () => {
+    renderProvider({ hostname: 'example.com' });
+    emit('inactive', 'active', 'inactive', 'active');
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
+  test('iOS home-screen round trip (active → inactive → background → active) fires once', () => {
+    renderProvider({ hostname: 'example.com' });
+    emit('inactive', 'background', 'active');
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
+
+  test('background → inactive → active still counts as a return from the background', () => {
+    renderProvider({ hostname: 'example.com' });
+    emit('background', 'inactive', 'active');
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
+
+  test('extra active events after one return fire only once', () => {
+    renderProvider({ hostname: 'example.com' });
+    emit('background', 'active', 'active', 'inactive', 'active');
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
+
+  test('each return from the background fires', () => {
+    renderProvider({ hostname: 'example.com' });
+    emit('background', 'active', 'background', 'active');
+    expect(fetchSpy).toHaveBeenCalledTimes(3);
+  });
+
+  test('a config change while in the background does not lose the return', () => {
+    const { rerender } = renderProvider({ hostname: 'example.com', excludePages: ['/a'] });
+    emit('background');
+    // New array → new merged config → the AppState effect re-subscribes while backgrounded
+    mockAppStateCurrent = 'background';
+    rerender(providerEl({ hostname: 'example.com', excludePages: ['/b'] }));
+    emit('active');
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
+
+  const lastUrl = () => JSON.parse(fetchSpy.mock.calls.at(-1)![1].body).u;
+
+  test('return from background on an excluded screen sends nothing', () => {
+    const config = { hostname: 'example.com', excludePages: ['/settings'] };
+    const { rerender } = renderProvider(config);
+    mockPathname = '/settings';
+    rerender(providerEl(config));
+    expect(fetchSpy).toHaveBeenCalledTimes(1); // only /home
+
+    emit('background', 'active');
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
+  test('return from background on a screen outside includePages sends nothing', () => {
+    const config = { hostname: 'example.com', includePages: ['/home'] };
+    const { rerender } = renderProvider(config);
+    mockPathname = '/about';
+    rerender(providerEl(config));
+
+    emit('background', 'active');
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
+  test('return from background reports the current screen after navigating', () => {
+    const config = { hostname: 'example.com' };
+    const { rerender } = renderProvider(config);
+    mockPathname = '/about';
+    rerender(providerEl(config));
+
+    emit('background', 'active');
+    expect(fetchSpy).toHaveBeenCalledTimes(3);
+    expect(lastUrl()).toBe('https://example.com/about');
+  });
+
+  test('tracked → excluded → tracked: return from background reports the screen the user is on', () => {
+    const config = { hostname: 'example.com', excludePages: ['/settings'] };
+    const { rerender } = renderProvider(config);
+    mockPathname = '/settings';
+    rerender(providerEl(config));
+    mockPathname = '/about';
+    rerender(providerEl(config));
+    expect(lastUrl()).toBe('https://example.com/about');
+
+    emit('background', 'active');
+    expect(fetchSpy).toHaveBeenCalledTimes(3);
+    expect(lastUrl()).toBe('https://example.com/about');
+  });
+
   test('cleans up AppState listener on unmount', () => {
     const { unmount } = renderProvider({ hostname: 'example.com' });
 
@@ -182,6 +306,7 @@ describe('OneDollarStatsProvider — AppState foreground', () => {
     renderProvider({ hostname: 'example.com', autocollect: false });
 
     act(() => {
+      appStateListeners.forEach(h => h('background'));
       appStateListeners.forEach(h => h('active'));
     });
 
@@ -202,7 +327,8 @@ describe('useAnalytics — manual event() and view()', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/home',
-          e: [{ t: 'button_click' }]
+          e: [{ t: 'button_click' }],
+          debug: false
         })
       })
     );
@@ -220,7 +346,8 @@ describe('useAnalytics — manual event() and view()', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/home',
-          e: [{ t: 'signup', p: { plan: 'pro' } }]
+          e: [{ t: 'signup', p: { plan: 'pro' } }],
+          debug: false
         })
       })
     );
@@ -238,25 +365,29 @@ describe('useAnalytics — manual event() and view()', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/custom-path',
-          e: [{ t: 'PageView' }]
+          e: [{ t: 'PageView' }],
+          debug: false
         })
       })
     );
   });
 
   test('view() without path falls back to current pathname', () => {
+    // autocollect off: with it on, autocollect already counted /home and view() is deduped
     const { result } = renderHook(() => useAnalytics(), {
-      wrapper: wrapper({ hostname: 'example.com' })
+      wrapper: wrapper({ hostname: 'example.com', autocollect: false })
     });
 
     act(() => result.current.view());
 
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
     expect(fetchSpy).toHaveBeenLastCalledWith(
       expect.any(String),
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/home',
-          e: [{ t: 'PageView' }]
+          e: [{ t: 'PageView' }],
+          debug: false
         })
       })
     );
@@ -274,7 +405,8 @@ describe('useAnalytics — manual event() and view()', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/landing',
-          e: [{ t: 'PageView', p: { campaign: 'spring' } }]
+          e: [{ t: 'PageView', p: { campaign: 'spring' } }],
+          debug: false
         })
       })
     );
@@ -303,7 +435,8 @@ describe('useAnalytics — manual event() and view()', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/home',
-          e: [{ t: 'PageView', p: { campaign: 'spring' } }]
+          e: [{ t: 'PageView', p: { campaign: 'spring' } }],
+          debug: false
         })
       })
     );
@@ -321,7 +454,8 @@ describe('useAnalytics — manual event() and view()', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/home',
-          e: [{ t: 'signup', p: { plan: 'pro' } }]
+          e: [{ t: 'signup', p: { plan: 'pro' } }],
+          debug: false
         })
       })
     );
@@ -339,7 +473,8 @@ describe('useAnalytics — manual event() and view()', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/landing',
-          e: [{ t: 'signup', p: { plan: 'pro' } }]
+          e: [{ t: 'signup', p: { plan: 'pro' } }],
+          debug: false
         })
       })
     );
@@ -357,10 +492,123 @@ describe('useAnalytics — manual event() and view()', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/landing',
-          e: [{ t: 'signup' }]
+          e: [{ t: 'signup' }],
+          debug: false
         })
       })
     );
+  });
+});
+
+describe('Manual view() dedup against autocollect', () => {
+  const sent = () => fetchSpy.mock.calls.map(c => JSON.parse(c[1].body));
+  const urls = () => sent().map(b => b.u);
+
+  function renderAnalytics(config: ExpoAnalyticsConfig = { hostname: 'example.com' }) {
+    return renderHook(() => useAnalytics(), { wrapper: wrapper(config) });
+  }
+
+  test('view() of the screen autocollect just counted is skipped', () => {
+    const { result } = renderAnalytics();
+    act(() => result.current.view());
+    expect(urls()).toEqual(['https://example.com/home']);
+  });
+
+  test('view(props) of the screen autocollect just counted is skipped, like the web tracker', () => {
+    const { result } = renderAnalytics();
+    act(() => result.current.view({ campaign: 'spring' }));
+    expect(sent()).toEqual([{ u: 'https://example.com/home', e: [{ t: 'PageView' }], debug: false }]);
+  });
+
+  test('the same manual path twice is sent once', () => {
+    const { result } = renderAnalytics({ hostname: 'example.com', autocollect: false });
+    act(() => result.current.view('/landing'));
+    act(() => result.current.view('/landing'));
+    expect(urls()).toEqual(['https://example.com/landing']);
+  });
+
+  test('paths that build the same URL count as the same page', () => {
+    const { result } = renderAnalytics({ hostname: 'example.com', autocollect: false });
+    act(() => result.current.view('/landing'));
+    act(() => result.current.view('landing/'));
+    act(() => result.current.view('/landing?ref=ad#top'));
+    expect(urls()).toEqual(['https://example.com/landing']);
+  });
+
+  test('root: view("") after autocollect counted / is skipped', () => {
+    mockPathname = '/';
+    const { result } = renderAnalytics();
+    act(() => result.current.view(''));
+    expect(urls()).toEqual(['https://example.com']);
+  });
+
+  test('dynamic route: view() matches the template autocollect sent', () => {
+    mockPathname = '/profile/abc123';
+    mockSegments = ['profile', '[id]'];
+    const { result } = renderAnalytics();
+    act(() => result.current.view());
+    expect(urls()).toEqual(['https://example.com/profile/[id]']);
+  });
+
+  test('a screen calling view(props) on mount sends one pageview, with its props', () => {
+    // Child effects run before the provider's, so the manual view goes first and autocollect skips
+    function Screen() {
+      const { view } = useAnalytics();
+      useEffect(() => view({ source: 'mount' }), [view]);
+      return null;
+    }
+    render(providerEl({ hostname: 'example.com' }, createElement(Screen)));
+    expect(sent()).toEqual([
+      { u: 'https://example.com/home', e: [{ t: 'PageView', p: { source: 'mount' } }], debug: false }
+    ]);
+  });
+
+  test('autocollect skips a screen that a manual view() already counted', () => {
+    const { result, rerender } = renderAnalytics();
+    act(() => result.current.view('/about'));
+    mockPathname = '/about';
+    rerender();
+    expect(urls()).toEqual(['https://example.com/home', 'https://example.com/about']);
+  });
+
+  test('a manual view of another path makes the current screen countable again', () => {
+    const { result } = renderAnalytics();
+    act(() => result.current.view('/landing'));
+    act(() => result.current.view());
+    expect(urls()).toEqual([
+      'https://example.com/home',
+      'https://example.com/landing',
+      'https://example.com/home'
+    ]);
+  });
+
+  test('navigating to a new screen after a manual view still counts it', () => {
+    const { result, rerender } = renderAnalytics();
+    act(() => result.current.view('/landing'));
+    mockPathname = '/about';
+    rerender();
+    expect(urls()).toEqual([
+      'https://example.com/home',
+      'https://example.com/landing',
+      'https://example.com/about'
+    ]);
+  });
+
+  test('view() right after a foreground pageview of the same screen is skipped', () => {
+    const { result } = renderAnalytics();
+    act(() => {
+      appStateListeners.forEach(h => h('background'));
+      appStateListeners.forEach(h => h('active'));
+    });
+    act(() => result.current.view());
+    expect(urls()).toEqual(['https://example.com/home', 'https://example.com/home']);
+  });
+
+  test('event() is never deduped', () => {
+    const { result } = renderAnalytics();
+    act(() => result.current.event('tap'));
+    act(() => result.current.event('tap'));
+    expect(sent().map(b => b.e[0].t)).toEqual(['PageView', 'tap', 'tap']);
   });
 });
 
@@ -386,6 +634,36 @@ describe('Path filtering logic (smoke)', () => {
   });
 });
 
+describe('Dedup after an excluded page', () => {
+  const urls = () => fetchSpy.mock.calls.map(c => JSON.parse(c[1].body).u);
+  const visit = (rerender: (ui: ReactNode) => void, config: ExpoAnalyticsConfig, ...paths: string[]) =>
+    paths.forEach(p => {
+      mockPathname = p;
+      rerender(providerEl(config));
+    });
+
+  test('A → excluded B → A counts A twice', () => {
+    const config = { hostname: 'example.com', excludePages: ['/settings'] };
+    const { rerender } = renderProvider(config);
+    visit(rerender, config, '/settings', '/home');
+    expect(urls()).toEqual(['https://example.com/home', 'https://example.com/home']);
+  });
+
+  test('A → B outside includePages → A counts A twice', () => {
+    const config = { hostname: 'example.com', includePages: ['/home'] };
+    const { rerender } = renderProvider(config);
+    visit(rerender, config, '/about', '/home');
+    expect(urls()).toEqual(['https://example.com/home', 'https://example.com/home']);
+  });
+
+  test('re-rendering the same tracked page is still deduped', () => {
+    const config = { hostname: 'example.com', excludePages: ['/settings'] };
+    const { rerender } = renderProvider(config);
+    visit(rerender, config, '/home', '/home');
+    expect(urls()).toEqual(['https://example.com/home']);
+  });
+});
+
 describe('collapseDynamicRoutes', () => {
   test('default (true) collapses dynamic segments using useSegments', () => {
     mockPathname = '/profile/abc123';
@@ -398,7 +676,8 @@ describe('collapseDynamicRoutes', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/profile/[id]',
-          e: [{ t: 'PageView' }]
+          e: [{ t: 'PageView' }],
+          debug: false
         })
       })
     );
@@ -414,7 +693,8 @@ describe('collapseDynamicRoutes', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/profile/abc123',
-          e: [{ t: 'PageView' }]
+          e: [{ t: 'PageView' }],
+          debug: false
         })
       })
     );
@@ -430,7 +710,8 @@ describe('collapseDynamicRoutes', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/home',
-          e: [{ t: 'PageView' }]
+          e: [{ t: 'PageView' }],
+          debug: false
         })
       })
     );
@@ -446,7 +727,8 @@ describe('collapseDynamicRoutes', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/posts/[...slug]',
-          e: [{ t: 'PageView' }]
+          e: [{ t: 'PageView' }],
+          debug: false
         })
       })
     );
@@ -461,8 +743,9 @@ describe('collapseDynamicRoutes', () => {
       expect.any(String),
       expect.objectContaining({
         body: JSON.stringify({
-          u: 'https://example.com/',
-          e: [{ t: 'PageView' }]
+          u: 'https://example.com',
+          e: [{ t: 'PageView' }],
+          debug: false
         })
       })
     );
@@ -482,7 +765,8 @@ describe('collapseDynamicRoutes', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/profile/[id]',
-          e: [{ t: 'cta_click' }]
+          e: [{ t: 'cta_click' }],
+          debug: false
         })
       })
     );
@@ -502,7 +786,8 @@ describe('collapseDynamicRoutes', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/profile/[id]',
-          e: [{ t: 'PageView' }]
+          e: [{ t: 'PageView' }],
+          debug: false
         })
       })
     );
@@ -522,7 +807,8 @@ describe('collapseDynamicRoutes', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/explicit/abc123',
-          e: [{ t: 'PageView' }]
+          e: [{ t: 'PageView' }],
+          debug: false
         })
       })
     );
@@ -538,7 +824,8 @@ describe('collapseDynamicRoutes', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/orgs/[org]/users/[userId]',
-          e: [{ t: 'PageView' }]
+          e: [{ t: 'PageView' }],
+          debug: false
         })
       })
     );
@@ -554,7 +841,8 @@ describe('collapseDynamicRoutes', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/home',
-          e: [{ t: 'PageView' }]
+          e: [{ t: 'PageView' }],
+          debug: false
         })
       })
     );
@@ -570,7 +858,8 @@ describe('collapseDynamicRoutes', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/profile/[id]',
-          e: [{ t: 'PageView' }]
+          e: [{ t: 'PageView' }],
+          debug: false
         })
       })
     );
@@ -585,8 +874,9 @@ describe('collapseDynamicRoutes', () => {
       expect.any(String),
       expect.objectContaining({
         body: JSON.stringify({
-          u: 'https://example.com/',
-          e: [{ t: 'PageView' }]
+          u: 'https://example.com',
+          e: [{ t: 'PageView' }],
+          debug: false
         })
       })
     );
@@ -623,7 +913,8 @@ describe('collapseDynamicRoutes', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/profile/xyz',
-          e: [{ t: 'PageView' }]
+          e: [{ t: 'PageView' }],
+          debug: false
         })
       })
     );
@@ -693,6 +984,7 @@ describe('collapseDynamicRoutes', () => {
     expect(fetchSpy).toHaveBeenCalledTimes(1);
 
     act(() => {
+      appStateListeners.forEach(h => h('background'));
       appStateListeners.forEach(h => h('active'));
     });
 
@@ -702,7 +994,8 @@ describe('collapseDynamicRoutes', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/profile/[id]',
-          e: [{ t: 'PageView' }]
+          e: [{ t: 'PageView' }],
+          debug: false
         })
       })
     );
@@ -756,7 +1049,8 @@ describe.skip('useAnalyticsPath / <AnalyticsPath>', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/profile/[id]',
-          e: [{ t: 'PageView' }]
+          e: [{ t: 'PageView' }],
+          debug: false
         })
       })
     );
@@ -779,7 +1073,8 @@ describe.skip('useAnalyticsPath / <AnalyticsPath>', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/profile/[id]',
-          e: [{ t: 'cta_click' }]
+          e: [{ t: 'cta_click' }],
+          debug: false
         })
       })
     );
@@ -807,7 +1102,8 @@ describe.skip('useAnalyticsPath / <AnalyticsPath>', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/about',
-          e: [{ t: 'PageView' }]
+          e: [{ t: 'PageView' }],
+          debug: false
         })
       })
     );
@@ -822,6 +1118,7 @@ describe.skip('useAnalyticsPath / <AnalyticsPath>', () => {
     expect(fetchSpy).toHaveBeenCalledTimes(1);
 
     act(() => {
+      appStateListeners.forEach(h => h('background'));
       appStateListeners.forEach(h => h('active'));
     });
 
@@ -831,7 +1128,8 @@ describe.skip('useAnalyticsPath / <AnalyticsPath>', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/profile/[id]',
-          e: [{ t: 'PageView' }]
+          e: [{ t: 'PageView' }],
+          debug: false
         })
       })
     );
@@ -849,7 +1147,8 @@ describe.skip('useAnalyticsPath / <AnalyticsPath>', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/profile/[id]',
-          e: [{ t: 'PageView' }]
+          e: [{ t: 'PageView' }],
+          debug: false
         })
       })
     );
@@ -868,7 +1167,8 @@ describe.skip('useAnalyticsPath / <AnalyticsPath>', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/from-hook',
-          e: [{ t: 'PageView' }]
+          e: [{ t: 'PageView' }],
+          debug: false
         })
       })
     );
@@ -900,7 +1200,8 @@ describe.skip('useAnalyticsPath / <AnalyticsPath>', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/profile/[id]',
-          e: [{ t: 'cta_click' }]
+          e: [{ t: 'cta_click' }],
+          debug: false
         })
       })
     );
@@ -944,7 +1245,8 @@ describe.skip('useAnalyticsPath / <AnalyticsPath>', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/profile/[slug]',
-          e: [{ t: 'probe' }]
+          e: [{ t: 'probe' }],
+          debug: false
         })
       })
     );
@@ -976,7 +1278,8 @@ describe.skip('useAnalyticsPath / <AnalyticsPath>', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/profile/abc123',
-          e: [{ t: 'probe' }]
+          e: [{ t: 'probe' }],
+          debug: false
         })
       })
     );
@@ -1050,7 +1353,8 @@ describe.skip('useAnalyticsPath / <AnalyticsPath>', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/profile/[slug]',
-          e: [{ t: 'probe' }]
+          e: [{ t: 'probe' }],
+          debug: false
         })
       })
     );
@@ -1073,7 +1377,8 @@ describe.skip('useAnalyticsPath / <AnalyticsPath>', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/explicitly-passed',
-          e: [{ t: 'PageView' }]
+          e: [{ t: 'PageView' }],
+          debug: false
         })
       })
     );
@@ -1120,7 +1425,8 @@ describe.skip('useAnalyticsProps / <AnalyticsProps>', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/admin/dashboard',
-          e: [{ t: 'PageView', p: { section: 'admin' } }]
+          e: [{ t: 'PageView', p: { section: 'admin' } }],
+          debug: false
         })
       })
     );
@@ -1143,7 +1449,8 @@ describe.skip('useAnalyticsProps / <AnalyticsProps>', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/admin/dashboard',
-          e: [{ t: 'cta_click', p: { section: 'admin' } }]
+          e: [{ t: 'cta_click', p: { section: 'admin' } }],
+          debug: false
         })
       })
     );
@@ -1166,7 +1473,8 @@ describe.skip('useAnalyticsProps / <AnalyticsProps>', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/admin/dashboard',
-          e: [{ t: 'signup', p: { section: 'override', tier: 'pro' } }]
+          e: [{ t: 'signup', p: { section: 'override', tier: 'pro' } }],
+          debug: false
         })
       })
     );
@@ -1189,7 +1497,8 @@ describe.skip('useAnalyticsProps / <AnalyticsProps>', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/admin/dashboard',
-          e: [{ t: 'signup', p: { section: 'admin', extra: 'x' } }]
+          e: [{ t: 'signup', p: { section: 'admin', extra: 'x' } }],
+          debug: false
         })
       })
     );
@@ -1218,7 +1527,8 @@ describe.skip('useAnalyticsProps / <AnalyticsProps>', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/admin/dashboard',
-          e: [{ t: 'after_unmount' }]
+          e: [{ t: 'after_unmount' }],
+          debug: false
         })
       })
     );
@@ -1236,7 +1546,8 @@ describe.skip('useAnalyticsProps / <AnalyticsProps>', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/admin/dashboard',
-          e: [{ t: 'PageView', p: { section: 'admin' } }]
+          e: [{ t: 'PageView', p: { section: 'admin' } }],
+          debug: false
         })
       })
     );
@@ -1255,7 +1566,8 @@ describe.skip('useAnalyticsProps / <AnalyticsProps>', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/admin/dashboard',
-          e: [{ t: 'PageView', p: { source: 'from-hook' } }]
+          e: [{ t: 'PageView', p: { source: 'from-hook' } }],
+          debug: false
         })
       })
     );
@@ -1278,7 +1590,8 @@ describe.skip('useAnalyticsProps / <AnalyticsProps>', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/about',
-          e: [{ t: 'PageView' }]
+          e: [{ t: 'PageView' }],
+          debug: false
         })
       })
     );
@@ -1293,6 +1606,7 @@ describe.skip('useAnalyticsProps / <AnalyticsProps>', () => {
     expect(fetchSpy).toHaveBeenCalledTimes(1);
 
     act(() => {
+      appStateListeners.forEach(h => h('background'));
       appStateListeners.forEach(h => h('active'));
     });
 
@@ -1302,7 +1616,8 @@ describe.skip('useAnalyticsProps / <AnalyticsProps>', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/admin/dashboard',
-          e: [{ t: 'PageView', p: { section: 'admin' } }]
+          e: [{ t: 'PageView', p: { section: 'admin' } }],
+          debug: false
         })
       })
     );
@@ -1322,7 +1637,8 @@ describe.skip('useAnalyticsProps / <AnalyticsProps>', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/profile/[id]',
-          e: [{ t: 'PageView', p: { section: 'profile' } }]
+          e: [{ t: 'PageView', p: { section: 'profile' } }],
+          debug: false
         })
       })
     );
@@ -1419,7 +1735,8 @@ describe.skip('Override APIs — cleanup race-safety', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/outer',
-          e: [{ t: 'probe' }]
+          e: [{ t: 'probe' }],
+          debug: false
         })
       })
     );
@@ -1469,7 +1786,8 @@ describe.skip('Override APIs — cleanup race-safety', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/admin/dashboard',
-          e: [{ t: 'probe', p: { source: 'outer' } }]
+          e: [{ t: 'probe', p: { source: 'outer' } }],
+          debug: false
         })
       })
     );
@@ -1507,7 +1825,8 @@ describe.skip('Override APIs — component priority edge cases', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/new-template',
-          e: [{ t: 'PageView' }]
+          e: [{ t: 'PageView' }],
+          debug: false
         })
       })
     );
@@ -1580,6 +1899,7 @@ describe.skip('Override APIs — filtering and empty inputs', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
 
     act(() => {
+      appStateListeners.forEach(h => h('background'));
       appStateListeners.forEach(h => h('active'));
     });
 
@@ -1604,7 +1924,8 @@ describe.skip('Override APIs — filtering and empty inputs', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com/admin/dashboard',
-          e: [{ t: 'PageView', p: {} }]
+          e: [{ t: 'PageView', p: {} }],
+          debug: false
         })
       })
     );
@@ -1625,7 +1946,8 @@ describe.skip('Override APIs — filtering and empty inputs', () => {
       expect.objectContaining({
         body: JSON.stringify({
           u: 'https://example.com',
-          e: [{ t: 'PageView' }]
+          e: [{ t: 'PageView' }],
+          debug: false
         })
       })
     );
@@ -1675,7 +1997,8 @@ describe('Transport — web platform fallback stack', () => {
         method: 'POST',
         body: JSON.stringify({
           u: 'https://example.com/home',
-          e: [{ t: 'PageView' }]
+          e: [{ t: 'PageView' }],
+          debug: false
         })
       })
     );
@@ -1716,7 +2039,8 @@ describe('Transport — web platform fallback stack', () => {
     const decoded = atob(dataParam);
     expect(JSON.parse(decoded)).toEqual({
       u: 'https://example.com/home',
-      e: [{ t: 'PageView' }]
+      e: [{ t: 'PageView' }],
+      debug: true // devmode on localhost
     });
   });
 
@@ -1741,7 +2065,8 @@ describe('Transport — web platform fallback stack', () => {
       'https://collector.onedollarstats.com/events',
       JSON.stringify({
         u: 'https://example.com/home',
-        e: [{ t: 'PageView' }]
+        e: [{ t: 'PageView' }],
+        debug: true
       })
     );
     expect(fetchSpy).not.toHaveBeenCalled();
@@ -1784,7 +2109,8 @@ describe('Transport — web platform fallback stack', () => {
         keepalive: true,
         body: JSON.stringify({
           u: 'https://example.com/home',
-          e: [{ t: 'PageView' }]
+          e: [{ t: 'PageView' }],
+          debug: true
         })
       })
     );
@@ -1860,7 +2186,267 @@ describe('Transport — web platform fallback stack', () => {
     const dataParam = img.src.split('?data=')[1]!;
     expect(JSON.parse(atob(dataParam))).toEqual({
       u: 'https://example.com/home',
-      e: [{ t: 'signup', p: { tier: 'pro' } }]
+      e: [{ t: 'signup', p: { tier: 'pro' } }],
+      debug: true
     });
+  });
+});
+
+describe('Development gating (__DEV__ / localhost) and devmode', () => {
+  type StubImage = { src: string; onerror?: () => void };
+  let imageInstances: StubImage[];
+  const fetchBody = (call = -1) => JSON.parse(fetchSpy.mock.calls.at(call)![1].body);
+  const imageBody = (i = -1) => JSON.parse(atob(imageInstances.at(i)!.src.split('?data=')[1]!));
+
+  beforeEach(() => {
+    imageInstances = [];
+    vi.stubGlobal(
+      'Image',
+      class StubImageCtor {
+        src = '';
+        onerror?: () => void;
+        constructor() {
+          imageInstances.push(this);
+        }
+      }
+    );
+  });
+
+  test('native dev build (__DEV__ = true) without devmode sends nothing', () => {
+    vi.stubGlobal('__DEV__', true);
+    renderProvider({ hostname: 'example.com' });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  test('native dev build without devmode drops manual event() and view() too', () => {
+    vi.stubGlobal('__DEV__', true);
+    const { result } = renderHook(() => useAnalytics(), { wrapper: wrapper({ hostname: 'example.com' }) });
+    act(() => {
+      result.current.event('signup');
+      result.current.view('/landing');
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  test('native dev build without devmode drops the AppState foreground PageView', () => {
+    vi.stubGlobal('__DEV__', true);
+    renderProvider({ hostname: 'example.com' });
+    act(() => appStateListeners.forEach(fn => { fn('background'); fn('active'); }));
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  test('native dev build with devmode sends with debug: true', () => {
+    vi.stubGlobal('__DEV__', true);
+    renderProvider({ hostname: 'example.com', devmode: true });
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(fetchBody()).toEqual({ u: 'https://example.com/home', e: [{ t: 'PageView' }], debug: true });
+  });
+
+  test('native release build (__DEV__ = false) sends normally with debug: false', () => {
+    vi.stubGlobal('__DEV__', false);
+    renderProvider({ hostname: 'example.com' });
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(fetchBody().debug).toBe(false);
+  });
+
+  test('native release build ignores devmode: true (still sends, debug: false)', () => {
+    vi.stubGlobal('__DEV__', false);
+    const { result } = renderHook(() => useAnalytics(), {
+      wrapper: wrapper({ hostname: 'example.com', devmode: true })
+    });
+    act(() => result.current.event('signup'));
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    expect(fetchBody(0).debug).toBe(false);
+    expect(fetchBody(1)).toEqual({ u: 'https://example.com/home', e: [{ t: 'signup' }], debug: false });
+  });
+
+  test('missing __DEV__ (not a Metro bundle) is treated as production', () => {
+    renderProvider({ hostname: 'example.com', devmode: true });
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(fetchBody().debug).toBe(false);
+  });
+
+  test('web on localhost without devmode sends nothing', () => {
+    mockPlatformOS = 'web';
+    expect(window.location.hostname).toBe('localhost');
+    renderProvider({ hostname: 'example.com' });
+    expect(imageInstances).toHaveLength(0);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  test('web on localhost with devmode sends with debug: true', () => {
+    mockPlatformOS = 'web';
+    renderProvider({ hostname: 'example.com', devmode: true });
+    expect(imageInstances).toHaveLength(1);
+    expect(imageBody().debug).toBe(true);
+  });
+
+  test('web dev bundle on a LAN address without devmode sends nothing', () => {
+    mockPlatformOS = 'web';
+    vi.stubGlobal('__DEV__', true);
+    vi.stubGlobal('location', new URL('http://192.168.1.20:8081/home'));
+    renderProvider({ hostname: 'example.com' });
+    expect(imageInstances).toHaveLength(0);
+  });
+
+  test('web production host ignores devmode: true (still sends, debug: false)', () => {
+    mockPlatformOS = 'web';
+    vi.stubGlobal('location', new URL('https://example.com/home'));
+    expect(window.location.hostname).toBe('example.com');
+    renderProvider({ hostname: 'example.com', devmode: true });
+    expect(imageInstances).toHaveLength(1);
+    expect(imageBody().debug).toBe(false);
+  });
+
+  test('logs a hint in development when devmode is off', () => {
+    vi.stubGlobal('__DEV__', true);
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    renderProvider({ hostname: 'example.com' });
+    expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('events are not sent'));
+    logSpy.mockRestore();
+  });
+
+  test('logs "connected" for a native dev build with devmode', () => {
+    vi.stubGlobal('__DEV__', true);
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    renderProvider({ hostname: 'example.com', devmode: true });
+    expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('Tracking this dev build as example.com'));
+    logSpy.mockRestore();
+  });
+
+  test('logs nothing about development in a release build', () => {
+    vi.stubGlobal('__DEV__', false);
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    renderProvider({ hostname: 'example.com', devmode: true });
+    expect(logSpy).not.toHaveBeenCalled();
+    logSpy.mockRestore();
+  });
+});
+
+describe('URL shape matches the web tracker', () => {
+  const sentUrl = () => JSON.parse(fetchSpy.mock.calls.at(-1)![1].body).u;
+  const viewUrl = (path: string) => {
+    const { result } = renderHook(() => useAnalytics(), { wrapper: wrapper({ hostname: 'example.com' }) });
+    act(() => result.current.view(path));
+    return sentUrl();
+  };
+
+  // Expected values are what src/index.ts sends for the same path
+  test.each([
+    ['landing', 'https://example.com/landing'],
+    ['/landing', 'https://example.com/landing'],
+    ['/', 'https://example.com'],
+    ['', 'https://example.com'],
+    ['/blog/', 'https://example.com/blog'],
+    ['/profile/[id]', 'https://example.com/profile/[id]'],
+    ['/a//b', 'https://example.com/a//b'],
+    ['/café', 'https://example.com/caf%C3%A9'],
+    ['/my page', 'https://example.com/my%20page'],
+    ['/already%20encoded', 'https://example.com/already%20encoded']
+  ])('view(%j) → %s', (path, expected) => {
+    expect(viewUrl(path)).toBe(expected);
+  });
+
+  // Web turns these into %3F / %23 in the path; Expo drops them instead
+  test.each([
+    ['/x?utm_source=a', 'https://example.com/x'],
+    ['/x#top', 'https://example.com/x'],
+    ['landing?x=1#y', 'https://example.com/landing']
+  ])('view(%j) drops query and hash → %s', (path, expected) => {
+    expect(viewUrl(path)).toBe(expected);
+  });
+
+  test('event() with a path without leading slash', () => {
+    const { result } = renderHook(() => useAnalytics(), { wrapper: wrapper({ hostname: 'example.com' }) });
+    act(() => result.current.event('signup', 'pricing', { plan: 'pro' }));
+    expect(sentUrl()).toBe('https://example.com/pricing');
+  });
+
+  test('auto PageView on the root route has no trailing slash', () => {
+    mockPathname = '/';
+    renderProvider({ hostname: 'example.com' });
+    expect(sentUrl()).toBe('https://example.com');
+  });
+
+  test('a lone surrogate is dropped instead of throwing', () => {
+    expect(viewUrl('/bad\uD800path')).toBe('https://example.com/badpath');
+  });
+});
+
+describe('Native User-Agent', () => {
+  // The header the last native request carried
+  const userAgent = () => fetchSpy.mock.lastCall?.[1]?.headers?.['User-Agent'];
+
+  test('iPhone: iOS version and device class the collector can parse', () => {
+    mockPlatformOS = 'ios';
+    renderProvider({ hostname: 'example.com' });
+    expect(userAgent()).toBe(
+      'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X; Apple) onedollarstats-expo'
+    );
+  });
+
+  test('iPad is sent as an iPad', () => {
+    mockPlatformOS = 'ios';
+    mockIsPad = true;
+    mockPlatformVersion = '18.0.1';
+    renderProvider({ hostname: 'example.com' });
+    expect(userAgent()).toBe('Mozilla/5.0 (iPad; CPU OS 18_0_1 like Mac OS X; Apple) onedollarstats-expo');
+  });
+
+  test('Android: release and model', () => {
+    mockPlatformOS = 'android';
+    renderProvider({ hostname: 'example.com' });
+    expect(userAgent()).toBe('Mozilla/5.0 (Linux; Android 14; Pixel 8) onedollarstats-expo');
+  });
+
+  test('characters that would break the UA are stripped from the model', () => {
+    mockPlatformOS = 'android';
+    mockPlatformConstants = { Release: '13', Model: 'Weird (Model); X\u00e9' };
+    renderProvider({ hostname: 'example.com' });
+    expect(userAgent()).toBe('Mozilla/5.0 (Linux; Android 13; Weird Model X) onedollarstats-expo');
+  });
+
+  test('missing versions and model still give a valid UA', () => {
+    mockPlatformOS = 'android';
+    mockPlatformConstants = {};
+    renderProvider({ hostname: 'example.com' });
+    expect(userAgent()).toBe('Mozilla/5.0 (Linux; Android) onedollarstats-expo');
+
+    fetchSpy.mockClear();
+    mockPlatformOS = 'ios';
+    mockPlatformVersion = undefined;
+    renderProvider({ hostname: 'other.com' });
+    // Not "CPU iPhone OS like Mac OS X": the parser reads that as macOS
+    expect(userAgent()).toBe('Mozilla/5.0 (iPhone; Apple) onedollarstats-expo');
+  });
+
+  test('if platform constants throw, the event is still sent with the default UA', () => {
+    mockPlatformOS = 'android';
+    mockPlatformConstants = undefined;
+    renderProvider({ hostname: 'example.com' });
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(fetchSpy.mock.lastCall?.[1]?.headers).toEqual({ 'Content-Type': 'application/json' });
+  });
+
+  test('custom events carry it too', () => {
+    mockPlatformOS = 'android';
+    const { result } = renderHook(() => useAnalytics(), {
+      wrapper: wrapper({ hostname: 'example.com', autocollect: false })
+    });
+    act(() => result.current.event('signup'));
+    expect(userAgent()).toBe('Mozilla/5.0 (Linux; Android 14; Pixel 8) onedollarstats-expo');
+  });
+
+  test('web never sets it: the browser UA is already right', () => {
+    mockPlatformOS = 'web';
+    // Too big for the pixel GET and no sendBeacon, so it goes straight to fetch
+    vi.stubGlobal('navigator', {});
+    const { result } = renderHook(() => useAnalytics(), {
+      wrapper: wrapper({ hostname: 'example.com', autocollect: false, devmode: true })
+    });
+    act(() => result.current.view('/big', { blob: 'a'.repeat(2000) }));
+    // (devmode: jsdom runs on localhost, which drops events otherwise)
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(fetchSpy.mock.lastCall?.[1]?.headers).toEqual({ 'Content-Type': 'application/json' });
   });
 });

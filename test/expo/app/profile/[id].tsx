@@ -1,9 +1,8 @@
 import { useLocalSearchParams } from 'expo-router';
-import { View } from 'onedollarstats/expo';
 import { View, Text, StyleSheet } from 'react-native';
 
+// collapseDynamicRoutes (default) reports this screen as /profile/[id], not /profile/abc123
 export default function Profile() {
-  useAnalyticsPath('/profile/[id]');
   const { id } = useLocalSearchParams<{ id: string }>();
 
   return (

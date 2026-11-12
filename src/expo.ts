@@ -43,6 +43,7 @@ type PropsOverride =
 
 type ContextValue = {
   config: InternalConfig;
+  // Last pageview sent (normalised path), shared by autocollect and manual view() for dedup
   lastPathRef: MutableRefObject<string | null>;
   // TODO(page-scope): restore when page-scope detection is designed.
   // overrideRef: MutableRefObject<Override>;
@@ -82,17 +83,20 @@ function mergeConfig(config: ExpoAnalyticsConfig): InternalConfig {
     hostname: config.hostname,
     collectorUrl: config.collectorUrl ?? 'https://collector.onedollarstats.com/events',
     autocollect: config.autocollect ?? true,
-    devmode: config.devmode ?? false,
+    // Only honoured in development, so a release build can't send debug events
+    devmode: isDevEnvironment() ? (config.devmode ?? false) : false,
     collapseDynamicRoutes: config.collapseDynamicRoutes ?? true,
     excludePages: config.excludePages,
     includePages: config.includePages
   };
 }
 
+// Groups like (tabs) aren't part of the URL
 function isGroupSegment(segment: string): boolean {
   return /^\(.+\)$/.test(segment);
 }
 
+// Segments keep the file names, so /profile/abc becomes /profile/[id]
 function collapsePath(segments: readonly string[]): string {
   const visible = segments.filter(s => !isGroupSegment(s));
   if (visible.length === 0) return '/';
@@ -110,9 +114,15 @@ function isWebLocalhost(): boolean {
   if (typeof window === 'undefined' || !window.location) return false;
   const { hostname, protocol } = window.location;
   return (
+    // localhost, 127.x.x.x, [::1]
     /^localhost$|^127(\.[0-9]+){0,2}\.[0-9]+$|^\[::1?\]$/.test(hostname) &&
     (protocol === 'http:' || protocol === 'https:')
   );
+}
+
+// Dev bundle (Metro sets __DEV__, native and web) or Expo web on localhost
+function isDevEnvironment(): boolean {
+  return (typeof __DEV__ !== 'undefined' && __DEV__ === true) || isWebLocalhost();
 }
 
 function useRequiredContext(caller: string): ContextValue {
@@ -132,6 +142,7 @@ export type OneDollarStatsProviderProps = {
 };
 
 export function OneDollarStatsProvider({ config, children }: OneDollarStatsProviderProps) {
+  // Fields, not `config`: an inline config object is new on every render
   const merged = useMemo(
     () => mergeConfig(config),
     [
@@ -146,36 +157,59 @@ export function OneDollarStatsProvider({ config, children }: OneDollarStatsProvi
   );
 
   const lastPathRef = useRef<string | null>(null);
+  // For the AppState handler, which only re-subscribes on config changes
+  const currentPathRef = useRef<string | null>(null);
   // TODO(page-scope): restore when page-scope detection is designed.
   // const overrideRef = useRef<Override>(null);
   // const propsOverrideRef = useRef<PropsOverride>(null);
   const announcedRef = useRef(false);
   const trackedPath = useTrackedPath(merged);
 
+  // Once per mount, not on every config change
   useEffect(() => {
     if (announcedRef.current) return;
-    if (merged.devmode && isWebLocalhost()) {
+    if (isDevEnvironment()) {
       console.log(
-        `[onedollarstats]\nOneDollarStats connected! Tracking localhost as ${merged.hostname}`
+        merged.devmode
+          ? `[onedollarstats]\nOneDollarStats connected! Tracking ${isWebLocalhost() ? 'localhost' : 'this dev build'} as ${merged.hostname}`
+          : `[onedollarstats]\nDevelopment detected: events are not sent. Set devmode: true to test tracking.`
       );
     }
     announcedRef.current = true;
   }, [merged.devmode, merged.hostname]);
 
   useEffect(() => {
+    currentPathRef.current = trackedPath;
     if (!merged.autocollect) return;
-    if (isExcluded(trackedPath, merged)) return;
-    if (lastPathRef.current === trackedPath) return;
-    lastPathRef.current = trackedPath;
+    if (isExcluded(trackedPath, merged)) {
+      // Forget the last page, or A → excluded → A would look like a duplicate
+      lastPathRef.current = null;
+      return;
+    }
+    // Re-renders, /profile/a → /profile/b (same template) and a manual view() of this screen aren't new views
+    const page = normalizePath(trackedPath);
+    if (lastPathRef.current === page) return;
+    lastPathRef.current = page;
     send('PageView', trackedPath, merged);
   }, [trackedPath, merged]);
 
   useEffect(() => {
+    // Count only returns from the background. iOS also flips to inactive and back
+    // for Face ID, permission prompts and Control Center.
+    // currentState, not 'active': this re-subscribes on config changes, maybe while backgrounded.
+    let wasInBackground = AppState.currentState === 'background';
     const handler = (state: AppStateStatus) => {
-      if (state !== 'active') return;
+      if (state === 'background') {
+        wasInBackground = true;
+        return;
+      }
+      if (state !== 'active' || !wasInBackground) return;
+      wasInBackground = false;
       if (!merged.autocollect) return;
-      const current = lastPathRef.current;
+      // The screen the user is on now, not the last tracked one (that's stale on excluded screens)
+      const current = currentPathRef.current;
       if (!current || isExcluded(current, merged)) return;
+      lastPathRef.current = normalizePath(current);
       send('PageView', current, merged);
     };
     const sub = AppState.addEventListener('change', handler);
@@ -214,6 +248,10 @@ export function useAnalytics(): AnalyticsAPI {
     (pathOrProps?: string | Props, props?: Props) => {
       const targetPath = typeof pathOrProps === 'string' ? pathOrProps : trackedPath;
       const viewProps = typeof pathOrProps === 'object' ? pathOrProps : props;
+      // Same page as the last pageview (auto or manual): skip, like the web tracker
+      const page = normalizePath(targetPath);
+      if (ctx.lastPathRef.current === page) return;
+      ctx.lastPathRef.current = page;
       send('PageView', targetPath, ctx.config, viewProps);
     },
     [ctx, trackedPath]
@@ -284,9 +322,7 @@ export function AnalyticsProps(props: AnalyticsPropsProps): null {
 */
 
 function shouldSkipSend(config: InternalConfig): boolean {
-  if (Platform.OS !== 'web') return false;
-  if (isWebLocalhost() && !config.devmode) return true;
-  return false;
+  return isDevEnvironment() && !config.devmode;
 }
 
 function devLog(label: string, url: string, props?: Record<string, string>): void {
@@ -297,6 +333,30 @@ function devLog(label: string, url: string, props?: Record<string, string>): voi
   console.log(msg);
 }
 
+// Same URL as the web tracker: leading slash, no trailing slash, no query or hash, browser-style encoding.
+// Plain strings on purpose: React Native's URL throws "not implemented" for most properties.
+function buildUrl(hostname: string, path: string): string {
+  return `https://${hostname}${normalizePath(path)}`;
+}
+
+// The path part of buildUrl(), so paths that send the same URL count as the same page. Root is ''.
+function normalizePath(path: string): string {
+  const bare = path.split(/[?#]/)[0];
+  const withSlash = bare.startsWith('/') ? bare : `/${bare}`;
+  // What browsers encode in a path; [ ] (route templates) and existing %XX stay as is
+  const encoded = withSlash.replace(/[^\x21-\x7E]|["<>`{}]/gu, encodeChar);
+  return encoded.replace(/\/$/, '');
+}
+
+function encodeChar(char: string): string {
+  try {
+    return encodeURIComponent(char);
+  } catch {
+    return ''; // lone surrogate
+  }
+}
+
+// Longer GET URLs can get cut by proxies and CDNs
 const SAFE_GET_THRESHOLD = 1500;
 
 function send(
@@ -306,7 +366,7 @@ function send(
   props?: Record<string, string>
 ): void {
   if (shouldSkipSend(config)) return;
-  const url = `https://${config.hostname}${path}`;
+  const url = buildUrl(config.hostname, path);
   if (config.devmode) devLog(eventName, url, props);
 
   const body = JSON.stringify({
@@ -322,15 +382,51 @@ function send(
   }
 }
 
+// RN has no sendBeacon or keepalive, so an event sent while the app closes can be lost
 function sendNative(collectorUrl: string, body: string): void {
+  const userAgent = nativeUserAgent();
   fetch(collectorUrl, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...(userAgent && { 'User-Agent': userAgent }) },
     body
-  }).catch(() => {});
+  }).catch(() => {}); // analytics must never crash the app
 }
 
+// Native fetch sends okhttp/x (Android) or CFNetwork (iOS), which the collector's UA parser reads as
+// an unknown OS and device. This browser-shaped UA parses as iOS 17.4 / iPhone or Android 14 / Pixel 8.
+// "; Apple" is what makes the parser see an iPad as a tablet.
+function nativeUserAgent(): string | undefined {
+  try {
+    if (Platform.OS === 'ios') {
+      const version = uaToken(Platform.Version).replace(/\./g, '_');
+      const device = Platform.isPad ? 'iPad' : 'iPhone';
+      // Without a version, "CPU iPhone OS like Mac OS X" parses as macOS, so leave the OS out
+      const os = version ? `; CPU ${Platform.isPad ? '' : 'iPhone '}OS ${version} like Mac OS X` : '';
+      return `Mozilla/5.0 (${device}${os}; Apple) ${UA_MARKER}`;
+    }
+    if (Platform.OS === 'android') {
+      const { Release, Model } = Platform.constants;
+      const release = uaToken(Release);
+      const details = ['Linux', release ? `Android ${release}` : 'Android', uaToken(Model)].filter(Boolean);
+      return `Mozilla/5.0 (${details.join('; ')}) ${UA_MARKER}`;
+    }
+  } catch {
+    // Missing platform constants: keep the default UA rather than fail the event
+  }
+  return undefined;
+}
+
+// Lets the collector tell events from this package apart
+const UA_MARKER = 'onedollarstats-expo';
+
+// Model names can hold anything; ; and ) would break the UA's structure
+function uaToken(value: unknown): string {
+  return String(value ?? '').replace(/[^\w .-]/g, '').trim().slice(0, 64);
+}
+
+// Pixel GET first, then sendBeacon, then fetch
 function sendWeb(collectorUrl: string, body: string): void {
+  // btoa only takes Latin-1, so encode to UTF-8 bytes first
   const bytes = new TextEncoder().encode(body);
   const bin = String.fromCharCode(...bytes);
   const payloadBase64 = btoa(bin);
@@ -358,10 +454,12 @@ function sendBeaconOrFetch(collectorUrl: string, body: string): void {
   }).catch(() => {});
 }
 
+// '/admin' matches '/admin' and '/admin/users', not '/administrator'
 function pathMatches(path: string, prefix: string): boolean {
   return path === prefix || path.startsWith(prefix.endsWith('/') ? prefix : prefix + '/');
 }
 
+// includePages wins: excludePages is ignored when both are set (web applies both)
 function isExcluded(path: string, config: InternalConfig): boolean {
   if (config.includePages?.length) {
     return !config.includePages.some(p => pathMatches(path, p));

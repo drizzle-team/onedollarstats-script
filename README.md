@@ -121,7 +121,7 @@ event("Purchase", "/product", { amount: 1, color: "green" });
 
 ## Expo
 
-`onedollarstats/expo` is a dedicated entry point for Expo apps using `expo-router`. It auto-collects pageviews on route change and on app foreground, supports dynamic-route templates (`/profile/[id]` instead of `/profile/abc123`), and sends events natively on iOS/Android and via image beacon + `sendBeacon` on web.
+`onedollarstats/expo` is a dedicated entry point for Expo apps using `expo-router`. It auto-collects pageviews on route change and when the app returns from the background (not for system overlays like Face ID or permission prompts), supports dynamic-route templates (`/profile/[id]` instead of `/profile/abc123`), and sends events natively on iOS/Android and via image beacon + `sendBeacon` on web. Native requests carry a `User-Agent` such as `Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X; Apple) onedollarstats-expo`, so the dashboard shows the OS (iOS or Android) and the device type (phone or tablet). React Native's default UA (`okhttp` or `CFNetwork`) would show Android traffic as unknown and every iPad as a phone.
 
 ```tsx
 // app/_layout.tsx
@@ -150,13 +150,25 @@ view({ campaign: 'spring' });             // pageview with just props
 view('/landing', { campaign: 'spring' }); // pageview with explicit path
 ```
 
+As on the web, a `view()` of the page that was just counted is skipped, whether autocollect or an earlier `view()` counted it. Paths are compared by the URL they produce, so `'/landing'`, `'landing/'` and `'/landing?ref=ad'` are the same page. That means `view({ campaign: 'spring' })` on a screen autocollect already counted sends nothing. If you want to send props with each screen's pageview, set `autocollect: false` and call `view()` yourself. `event()` is never deduplicated.
+
 **Expo-specific config options:**
 
 | Option                  | Type       | Default | Description                                                                                  |
 | ----------------------- | ---------- | ------- | -------------------------------------------------------------------------------------------- |
 | `collapseDynamicRoutes` | `boolean`  | `true`  | Use `useSegments()` to record routes as templates (`/profile/[id]`) instead of concrete paths. Group segments like `(tabs)` are stripped. |
 
-All other options (`hostname`, `collectorUrl`, `devmode`, `autocollect`, `excludePages`, `includePages`) behave the same as in the web tracker above.
+`hostname` is required. `collectorUrl` and `autocollect` work as in the web tracker above. `devmode` is covered under **Development builds** below. `trackLocalhostAs` and `hashRouting` aren't supported.
+
+**`excludePages` / `includePages` work differently from the web tracker:**
+
+- Entries match a path and everything under it, with no wildcards. `'/admin'` matches `/admin` and `/admin/users`, but not `/administrator`.
+- When `includePages` is set, `excludePages` is ignored. The web tracker applies both.
+- `includePages: ['/']` matches every screen, because every path is under `/`.
+- With `collapseDynamicRoutes` on (the default), match against the template, for example `'/profile/[id]'`, not `'/profile/abc123'`.
+- As on the web, manual `view()` and `event()` calls ignore both lists.
+
+**Development builds:** events are ignored in development, like `localhost` on the web. That covers dev bundles (`__DEV__`: Expo Go, dev clients, `npx expo start`) on iOS, Android and web, plus Expo web served from `localhost`. Set `devmode: true` to send them as debug events. In release builds and on your real domain, `devmode` is ignored, so leaving it on can't turn production traffic into debug events.
 
 ## Autocapture
 

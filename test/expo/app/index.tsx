@@ -23,8 +23,14 @@ export default function Home() {
       <Link href="/profile/abc123" style={styles.link} className="link-profile">
         <Text>Profile (dynamic)</Text>
       </Link>
-      <Link href="/with-screen-props" style={styles.link} className="link-screen-props">
-        <Text>Screen Props</Text>
+      <Link href="/excluded" style={styles.link} className="link-excluded">
+        <Text>Excluded Page</Text>
+      </Link>
+      <Link href="/modal" style={styles.link} className="link-modal">
+        <Text>Open Modal</Text>
+      </Link>
+      <Link href="/feed" style={styles.link} className="link-feed">
+        <Text>Tabs</Text>
       </Link>
     </View>
   );

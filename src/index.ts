@@ -193,11 +193,14 @@ class AnalyticsTracker {
 
     const viewProps = Object.keys(collectedProps).length > 0 ? collectedProps : undefined;
 
-    // Skip duplicate pageviews or excluded pages
-    if (this.lastPage === viewPath) return;
+    // Excluded page: forget the last page, or A → excluded → A would look like a duplicate
+    if (checkBlock && !shouldTrackPath(viewPath, this.config)) {
+      this.lastPage = null;
+      return;
+    }
 
-    // Skip page if checkBlock is true and the path should be excluded
-    if (checkBlock && !shouldTrackPath(viewPath, this.config)) return;
+    // Skip duplicate pageviews
+    if (this.lastPage === viewPath) return;
 
     this.lastPage = viewPath;
 

@@ -9,8 +9,10 @@
     "web": "npx expo start --web",
     "ios": "npx expo start --ios",
     "android": "npx expo start --android",
-    "build": "npx expo export --platform web --output-dir dist",
-    "preview": "npx serve dist --listen 8081 --single --no-clipboard"
+    "build": "pnpm build:dev && pnpm build:prod",
+    "build:dev": "npx expo export --platform web --output-dir dist --clear",
+    "build:prod": "EXPO_PUBLIC_TEST_BUILD=prod npx expo export --platform web --output-dir dist-prod --clear",
+    "preview": "npx serve dist --listen 8081 --single --no-clipboard & npx serve dist-prod --listen 8082 --single --no-clipboard & wait"
   },
   "dependencies": {
     "@babel/runtime": "^7.29.2",

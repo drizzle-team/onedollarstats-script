@@ -187,3 +187,5 @@ test/expo/pnpm-lock.yaml
 
 # Expo local state
 test/expo/.expo/
+# Second Expo test build (no devmode), see test/expo/package.json
+test/expo/dist-prod/

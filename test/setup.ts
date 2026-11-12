@@ -14,6 +14,8 @@ const EXPO_DIR = join(TEST_DIR, "expo");
 const MPA_PORT = 4321;
 const SPA_PORT = 5173;
 const EXPO_PORT = 8081;
+// Expo app built without devmode (dist-prod), served by the same `pnpm preview`
+const EXPO_PROD_PORT = 8082;
 
 const SERVER_STARTUP_TIMEOUT = 30_000; // 30 seconds
 
@@ -176,13 +178,15 @@ function runCommand(cmd: string, cwd: string): Promise<void> {
  * Build an app if needed
  */
 async function buildAppIfNeeded(appName: string, appDir: string): Promise<void> {
-  const srcDir = join(appDir, "src");
+  // Expo Router keeps screens in app/ and exports to dist/
+  const srcDir = join(appDir, appName === "expo" ? "app" : "src");
   const label = appName.toUpperCase();
 
   if (!needsRebuild(appName, srcDir)) {
     // Check if dist exists even if hash matches
-    const distDir = appName === "mpa" ? join(appDir, "dist") : join(appDir, "build");
-    if (existsSync(distDir)) {
+    const distDir = join(appDir, appName === "spa" ? "build" : "dist");
+    const prodDistOk = appName !== "expo" || existsSync(join(appDir, "dist-prod"));
+    if (existsSync(distDir) && prodDistOk) {
       return;
     }
   }
@@ -301,6 +305,7 @@ export default async function setup(): Promise<() => Promise<void>> {
     killPort(MPA_PORT);
     killPort(SPA_PORT);
     killPort(EXPO_PORT);
+    killPort(EXPO_PROD_PORT);
 
     // Start preview servers
     console.log("Starting servers...");
@@ -313,6 +318,7 @@ export default async function setup(): Promise<() => Promise<void>> {
       waitForServer(`http://localhost:${MPA_PORT}`, SERVER_STARTUP_TIMEOUT),
       waitForServer(`http://localhost:${SPA_PORT}`, SERVER_STARTUP_TIMEOUT),
       waitForServer(`http://localhost:${EXPO_PORT}`, SERVER_STARTUP_TIMEOUT),
+      waitForServer(`http://localhost:${EXPO_PROD_PORT}`, SERVER_STARTUP_TIMEOUT),
     ]);
 
     console.log("Servers ready");
