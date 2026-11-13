@@ -118,6 +118,7 @@ out
 # Build outputs
 dist/
 build/stonks.js
+build/tracker.js
 
 # Nuxt.js build / generate output
 

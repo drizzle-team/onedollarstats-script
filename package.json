@@ -22,6 +22,7 @@
     "bundle": "esbuild src/script.ts --bundle --minify --format=iife --outfile=build/stonks.js --legal-comments=none --define:DEBUG_SCRIPT_URL='\"https://assets.onedollarstats.com/stonks-debug.js\"'",
     "bundle:dev": "esbuild src/script.ts --bundle --minify --format=iife --outfile=build/stonks.js --legal-comments=none --define:DEBUG_SCRIPT_URL='\"https://assets.onedollarstats.com/stonks-debug-dev.js\"'",
     "bundle:test": "esbuild src/script.ts --bundle --format=cjs --outfile=build/stonks.js --legal-comments=none --define:DEBUG_SCRIPT_URL='\"https://assets.onedollarstats.com/stonks-debug.js\"'",
+    "bundle:tracker": "esbuild src/tracker.ts --bundle --minify --format=iife --outfile=build/tracker.js --legal-comments=none --define:DEBUG_SCRIPT_URL='\"https://assets.onedollarstats.com/stonks-debug.js\"'",
     "bundle:debug": "esbuild src/debug-modal.ts --bundle --minify --format=iife --outfile=build/stonks-debug.js --legal-comments=none",
     "test": "vitest run",
     "test:unit": "vitest run --project 'Web Unit Tests' --project 'Expo Unit Tests'",
