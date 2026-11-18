@@ -80,6 +80,9 @@ class AnalyticsTracker {
   // Handles localhost replacement, referrer, UTM parameters, and debug mode.
   // Uses img beacon then `navigator.sendBeacon` if available, otherwise falls back to `fetch`.
   private async send(data: Event): Promise<void> {
+    // Taken before any work or await, so the collector gets the moment the event fired, not when it arrived
+    const ts = Date.now();
+
     // Same gate as the CDN script: localhost without devmode, headless browsers and bots never send
     if (shouldBlock(this.config.devmode)) return;
 
@@ -110,7 +113,8 @@ class AnalyticsTracker {
           t: data.type,
           h: this.config.hashRouting,
           r: referrer,
-          p: data.props
+          p: data.props,
+          ts
         }
       ],
       debug: this.config.devmode

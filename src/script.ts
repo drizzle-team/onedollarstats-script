@@ -78,6 +78,9 @@ declare const DEBUG_SCRIPT_URL: string;
   }
 
   async function send(data: Event): Promise<void> {
+    // Taken before any work or await, so the collector gets the moment the event fired, not when it arrived
+    const ts = Date.now();
+
     const analyticsUrl =
       stonksScript?.getAttribute("data-url") || defaultConfig.collectorUrl;
 
@@ -121,7 +124,8 @@ declare const DEBUG_SCRIPT_URL: string;
           t: data.type,
           h: useHashRouting,
           r: referrer,
-          p: data.props
+          p: data.props,
+          ts
         }
       ],
       debug: devmode

@@ -2,6 +2,31 @@ import { describe, expect, test, vi, beforeEach, afterEach } from 'vitest';
 import { createElement, useEffect, type ReactNode } from 'react';
 import { render, renderHook, act } from '@testing-library/react';
 
+// Every event carries ts (client time it fired, epoch ms). Check it is there, then drop it,
+// so payload assertions don't depend on the clock. The ts tests check its value.
+type SentBody = { u: string; e: Array<Record<string, unknown>>; debug?: boolean };
+function withoutTs(raw: string): SentBody {
+  const body = JSON.parse(raw) as SentBody;
+  for (const e of body.e) {
+    expect(typeof e.ts).toBe('number');
+    delete e.ts;
+  }
+  return body;
+}
+// Matches a JSON request body against `expected`, ignoring each event's ts
+const jsonBody = (expected: unknown) => ({
+  asymmetricMatch: (actual: unknown) => {
+    if (typeof actual !== 'string') return false;
+    try {
+      return JSON.stringify(withoutTs(actual)) === JSON.stringify(expected);
+    } catch {
+      return false;
+    }
+  },
+  toString: () => `jsonBody(${JSON.stringify(expected)})`,
+  toAsymmetricMatcher: () => `jsonBody(${JSON.stringify(expected)})`
+});
+
 // usePathname / useSegments are mutable per-test.
 let mockPathname = '/home';
 let mockSegments: string[] | null = null;
@@ -115,7 +140,7 @@ describe('OneDollarStatsProvider — auto page view tracking', () => {
       'https://collector.onedollarstats.com/events',
       expect.objectContaining({
         method: 'POST',
-        body: JSON.stringify({
+        body: jsonBody({
           u: 'https://example.com/home',
           e: [{ t: 'PageView' }],
           debug: false
@@ -134,7 +159,7 @@ describe('OneDollarStatsProvider — auto page view tracking', () => {
     expect(fetchSpy).toHaveBeenLastCalledWith(
       expect.any(String),
       expect.objectContaining({
-        body: JSON.stringify({
+        body: jsonBody({
           u: 'https://example.com/about',
           e: [{ t: 'PageView' }],
           debug: false
@@ -247,7 +272,7 @@ describe('OneDollarStatsProvider — AppState foreground', () => {
     expect(fetchSpy).toHaveBeenCalledTimes(2);
   });
 
-  const lastUrl = () => JSON.parse(fetchSpy.mock.calls.at(-1)![1].body).u;
+  const lastUrl = () => withoutTs(fetchSpy.mock.calls.at(-1)![1].body).u;
 
   test('return from background on an excluded screen sends nothing', () => {
     const config = { hostname: 'example.com', excludePages: ['/settings'] };
@@ -325,7 +350,7 @@ describe('useAnalytics — manual event() and view()', () => {
     expect(fetchSpy).toHaveBeenCalledWith(
       'https://collector.onedollarstats.com/events',
       expect.objectContaining({
-        body: JSON.stringify({
+        body: jsonBody({
           u: 'https://example.com/home',
           e: [{ t: 'button_click' }],
           debug: false
@@ -344,7 +369,7 @@ describe('useAnalytics — manual event() and view()', () => {
     expect(fetchSpy).toHaveBeenLastCalledWith(
       expect.any(String),
       expect.objectContaining({
-        body: JSON.stringify({
+        body: jsonBody({
           u: 'https://example.com/home',
           e: [{ t: 'signup', p: { plan: 'pro' } }],
           debug: false
@@ -363,7 +388,7 @@ describe('useAnalytics — manual event() and view()', () => {
     expect(fetchSpy).toHaveBeenLastCalledWith(
       expect.any(String),
       expect.objectContaining({
-        body: JSON.stringify({
+        body: jsonBody({
           u: 'https://example.com/custom-path',
           e: [{ t: 'PageView' }],
           debug: false
@@ -384,7 +409,7 @@ describe('useAnalytics — manual event() and view()', () => {
     expect(fetchSpy).toHaveBeenLastCalledWith(
       expect.any(String),
       expect.objectContaining({
-        body: JSON.stringify({
+        body: jsonBody({
           u: 'https://example.com/home',
           e: [{ t: 'PageView' }],
           debug: false
@@ -403,7 +428,7 @@ describe('useAnalytics — manual event() and view()', () => {
     expect(fetchSpy).toHaveBeenLastCalledWith(
       expect.any(String),
       expect.objectContaining({
-        body: JSON.stringify({
+        body: jsonBody({
           u: 'https://example.com/landing',
           e: [{ t: 'PageView', p: { campaign: 'spring' } }],
           debug: false
@@ -433,7 +458,7 @@ describe('useAnalytics — manual event() and view()', () => {
     expect(fetchSpy).toHaveBeenLastCalledWith(
       expect.any(String),
       expect.objectContaining({
-        body: JSON.stringify({
+        body: jsonBody({
           u: 'https://example.com/home',
           e: [{ t: 'PageView', p: { campaign: 'spring' } }],
           debug: false
@@ -452,7 +477,7 @@ describe('useAnalytics — manual event() and view()', () => {
     expect(fetchSpy).toHaveBeenLastCalledWith(
       expect.any(String),
       expect.objectContaining({
-        body: JSON.stringify({
+        body: jsonBody({
           u: 'https://example.com/home',
           e: [{ t: 'signup', p: { plan: 'pro' } }],
           debug: false
@@ -471,7 +496,7 @@ describe('useAnalytics — manual event() and view()', () => {
     expect(fetchSpy).toHaveBeenLastCalledWith(
       expect.any(String),
       expect.objectContaining({
-        body: JSON.stringify({
+        body: jsonBody({
           u: 'https://example.com/landing',
           e: [{ t: 'signup', p: { plan: 'pro' } }],
           debug: false
@@ -490,7 +515,7 @@ describe('useAnalytics — manual event() and view()', () => {
     expect(fetchSpy).toHaveBeenLastCalledWith(
       expect.any(String),
       expect.objectContaining({
-        body: JSON.stringify({
+        body: jsonBody({
           u: 'https://example.com/landing',
           e: [{ t: 'signup' }],
           debug: false
@@ -501,7 +526,7 @@ describe('useAnalytics — manual event() and view()', () => {
 });
 
 describe('Manual view() dedup against autocollect', () => {
-  const sent = () => fetchSpy.mock.calls.map(c => JSON.parse(c[1].body));
+  const sent = () => fetchSpy.mock.calls.map(c => withoutTs(c[1].body));
   const urls = () => sent().map(b => b.u);
 
   function renderAnalytics(config: ExpoAnalyticsConfig = { hostname: 'example.com' }) {
@@ -635,7 +660,7 @@ describe('Path filtering logic (smoke)', () => {
 });
 
 describe('Dedup after an excluded page', () => {
-  const urls = () => fetchSpy.mock.calls.map(c => JSON.parse(c[1].body).u);
+  const urls = () => fetchSpy.mock.calls.map(c => withoutTs(c[1].body).u);
   const visit = (rerender: (ui: ReactNode) => void, config: ExpoAnalyticsConfig, ...paths: string[]) =>
     paths.forEach(p => {
       mockPathname = p;
@@ -674,7 +699,7 @@ describe('collapseDynamicRoutes', () => {
     expect(fetchSpy).toHaveBeenCalledWith(
       'https://collector.onedollarstats.com/events',
       expect.objectContaining({
-        body: JSON.stringify({
+        body: jsonBody({
           u: 'https://example.com/profile/[id]',
           e: [{ t: 'PageView' }],
           debug: false
@@ -691,7 +716,7 @@ describe('collapseDynamicRoutes', () => {
     expect(fetchSpy).toHaveBeenCalledWith(
       expect.any(String),
       expect.objectContaining({
-        body: JSON.stringify({
+        body: jsonBody({
           u: 'https://example.com/profile/abc123',
           e: [{ t: 'PageView' }],
           debug: false
@@ -708,7 +733,7 @@ describe('collapseDynamicRoutes', () => {
     expect(fetchSpy).toHaveBeenCalledWith(
       expect.any(String),
       expect.objectContaining({
-        body: JSON.stringify({
+        body: jsonBody({
           u: 'https://example.com/home',
           e: [{ t: 'PageView' }],
           debug: false
@@ -725,7 +750,7 @@ describe('collapseDynamicRoutes', () => {
     expect(fetchSpy).toHaveBeenCalledWith(
       expect.any(String),
       expect.objectContaining({
-        body: JSON.stringify({
+        body: jsonBody({
           u: 'https://example.com/posts/[...slug]',
           e: [{ t: 'PageView' }],
           debug: false
@@ -742,7 +767,7 @@ describe('collapseDynamicRoutes', () => {
     expect(fetchSpy).toHaveBeenCalledWith(
       expect.any(String),
       expect.objectContaining({
-        body: JSON.stringify({
+        body: jsonBody({
           u: 'https://example.com',
           e: [{ t: 'PageView' }],
           debug: false
@@ -763,7 +788,7 @@ describe('collapseDynamicRoutes', () => {
     expect(fetchSpy).toHaveBeenLastCalledWith(
       expect.any(String),
       expect.objectContaining({
-        body: JSON.stringify({
+        body: jsonBody({
           u: 'https://example.com/profile/[id]',
           e: [{ t: 'cta_click' }],
           debug: false
@@ -784,7 +809,7 @@ describe('collapseDynamicRoutes', () => {
     expect(fetchSpy).toHaveBeenLastCalledWith(
       expect.any(String),
       expect.objectContaining({
-        body: JSON.stringify({
+        body: jsonBody({
           u: 'https://example.com/profile/[id]',
           e: [{ t: 'PageView' }],
           debug: false
@@ -805,7 +830,7 @@ describe('collapseDynamicRoutes', () => {
     expect(fetchSpy).toHaveBeenLastCalledWith(
       expect.any(String),
       expect.objectContaining({
-        body: JSON.stringify({
+        body: jsonBody({
           u: 'https://example.com/explicit/abc123',
           e: [{ t: 'PageView' }],
           debug: false
@@ -822,7 +847,7 @@ describe('collapseDynamicRoutes', () => {
     expect(fetchSpy).toHaveBeenCalledWith(
       expect.any(String),
       expect.objectContaining({
-        body: JSON.stringify({
+        body: jsonBody({
           u: 'https://example.com/orgs/[org]/users/[userId]',
           e: [{ t: 'PageView' }],
           debug: false
@@ -839,7 +864,7 @@ describe('collapseDynamicRoutes', () => {
     expect(fetchSpy).toHaveBeenCalledWith(
       expect.any(String),
       expect.objectContaining({
-        body: JSON.stringify({
+        body: jsonBody({
           u: 'https://example.com/home',
           e: [{ t: 'PageView' }],
           debug: false
@@ -856,7 +881,7 @@ describe('collapseDynamicRoutes', () => {
     expect(fetchSpy).toHaveBeenCalledWith(
       expect.any(String),
       expect.objectContaining({
-        body: JSON.stringify({
+        body: jsonBody({
           u: 'https://example.com/profile/[id]',
           e: [{ t: 'PageView' }],
           debug: false
@@ -873,7 +898,7 @@ describe('collapseDynamicRoutes', () => {
     expect(fetchSpy).toHaveBeenCalledWith(
       expect.any(String),
       expect.objectContaining({
-        body: JSON.stringify({
+        body: jsonBody({
           u: 'https://example.com',
           e: [{ t: 'PageView' }],
           debug: false
@@ -911,7 +936,7 @@ describe('collapseDynamicRoutes', () => {
     expect(fetchSpy).toHaveBeenLastCalledWith(
       expect.any(String),
       expect.objectContaining({
-        body: JSON.stringify({
+        body: jsonBody({
           u: 'https://example.com/profile/xyz',
           e: [{ t: 'PageView' }],
           debug: false
@@ -992,7 +1017,7 @@ describe('collapseDynamicRoutes', () => {
     expect(fetchSpy).toHaveBeenLastCalledWith(
       expect.any(String),
       expect.objectContaining({
-        body: JSON.stringify({
+        body: jsonBody({
           u: 'https://example.com/profile/[id]',
           e: [{ t: 'PageView' }],
           debug: false
@@ -1047,7 +1072,7 @@ describe.skip('useAnalyticsPath / <AnalyticsPath>', () => {
     expect(fetchSpy).toHaveBeenCalledWith(
       'https://collector.onedollarstats.com/events',
       expect.objectContaining({
-        body: JSON.stringify({
+        body: jsonBody({
           u: 'https://example.com/profile/[id]',
           e: [{ t: 'PageView' }],
           debug: false
@@ -1071,7 +1096,7 @@ describe.skip('useAnalyticsPath / <AnalyticsPath>', () => {
     expect(fetchSpy).toHaveBeenCalledWith(
       expect.any(String),
       expect.objectContaining({
-        body: JSON.stringify({
+        body: jsonBody({
           u: 'https://example.com/profile/[id]',
           e: [{ t: 'cta_click' }],
           debug: false
@@ -1100,7 +1125,7 @@ describe.skip('useAnalyticsPath / <AnalyticsPath>', () => {
     expect(fetchSpy).toHaveBeenLastCalledWith(
       expect.any(String),
       expect.objectContaining({
-        body: JSON.stringify({
+        body: jsonBody({
           u: 'https://example.com/about',
           e: [{ t: 'PageView' }],
           debug: false
@@ -1126,7 +1151,7 @@ describe.skip('useAnalyticsPath / <AnalyticsPath>', () => {
     expect(fetchSpy).toHaveBeenLastCalledWith(
       expect.any(String),
       expect.objectContaining({
-        body: JSON.stringify({
+        body: jsonBody({
           u: 'https://example.com/profile/[id]',
           e: [{ t: 'PageView' }],
           debug: false
@@ -1145,7 +1170,7 @@ describe.skip('useAnalyticsPath / <AnalyticsPath>', () => {
     expect(fetchSpy).toHaveBeenCalledWith(
       expect.any(String),
       expect.objectContaining({
-        body: JSON.stringify({
+        body: jsonBody({
           u: 'https://example.com/profile/[id]',
           e: [{ t: 'PageView' }],
           debug: false
@@ -1165,7 +1190,7 @@ describe.skip('useAnalyticsPath / <AnalyticsPath>', () => {
     expect(fetchSpy).toHaveBeenCalledWith(
       expect.any(String),
       expect.objectContaining({
-        body: JSON.stringify({
+        body: jsonBody({
           u: 'https://example.com/from-hook',
           e: [{ t: 'PageView' }],
           debug: false
@@ -1198,7 +1223,7 @@ describe.skip('useAnalyticsPath / <AnalyticsPath>', () => {
     expect(fetchSpy).toHaveBeenCalledWith(
       expect.any(String),
       expect.objectContaining({
-        body: JSON.stringify({
+        body: jsonBody({
           u: 'https://example.com/profile/[id]',
           e: [{ t: 'cta_click' }],
           debug: false
@@ -1243,7 +1268,7 @@ describe.skip('useAnalyticsPath / <AnalyticsPath>', () => {
     expect(fetchSpy).toHaveBeenCalledWith(
       expect.any(String),
       expect.objectContaining({
-        body: JSON.stringify({
+        body: jsonBody({
           u: 'https://example.com/profile/[slug]',
           e: [{ t: 'probe' }],
           debug: false
@@ -1276,7 +1301,7 @@ describe.skip('useAnalyticsPath / <AnalyticsPath>', () => {
     expect(fetchSpy).toHaveBeenCalledWith(
       expect.any(String),
       expect.objectContaining({
-        body: JSON.stringify({
+        body: jsonBody({
           u: 'https://example.com/profile/abc123',
           e: [{ t: 'probe' }],
           debug: false
@@ -1351,7 +1376,7 @@ describe.skip('useAnalyticsPath / <AnalyticsPath>', () => {
     expect(fetchSpy).toHaveBeenCalledWith(
       expect.any(String),
       expect.objectContaining({
-        body: JSON.stringify({
+        body: jsonBody({
           u: 'https://example.com/profile/[slug]',
           e: [{ t: 'probe' }],
           debug: false
@@ -1375,7 +1400,7 @@ describe.skip('useAnalyticsPath / <AnalyticsPath>', () => {
     expect(fetchSpy).toHaveBeenCalledWith(
       expect.any(String),
       expect.objectContaining({
-        body: JSON.stringify({
+        body: jsonBody({
           u: 'https://example.com/explicitly-passed',
           e: [{ t: 'PageView' }],
           debug: false
@@ -1423,7 +1448,7 @@ describe.skip('useAnalyticsProps / <AnalyticsProps>', () => {
     expect(fetchSpy).toHaveBeenCalledWith(
       'https://collector.onedollarstats.com/events',
       expect.objectContaining({
-        body: JSON.stringify({
+        body: jsonBody({
           u: 'https://example.com/admin/dashboard',
           e: [{ t: 'PageView', p: { section: 'admin' } }],
           debug: false
@@ -1447,7 +1472,7 @@ describe.skip('useAnalyticsProps / <AnalyticsProps>', () => {
     expect(fetchSpy).toHaveBeenCalledWith(
       expect.any(String),
       expect.objectContaining({
-        body: JSON.stringify({
+        body: jsonBody({
           u: 'https://example.com/admin/dashboard',
           e: [{ t: 'cta_click', p: { section: 'admin' } }],
           debug: false
@@ -1471,7 +1496,7 @@ describe.skip('useAnalyticsProps / <AnalyticsProps>', () => {
     expect(fetchSpy).toHaveBeenCalledWith(
       expect.any(String),
       expect.objectContaining({
-        body: JSON.stringify({
+        body: jsonBody({
           u: 'https://example.com/admin/dashboard',
           e: [{ t: 'signup', p: { section: 'override', tier: 'pro' } }],
           debug: false
@@ -1495,7 +1520,7 @@ describe.skip('useAnalyticsProps / <AnalyticsProps>', () => {
     expect(fetchSpy).toHaveBeenCalledWith(
       expect.any(String),
       expect.objectContaining({
-        body: JSON.stringify({
+        body: jsonBody({
           u: 'https://example.com/admin/dashboard',
           e: [{ t: 'signup', p: { section: 'admin', extra: 'x' } }],
           debug: false
@@ -1525,7 +1550,7 @@ describe.skip('useAnalyticsProps / <AnalyticsProps>', () => {
     expect(fetchSpy).toHaveBeenCalledWith(
       expect.any(String),
       expect.objectContaining({
-        body: JSON.stringify({
+        body: jsonBody({
           u: 'https://example.com/admin/dashboard',
           e: [{ t: 'after_unmount' }],
           debug: false
@@ -1544,7 +1569,7 @@ describe.skip('useAnalyticsProps / <AnalyticsProps>', () => {
     expect(fetchSpy).toHaveBeenCalledWith(
       expect.any(String),
       expect.objectContaining({
-        body: JSON.stringify({
+        body: jsonBody({
           u: 'https://example.com/admin/dashboard',
           e: [{ t: 'PageView', p: { section: 'admin' } }],
           debug: false
@@ -1564,7 +1589,7 @@ describe.skip('useAnalyticsProps / <AnalyticsProps>', () => {
     expect(fetchSpy).toHaveBeenCalledWith(
       expect.any(String),
       expect.objectContaining({
-        body: JSON.stringify({
+        body: jsonBody({
           u: 'https://example.com/admin/dashboard',
           e: [{ t: 'PageView', p: { source: 'from-hook' } }],
           debug: false
@@ -1588,7 +1613,7 @@ describe.skip('useAnalyticsProps / <AnalyticsProps>', () => {
     expect(fetchSpy).toHaveBeenLastCalledWith(
       expect.any(String),
       expect.objectContaining({
-        body: JSON.stringify({
+        body: jsonBody({
           u: 'https://example.com/about',
           e: [{ t: 'PageView' }],
           debug: false
@@ -1614,7 +1639,7 @@ describe.skip('useAnalyticsProps / <AnalyticsProps>', () => {
     expect(fetchSpy).toHaveBeenLastCalledWith(
       expect.any(String),
       expect.objectContaining({
-        body: JSON.stringify({
+        body: jsonBody({
           u: 'https://example.com/admin/dashboard',
           e: [{ t: 'PageView', p: { section: 'admin' } }],
           debug: false
@@ -1635,7 +1660,7 @@ describe.skip('useAnalyticsProps / <AnalyticsProps>', () => {
     expect(fetchSpy).toHaveBeenCalledWith(
       expect.any(String),
       expect.objectContaining({
-        body: JSON.stringify({
+        body: jsonBody({
           u: 'https://example.com/profile/[id]',
           e: [{ t: 'PageView', p: { section: 'profile' } }],
           debug: false
@@ -1733,7 +1758,7 @@ describe.skip('Override APIs — cleanup race-safety', () => {
     expect(fetchSpy).toHaveBeenCalledWith(
       expect.any(String),
       expect.objectContaining({
-        body: JSON.stringify({
+        body: jsonBody({
           u: 'https://example.com/outer',
           e: [{ t: 'probe' }],
           debug: false
@@ -1784,7 +1809,7 @@ describe.skip('Override APIs — cleanup race-safety', () => {
     expect(fetchSpy).toHaveBeenCalledWith(
       expect.any(String),
       expect.objectContaining({
-        body: JSON.stringify({
+        body: jsonBody({
           u: 'https://example.com/admin/dashboard',
           e: [{ t: 'probe', p: { source: 'outer' } }],
           debug: false
@@ -1823,7 +1848,7 @@ describe.skip('Override APIs — component priority edge cases', () => {
     expect(fetchSpy).toHaveBeenLastCalledWith(
       expect.any(String),
       expect.objectContaining({
-        body: JSON.stringify({
+        body: jsonBody({
           u: 'https://example.com/new-template',
           e: [{ t: 'PageView' }],
           debug: false
@@ -1922,7 +1947,7 @@ describe.skip('Override APIs — filtering and empty inputs', () => {
     expect(fetchSpy).toHaveBeenCalledWith(
       expect.any(String),
       expect.objectContaining({
-        body: JSON.stringify({
+        body: jsonBody({
           u: 'https://example.com/admin/dashboard',
           e: [{ t: 'PageView', p: {} }],
           debug: false
@@ -1944,7 +1969,7 @@ describe.skip('Override APIs — filtering and empty inputs', () => {
     expect(fetchSpy).toHaveBeenCalledWith(
       expect.any(String),
       expect.objectContaining({
-        body: JSON.stringify({
+        body: jsonBody({
           u: 'https://example.com',
           e: [{ t: 'PageView' }],
           debug: false
@@ -1995,7 +2020,7 @@ describe('Transport — web platform fallback stack', () => {
       'https://collector.onedollarstats.com/events',
       expect.objectContaining({
         method: 'POST',
-        body: JSON.stringify({
+        body: jsonBody({
           u: 'https://example.com/home',
           e: [{ t: 'PageView' }],
           debug: false
@@ -2037,11 +2062,39 @@ describe('Transport — web platform fallback stack', () => {
     // Verify base64 decodes to expected JSON
     const dataParam = img.src.split('?data=')[1]!;
     const decoded = atob(dataParam);
-    expect(JSON.parse(decoded)).toEqual({
+    expect(withoutTs(decoded)).toEqual({
       u: 'https://example.com/home',
       e: [{ t: 'PageView' }],
       debug: true // devmode on localhost
     });
+  });
+
+  test('every event carries ts, the client time it fired', () => {
+    const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(1_700_000_000_000);
+    renderProvider({ hostname: 'example.com' });
+
+    expect(JSON.parse(fetchSpy.mock.calls[0]![1].body).e[0].ts).toBe(1_700_000_000_000);
+    nowSpy.mockRestore();
+  });
+
+  test('web + image onerror fallback keeps the original ts, not the retry time', () => {
+    const sendBeaconSpy = vi.fn().mockReturnValue(true);
+    Object.defineProperty(globalThis, 'navigator', {
+      value: { sendBeacon: sendBeaconSpy },
+      configurable: true,
+      writable: true
+    });
+    const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(1_700_000_000_000);
+
+    mockPlatformOS = 'web';
+    renderProvider({ hostname: 'example.com', devmode: true });
+
+    // The pixel fails later, e.g. after a slow network timeout
+    nowSpy.mockReturnValue(1_700_000_005_000);
+    imageInstances[0]!.onerror?.();
+
+    expect(JSON.parse(sendBeaconSpy.mock.calls[0]![1]).e[0].ts).toBe(1_700_000_000_000);
+    nowSpy.mockRestore();
   });
 
   test('web + image onerror falls back to navigator.sendBeacon', () => {
@@ -2063,7 +2116,7 @@ describe('Transport — web platform fallback stack', () => {
     expect(sendBeaconSpy).toHaveBeenCalledTimes(1);
     expect(sendBeaconSpy).toHaveBeenCalledWith(
       'https://collector.onedollarstats.com/events',
-      JSON.stringify({
+      jsonBody({
         u: 'https://example.com/home',
         e: [{ t: 'PageView' }],
         debug: true
@@ -2107,7 +2160,7 @@ describe('Transport — web platform fallback stack', () => {
       expect.objectContaining({
         method: 'POST',
         keepalive: true,
-        body: JSON.stringify({
+        body: jsonBody({
           u: 'https://example.com/home',
           e: [{ t: 'PageView' }],
           debug: true
@@ -2184,7 +2237,7 @@ describe('Transport — web platform fallback stack', () => {
     expect(imageInstances.length).toBe(1);
     const img = imageInstances[0]!;
     const dataParam = img.src.split('?data=')[1]!;
-    expect(JSON.parse(atob(dataParam))).toEqual({
+    expect(withoutTs(atob(dataParam))).toEqual({
       u: 'https://example.com/home',
       e: [{ t: 'signup', p: { tier: 'pro' } }],
       debug: true
@@ -2195,8 +2248,8 @@ describe('Transport — web platform fallback stack', () => {
 describe('Development gating (__DEV__ / localhost) and devmode', () => {
   type StubImage = { src: string; onerror?: () => void };
   let imageInstances: StubImage[];
-  const fetchBody = (call = -1) => JSON.parse(fetchSpy.mock.calls.at(call)![1].body);
-  const imageBody = (i = -1) => JSON.parse(atob(imageInstances.at(i)!.src.split('?data=')[1]!));
+  const fetchBody = (call = -1) => withoutTs(fetchSpy.mock.calls.at(call)![1].body);
+  const imageBody = (i = -1) => withoutTs(atob(imageInstances.at(i)!.src.split('?data=')[1]!));
 
   beforeEach(() => {
     imageInstances = [];
@@ -2324,7 +2377,7 @@ describe('Development gating (__DEV__ / localhost) and devmode', () => {
 });
 
 describe('URL shape matches the web tracker', () => {
-  const sentUrl = () => JSON.parse(fetchSpy.mock.calls.at(-1)![1].body).u;
+  const sentUrl = () => withoutTs(fetchSpy.mock.calls.at(-1)![1].body).u;
   const viewUrl = (path: string) => {
     const { result } = renderHook(() => useAnalytics(), { wrapper: wrapper({ hostname: 'example.com' }) });
     act(() => result.current.view(path));

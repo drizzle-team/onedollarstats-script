@@ -117,7 +117,7 @@ test("Expo View: initial page view", async ({ reqs, goto }: Context) => {
   expect(reqs).toStrictEqual([
     {
       u: `${DEBUG_DOMAIN}`,
-      e: [{ t: "PageView" }],
+      e: [{ t: "PageView", ts: expect.any(Number) }],
       debug: true
     }
   ]);
@@ -129,7 +129,7 @@ test("Expo View: nested path is tracked", async ({ reqs, goto }: Context) => {
   expect(reqs).toStrictEqual([
     {
       u: `${DEBUG_DOMAIN}/nested/deep`,
-      e: [{ t: "PageView" }],
+      e: [{ t: "PageView", ts: expect.any(Number) }],
       debug: true
     }
   ]);
@@ -143,7 +143,7 @@ test("Expo Dynamic Route: /profile/abc123 is reported as /profile/[id]", async (
   expect(reqs).toStrictEqual([
     {
       u: `${DEBUG_DOMAIN}/profile/[id]`,
-      e: [{ t: "PageView" }],
+      e: [{ t: "PageView", ts: expect.any(Number) }],
       debug: true
     }
   ]);
@@ -154,8 +154,8 @@ test("Expo Dynamic Route: navigating from / to /profile/abc123 reports /profile/
   await clickAndWaitForRequest(page, reqs, ".link-profile");
 
   expect(reqs).toStrictEqual([
-    { u: `${DEBUG_DOMAIN}`, e: [{ t: "PageView" }], debug: true },
-    { u: `${DEBUG_DOMAIN}/profile/[id]`, e: [{ t: "PageView" }], debug: true }
+    { u: `${DEBUG_DOMAIN}`, e: [{ t: "PageView", ts: expect.any(Number) }], debug: true },
+    { u: `${DEBUG_DOMAIN}/profile/[id]`, e: [{ t: "PageView", ts: expect.any(Number) }], debug: true }
   ]);
 });
 
@@ -166,8 +166,8 @@ test("Expo Nav: page to page via Link", async ({ reqs, page, goto }: Context) =>
   await clickAndWaitForRequest(page, reqs, ".link");
 
   expect(reqs).toStrictEqual([
-    { u: `${DEBUG_DOMAIN}`, e: [{ t: "PageView" }], debug: true },
-    { u: `${DEBUG_DOMAIN}/page-1`, e: [{ t: "PageView" }], debug: true }
+    { u: `${DEBUG_DOMAIN}`, e: [{ t: "PageView", ts: expect.any(Number) }], debug: true },
+    { u: `${DEBUG_DOMAIN}/page-1`, e: [{ t: "PageView", ts: expect.any(Number) }], debug: true }
   ]);
 });
 
@@ -178,9 +178,9 @@ test("Expo Nav: home → page-1 → home (back via link)", async ({ reqs, page, 
   await clickAndWaitForRequest(page, reqs, ".link-back");
 
   expect(reqs).toStrictEqual([
-    { u: `${DEBUG_DOMAIN}`, e: [{ t: "PageView" }], debug: true },
-    { u: `${DEBUG_DOMAIN}/page-1`, e: [{ t: "PageView" }], debug: true },
-    { u: `${DEBUG_DOMAIN}`, e: [{ t: "PageView" }], debug: true }
+    { u: `${DEBUG_DOMAIN}`, e: [{ t: "PageView", ts: expect.any(Number) }], debug: true },
+    { u: `${DEBUG_DOMAIN}/page-1`, e: [{ t: "PageView", ts: expect.any(Number) }], debug: true },
+    { u: `${DEBUG_DOMAIN}`, e: [{ t: "PageView", ts: expect.any(Number) }], debug: true }
   ]);
 });
 
@@ -189,8 +189,8 @@ test("Expo Nav: navigation to nested page", async ({ reqs, page, goto }: Context
   await clickAndWaitForRequest(page, reqs, ".link-deep");
 
   expect(reqs).toStrictEqual([
-    { u: `${DEBUG_DOMAIN}`, e: [{ t: "PageView" }], debug: true },
-    { u: `${DEBUG_DOMAIN}/nested/deep`, e: [{ t: "PageView" }], debug: true }
+    { u: `${DEBUG_DOMAIN}`, e: [{ t: "PageView", ts: expect.any(Number) }], debug: true },
+    { u: `${DEBUG_DOMAIN}/nested/deep`, e: [{ t: "PageView", ts: expect.any(Number) }], debug: true }
   ]);
 });
 
@@ -202,9 +202,9 @@ test("Expo Nav: browser back triggers PageView", async ({ reqs, page, goto }: Co
   await promise;
 
   expect(reqs).toStrictEqual([
-    { u: `${DEBUG_DOMAIN}`, e: [{ t: "PageView" }], debug: true },
-    { u: `${DEBUG_DOMAIN}/page-1`, e: [{ t: "PageView" }], debug: true },
-    { u: `${DEBUG_DOMAIN}`, e: [{ t: "PageView" }], debug: true }
+    { u: `${DEBUG_DOMAIN}`, e: [{ t: "PageView", ts: expect.any(Number) }], debug: true },
+    { u: `${DEBUG_DOMAIN}/page-1`, e: [{ t: "PageView", ts: expect.any(Number) }], debug: true },
+    { u: `${DEBUG_DOMAIN}`, e: [{ t: "PageView", ts: expect.any(Number) }], debug: true }
   ]);
 });
 
@@ -216,8 +216,8 @@ test("Expo Manual View: custom path", async ({ reqs, page, goto }: Context) => {
   await clickAndWaitForRequest(page, reqs, "text/Send Custom Path");
 
   expect(reqs).toStrictEqual([
-    { u: `${DEBUG_DOMAIN}/manual-view`, e: [{ t: "PageView" }], debug: true },
-    { u: `${DEBUG_DOMAIN}/custom-path`, e: [{ t: "PageView" }], debug: true }
+    { u: `${DEBUG_DOMAIN}/manual-view`, e: [{ t: "PageView", ts: expect.any(Number) }], debug: true },
+    { u: `${DEBUG_DOMAIN}/custom-path`, e: [{ t: "PageView", ts: expect.any(Number) }], debug: true }
   ]);
 });
 
@@ -233,9 +233,9 @@ test("Expo Manual View: with props only, deduped against the auto pageview", asy
   await clickAndWaitForRequest(page, reqs, "text/Send View With Props");
 
   expect(reqs).toStrictEqual([
-    { u: `${DEBUG_DOMAIN}/manual-view`, e: [{ t: "PageView" }], debug: true },
-    { u: `${DEBUG_DOMAIN}/custom-path`, e: [{ t: "PageView" }], debug: true },
-    { u: `${DEBUG_DOMAIN}/manual-view`, e: [{ t: "PageView", p: { campaign: "spring" } }], debug: true }
+    { u: `${DEBUG_DOMAIN}/manual-view`, e: [{ t: "PageView", ts: expect.any(Number) }], debug: true },
+    { u: `${DEBUG_DOMAIN}/custom-path`, e: [{ t: "PageView", ts: expect.any(Number) }], debug: true },
+    { u: `${DEBUG_DOMAIN}/manual-view`, e: [{ t: "PageView", p: { campaign: "spring" }, ts: expect.any(Number) }], debug: true }
   ]);
 });
 
@@ -245,7 +245,7 @@ test("Expo Manual View: path + props", async ({ reqs, page, goto }: Context) => 
 
   expect(reqs[1]).toStrictEqual({
     u: `${DEBUG_DOMAIN}/landing`,
-    e: [{ t: "PageView", p: { campaign: "summer" } }],
+    e: [{ t: "PageView", p: { campaign: "summer" }, ts: expect.any(Number) }],
     debug: true
   });
 });
@@ -258,7 +258,7 @@ test("Expo Event: page_load fired on mount", async ({ reqs, goto }: Context) => 
   // auto pageview + page_load event
   expect(reqs).toContainEqual({
     u: `${DEBUG_DOMAIN}/with-event`,
-    e: [{ t: "page_load" }],
+    e: [{ t: "page_load", ts: expect.any(Number) }],
     debug: true
   });
 });
@@ -270,7 +270,7 @@ test("Expo Event: plain event on button click", async ({ reqs, page, goto }: Con
   const lastReq = reqs[reqs.length - 1];
   expect(lastReq).toStrictEqual({
     u: `${DEBUG_DOMAIN}/with-event`,
-    e: [{ t: "button_click" }],
+    e: [{ t: "button_click", ts: expect.any(Number) }],
     debug: true
   });
 });
@@ -282,7 +282,7 @@ test("Expo Event: event with props", async ({ reqs, page, goto }: Context) => {
   const lastReq = reqs[reqs.length - 1];
   expect(lastReq).toStrictEqual({
     u: `${DEBUG_DOMAIN}/with-event`,
-    e: [{ t: "signup", p: { plan: "pro" } }],
+    e: [{ t: "signup", p: { plan: "pro" }, ts: expect.any(Number) }],
     debug: true
   });
 });
@@ -294,7 +294,7 @@ test("Expo Event: uses current pathname after navigation", async ({ reqs, page, 
   const eventReq = reqs.find(r => r.e?.[0]?.t === "page_load");
   expect(eventReq).toEqual({
     u: `${DEBUG_DOMAIN}/with-event`,
-    e: [{ t: "page_load" }],
+    e: [{ t: "page_load", ts: expect.any(Number) }],
     debug: true
   });
 });
@@ -341,7 +341,7 @@ test("Expo Foreground: visibility=visible refires PageView", async ({ reqs, page
   await promise;
 
   expect(reqs.length).toBe(2);
-  expect(reqs[1]).toStrictEqual({ u: `${DEBUG_DOMAIN}`, e: [{ t: "PageView" }], debug: true });
+  expect(reqs[1]).toStrictEqual({ u: `${DEBUG_DOMAIN}`, e: [{ t: "PageView", ts: expect.any(Number) }], debug: true });
 });
 
 // ─── Expo Web: Page filters (excludePages: ['/excluded']) ───────────────────
@@ -360,8 +360,8 @@ test("Expo Filters: home → excluded → home counts home twice", async ({ reqs
   await clickAndWaitForRequest(page, reqs, ".link-back");
 
   expect(reqs).toStrictEqual([
-    { u: `${DEBUG_DOMAIN}`, e: [{ t: "PageView" }], debug: true },
-    { u: `${DEBUG_DOMAIN}`, e: [{ t: "PageView" }], debug: true }
+    { u: `${DEBUG_DOMAIN}`, e: [{ t: "PageView", ts: expect.any(Number) }], debug: true },
+    { u: `${DEBUG_DOMAIN}`, e: [{ t: "PageView", ts: expect.any(Number) }], debug: true }
   ]);
 });
 
@@ -373,9 +373,9 @@ test("Expo Modal: opening tracks /modal, closing tracks home again", async ({ re
   await clickAndWaitForRequest(page, reqs, "text/Close Modal");
 
   expect(reqs).toStrictEqual([
-    { u: `${DEBUG_DOMAIN}`, e: [{ t: "PageView" }], debug: true },
-    { u: `${DEBUG_DOMAIN}/modal`, e: [{ t: "PageView" }], debug: true },
-    { u: `${DEBUG_DOMAIN}`, e: [{ t: "PageView" }], debug: true }
+    { u: `${DEBUG_DOMAIN}`, e: [{ t: "PageView", ts: expect.any(Number) }], debug: true },
+    { u: `${DEBUG_DOMAIN}/modal`, e: [{ t: "PageView", ts: expect.any(Number) }], debug: true },
+    { u: `${DEBUG_DOMAIN}`, e: [{ t: "PageView", ts: expect.any(Number) }], debug: true }
   ]);
 });
 
@@ -385,16 +385,16 @@ test("Expo Tabs: (tabs) group is left out of the path, each tab is tracked", asy
   await clickAndWaitForRequest(page, reqs, "text/Inbox Tab");
 
   expect(reqs).toStrictEqual([
-    { u: `${DEBUG_DOMAIN}`, e: [{ t: "PageView" }], debug: true },
-    { u: `${DEBUG_DOMAIN}/feed`, e: [{ t: "PageView" }], debug: true },
-    { u: `${DEBUG_DOMAIN}/inbox`, e: [{ t: "PageView" }], debug: true }
+    { u: `${DEBUG_DOMAIN}`, e: [{ t: "PageView", ts: expect.any(Number) }], debug: true },
+    { u: `${DEBUG_DOMAIN}/feed`, e: [{ t: "PageView", ts: expect.any(Number) }], debug: true },
+    { u: `${DEBUG_DOMAIN}/inbox`, e: [{ t: "PageView", ts: expect.any(Number) }], debug: true }
   ]);
 });
 
 test("Expo 404: unknown routes are all reported as /+not-found", async ({ reqs, goto }: Context) => {
   await goto(`${EXPO_URL}/does-not-exist`);
 
-  expect(reqs).toStrictEqual([{ u: `${DEBUG_DOMAIN}/+not-found`, e: [{ t: "PageView" }], debug: true }]);
+  expect(reqs).toStrictEqual([{ u: `${DEBUG_DOMAIN}/+not-found`, e: [{ t: "PageView" }], debug: true, ts: expect.any(Number) }]);
 });
 
 // ─── Expo Web: Production vs development ────────────────────────────────────
@@ -402,13 +402,13 @@ test("Expo 404: unknown routes are all reported as /+not-found", async ({ reqs, 
 test("Expo Production: devmode is ignored on a real domain (debug: false)", async ({ reqs, goto }: Context) => {
   await goto(onProdHost(`${EXPO_URL}`));
 
-  expect(reqs).toStrictEqual([{ u: `${DEBUG_DOMAIN}`, e: [{ t: "PageView" }], debug: false }]);
+  expect(reqs).toStrictEqual([{ u: `${DEBUG_DOMAIN}`, e: [{ t: "PageView" }], debug: false, ts: expect.any(Number) }]);
 });
 
 test("Expo Production: custom events on a real domain have debug: false", async ({ reqs, goto }: Context) => {
   await goto(onProdHost(`${EXPO_URL}/with-event`));
 
-  expect(reqs).toContainEqual({ u: `${DEBUG_DOMAIN}/with-event`, e: [{ t: "page_load" }], debug: false });
+  expect(reqs).toContainEqual({ u: `${DEBUG_DOMAIN}/with-event`, e: [{ t: "page_load", ts: expect.any(Number) }], debug: false });
 });
 
 test("Expo Dev Gating: localhost without devmode sends nothing, not even manual events", async ({ reqs, goto }: Context) => {
@@ -422,7 +422,7 @@ test("Expo Dev Gating: localhost without devmode sends nothing, not even manual 
 test("Expo Production: build without devmode sends on a real domain", async ({ reqs, goto }: Context) => {
   await goto(onProdHost(`${EXPO_PROD_BUILD_URL}/page-1`));
 
-  expect(reqs).toStrictEqual([{ u: `${DEBUG_DOMAIN}/page-1`, e: [{ t: "PageView" }], debug: false }]);
+  expect(reqs).toStrictEqual([{ u: `${DEBUG_DOMAIN}/page-1`, e: [{ t: "PageView" }], debug: false, ts: expect.any(Number) }]);
 });
 
 test("Expo Production: page outside includePages sends no PageView", async ({ reqs, goto }: Context) => {
@@ -436,5 +436,5 @@ test("Expo Production: manual events ignore includePages", async ({ reqs, goto }
   await goto(onProdHost(`${EXPO_PROD_BUILD_URL}/with-event`));
   await settle();
 
-  expect(reqs).toStrictEqual([{ u: `${DEBUG_DOMAIN}/with-event`, e: [{ t: "page_load" }], debug: false }]);
+  expect(reqs).toStrictEqual([{ u: `${DEBUG_DOMAIN}/with-event`, e: [{ t: "page_load" }], debug: false, ts: expect.any(Number) }]);
 });

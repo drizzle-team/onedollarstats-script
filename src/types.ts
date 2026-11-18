@@ -19,6 +19,7 @@ export type Event = {
 // h: hash routing
 // r: referrer
 // p: properties
+// ts: client time the event fired (epoch ms)
 // e: events
 // qs: utm params
 type MinimizedEvent = {
@@ -26,6 +27,7 @@ type MinimizedEvent = {
   h?: boolean;
   r?: string;
   p?: BaseProps;
+  ts: number;
 };
 
 export type BodyToSend = {

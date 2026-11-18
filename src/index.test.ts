@@ -58,3 +58,36 @@ test("excluded pages send nothing", async () => {
   go("/settings/profile", "/settings/billing");
   expect(sent).toEqual(["https://example.com/home"]);
 });
+
+test("pixel fallback keeps the original ts, not the retry time", async () => {
+  const images: Array<{ src: string; onerror?: () => void }> = [];
+  vi.stubGlobal(
+    "Image",
+    class {
+      src = "";
+      onerror?: () => void;
+      constructor() {
+        images.push(this);
+      }
+    }
+  );
+  const sendBeacon = vi.fn().mockReturnValue(true);
+  Object.defineProperty(navigator, "sendBeacon", { value: sendBeacon, configurable: true });
+  const nowSpy = vi.spyOn(Date, "now").mockReturnValue(1_700_000_000_000);
+
+  try {
+    await start({});
+    const pixelBody = JSON.parse(atob(images[0]!.src.split("?data=")[1]!));
+    expect(pixelBody.e[0].ts).toBe(1_700_000_000_000);
+
+    // The pixel fails later, e.g. after a slow network timeout
+    nowSpy.mockReturnValue(1_700_000_005_000);
+    images[0]!.onerror?.();
+
+    expect(sendBeacon).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(sendBeacon.mock.calls[0]![1]).e[0].ts).toBe(1_700_000_000_000);
+  } finally {
+    nowSpy.mockRestore();
+    delete (navigator as { sendBeacon?: unknown }).sendBeacon;
+  }
+});

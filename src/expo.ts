@@ -365,13 +365,15 @@ function send(
   config: InternalConfig,
   props?: Record<string, string>
 ): void {
+  // Taken first, so the collector gets the moment the event fired, not when it arrived
+  const ts = Date.now();
   if (shouldSkipSend(config)) return;
   const url = buildUrl(config.hostname, path);
   if (config.devmode) devLog(eventName, url, props);
 
   const body = JSON.stringify({
     u: url,
-    e: [{ t: eventName, ...(props && { p: props }) }],
+    e: [{ t: eventName, ...(props && { p: props }), ts }],
     debug: config.devmode
   });
 
