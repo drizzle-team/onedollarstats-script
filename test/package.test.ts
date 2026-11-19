@@ -115,7 +115,7 @@ test("Pkg View: default page view", async ({ reqs, goto }: Context) => {
   expect(reqs).toStrictEqual([
     {
       u: `${DEBUG_DOMAIN}/pkg`,
-      e: [{ t: "PageView", h: false }],
+      e: [{ t: "PageView", h: false, ts: expect.any(Number) }],
       debug: true
     }
   ]);
@@ -157,7 +157,7 @@ test("Pkg View: manual view with the same path twice is sent once", async ({ req
   expect(reqs).toStrictEqual([
     {
       u: `${DEBUG_DOMAIN}/pkg/manually-view-twice`,
-      e: [{ t: "PageView", h: false }],
+      e: [{ t: "PageView", h: false, ts: expect.any(Number) }],
       debug: true
     }
   ]);
@@ -187,7 +187,7 @@ test("Pkg View: collect page via meta even if autocollect disabled", async ({ re
   expect(reqs).toStrictEqual([
     {
       u: `${DEBUG_DOMAIN}/pkg/view-collect-via-meta-if-autocollect-disabled`,
-      e: [{ t: "PageView", h: false }],
+      e: [{ t: "PageView", h: false, ts: expect.any(Number) }],
       debug: true
     }
   ]);
@@ -199,7 +199,7 @@ test("Pkg View: collect page via body tag even if autocollect disabled", async (
   expect(reqs).toStrictEqual([
     {
       u: `${DEBUG_DOMAIN}/pkg/view-collect-via-body-if-autocollect-disabled`,
-      e: [{ t: "PageView", h: false }],
+      e: [{ t: "PageView", h: false, ts: expect.any(Number) }],
       debug: true
     }
   ]);
@@ -211,7 +211,7 @@ test("Pkg View: path via meta tag", async ({ reqs, goto }: Context) => {
   expect(reqs).toStrictEqual([
     {
       u: `${DEBUG_DOMAIN}/new-path`,
-      e: [{ t: "PageView", h: false }],
+      e: [{ t: "PageView", h: false, ts: expect.any(Number) }],
       debug: true
     }
   ]);
@@ -223,7 +223,7 @@ test("Pkg View: path via body tag", async ({ reqs, goto }: Context) => {
   expect(reqs).toStrictEqual([
     {
       u: `${DEBUG_DOMAIN}/new-path`,
-      e: [{ t: "PageView", h: false }],
+      e: [{ t: "PageView", h: false, ts: expect.any(Number) }],
       debug: true
     }
   ]);
@@ -235,7 +235,7 @@ test("Pkg View: props via 'data-s:view-props' attributes", async ({ reqs, goto }
   expect(reqs).toStrictEqual([
     {
       u: `${DEBUG_DOMAIN}/pkg/view-with-props-via-dom-attributes`,
-      e: [{ t: "PageView", h: false, p: { key1: "value1", key2: "value2" } }],
+      e: [{ t: "PageView", h: false, p: { key1: "value1", key2: "value2" }, ts: expect.any(Number) }],
       debug: true
     }
   ]);
@@ -247,7 +247,7 @@ test("Pkg View: props via meta tag 'stonks-props'", async ({ reqs, goto }: Conte
   expect(reqs).toStrictEqual([
     {
       u: `${DEBUG_DOMAIN}/pkg/view-with-props-via-meta`,
-      e: [{ t: "PageView", h: false, p: { key1: "value1", key2: "value2" } }],
+      e: [{ t: "PageView", h: false, p: { key1: "value1", key2: "value2" }, ts: expect.any(Number) }],
       debug: true
     }
   ]);
@@ -259,7 +259,7 @@ test("Pkg View: props via meta tag merged with dom attributes", async ({ reqs, g
   expect(reqs).toStrictEqual([
     {
       u: `${DEBUG_DOMAIN}/pkg/view-with-props-via-meta-and-dom-attributes`,
-      e: [{ t: "PageView", h: false, p: { key1: "dom1", key2: "meta2", key3: "meta3" } }],
+      e: [{ t: "PageView", h: false, p: { key1: "dom1", key2: "meta2", key3: "meta3" }, ts: expect.any(Number) }],
       debug: true
     }
   ]);
@@ -274,7 +274,7 @@ test("Pkg View: referrer", async ({ reqs, page }: Context) => {
   expect(reqs).toStrictEqual([
     {
       u: `${DEBUG_DOMAIN}/pkg`,
-      e: [{ t: "PageView", h: false, r: "http://google.com/" }],
+      e: [{ t: "PageView", h: false, r: "http://google.com/", ts: expect.any(Number) }],
       debug: true
     }
   ]);
@@ -291,7 +291,7 @@ test("Pkg View: manually with referrer", async ({ reqs, page }: Context) => {
   expect(reqs).toStrictEqual([
     {
       u: `${DEBUG_DOMAIN}/pkg/manually-view`,
-      e: [{ t: "PageView", h: false, r: "http://google.com/" }],
+      e: [{ t: "PageView", h: false, r: "http://google.com/", ts: expect.any(Number) }],
       debug: true
     }
   ]);
@@ -303,7 +303,7 @@ test("Pkg View: manually", async ({ reqs, goto }: Context) => {
   expect(reqs).toStrictEqual([
     {
       u: `${DEBUG_DOMAIN}/pkg/manually-view`,
-      e: [{ t: "PageView", h: false }],
+      e: [{ t: "PageView", h: false, ts: expect.any(Number) }],
       debug: true
     }
   ]);
@@ -315,7 +315,7 @@ test("Pkg View: manually with path", async ({ reqs, goto }: Context) => {
   expect(reqs).toStrictEqual([
     {
       u: `${DEBUG_DOMAIN}/new-path`,
-      e: [{ t: "PageView", h: false }],
+      e: [{ t: "PageView", h: false, ts: expect.any(Number) }],
       debug: true
     }
   ]);
@@ -327,7 +327,7 @@ test("Pkg View: manually with path via meta tag", async ({ reqs, goto }: Context
   expect(reqs).toStrictEqual([
     {
       u: `${DEBUG_DOMAIN}/new-path`,
-      e: [{ t: "PageView", h: false }],
+      e: [{ t: "PageView", h: false, ts: expect.any(Number) }],
       debug: true
     }
   ]);
@@ -339,7 +339,7 @@ test("Pkg View: manually with path via body tag", async ({ reqs, goto }: Context
   expect(reqs).toStrictEqual([
     {
       u: `${DEBUG_DOMAIN}/new-path`,
-      e: [{ t: "PageView", h: false }],
+      e: [{ t: "PageView", h: false, ts: expect.any(Number) }],
       debug: true
     }
   ]);
@@ -351,7 +351,7 @@ test("Pkg View: manually with props", async ({ reqs, goto }: Context) => {
   expect(reqs).toStrictEqual([
     {
       u: `${DEBUG_DOMAIN}/pkg/manually-view-with-props`,
-      e: [{ t: "PageView", h: false, p: { key1: "value1", key2: "value2" } }],
+      e: [{ t: "PageView", h: false, p: { key1: "value1", key2: "value2" }, ts: expect.any(Number) }],
       debug: true
     }
   ]);
@@ -363,7 +363,7 @@ test("Pkg View: manually with props via dom attributes - 'data-s:view-props'", a
   expect(reqs).toStrictEqual([
     {
       u: `${DEBUG_DOMAIN}/pkg/manually-view-with-props-via-dom-attributes`,
-      e: [{ t: "PageView", h: false, p: { key1: "value1", key2: "value2" } }],
+      e: [{ t: "PageView", h: false, p: { key1: "value1", key2: "value2" }, ts: expect.any(Number) }],
       debug: true
     }
   ]);
@@ -375,7 +375,7 @@ test("Pkg View: manually with props via meta tag", async ({ reqs, goto }: Contex
   expect(reqs).toStrictEqual([
     {
       u: `${DEBUG_DOMAIN}/pkg/manually-view-with-props-via-meta`,
-      e: [{ t: "PageView", h: false, p: { key1: "value1", key2: "value2" } }],
+      e: [{ t: "PageView", h: false, p: { key1: "value1", key2: "value2" }, ts: expect.any(Number) }],
       debug: true
     }
   ]);
@@ -387,7 +387,7 @@ test("Pkg View: manually with explicit props merged with meta tag", async ({ req
   expect(reqs).toStrictEqual([
     {
       u: `${DEBUG_DOMAIN}/pkg/manually-view-with-explicit-and-meta-props`,
-      e: [{ t: "PageView", h: false, p: { key1: "meta1", key2: "explicit2", key3: "explicit3" } }],
+      e: [{ t: "PageView", h: false, p: { key1: "meta1", key2: "explicit2", key3: "explicit3" }, ts: expect.any(Number) }],
       debug: true
     }
   ]);
@@ -399,7 +399,7 @@ test("Pkg View: manually with path and props", async ({ reqs, goto }: Context) =
   expect(reqs).toStrictEqual([
     {
       u: `${DEBUG_DOMAIN}/new-path`,
-      e: [{ t: "PageView", h: false, p: { key1: "value1", key2: "value2" } }],
+      e: [{ t: "PageView", h: false, p: { key1: "value1", key2: "value2" }, ts: expect.any(Number) }],
       debug: true
     }
   ]);
@@ -411,7 +411,7 @@ test("Pkg View: manually with path via meta and props", async ({ reqs, goto }: C
   expect(reqs).toStrictEqual([
     {
       u: `${DEBUG_DOMAIN}/new-path`,
-      e: [{ t: "PageView", h: false, p: { key1: "value1", key2: "value2" } }],
+      e: [{ t: "PageView", h: false, p: { key1: "value1", key2: "value2" }, ts: expect.any(Number) }],
       debug: true
     }
   ]);
@@ -423,7 +423,7 @@ test("Pkg View: manually with path via body attribute and props", async ({ reqs,
   expect(reqs).toStrictEqual([
     {
       u: `${DEBUG_DOMAIN}/new-path`,
-      e: [{ t: "PageView", h: false, p: { key1: "value1", key2: "value2" } }],
+      e: [{ t: "PageView", h: false, p: { key1: "value1", key2: "value2" }, ts: expect.any(Number) }],
       debug: true
     }
   ]);
@@ -435,7 +435,7 @@ test("Pkg View: manually with path and props via DOM attributes - 'data-s:view-p
   expect(reqs).toStrictEqual([
     {
       u: `${DEBUG_DOMAIN}/new-path`,
-      e: [{ t: "PageView", h: false, p: { key1: "value1", key2: "value2" } }],
+      e: [{ t: "PageView", h: false, p: { key1: "value1", key2: "value2" }, ts: expect.any(Number) }],
       debug: true
     }
   ]);
@@ -453,7 +453,7 @@ test("Pkg Event: via dom", async ({ reqs, page }: Context) => {
   expect(reqs).toStrictEqual([
     {
       u: `${DEBUG_DOMAIN}/pkg/event`,
-      e: [{ t: "Event", h: false }],
+      e: [{ t: "Event", h: false, ts: expect.any(Number) }],
       debug: true
     }
   ]);
@@ -469,7 +469,7 @@ test("Pkg Event: via dom with path", async ({ reqs, page }: Context) => {
   expect(reqs).toStrictEqual([
     {
       u: `${DEBUG_DOMAIN}/new-path`,
-      e: [{ t: "Event", h: false }],
+      e: [{ t: "Event", h: false, ts: expect.any(Number) }],
       debug: true
     }
   ]);
@@ -485,7 +485,7 @@ test("Pkg Event: via dom with path via meta tag", async ({ reqs, page }: Context
   expect(reqs).toStrictEqual([
     {
       u: `${DEBUG_DOMAIN}/new-path`,
-      e: [{ t: "Event", h: false }],
+      e: [{ t: "Event", h: false, ts: expect.any(Number) }],
       debug: true
     }
   ]);
@@ -501,7 +501,7 @@ test("Pkg Event: via dom with path via body tag", async ({ reqs, page }: Context
   expect(reqs).toStrictEqual([
     {
       u: `${DEBUG_DOMAIN}/new-path`,
-      e: [{ t: "Event", h: false }],
+      e: [{ t: "Event", h: false, ts: expect.any(Number) }],
       debug: true
     }
   ]);
@@ -517,7 +517,7 @@ test("Pkg Event: via dom with path and props", async ({ reqs, page }: Context) =
   expect(reqs).toStrictEqual([
     {
       u: `${DEBUG_DOMAIN}/new-path`,
-      e: [{ t: "Event", h: false, p: { key1: "value1", key2: "value2" } }],
+      e: [{ t: "Event", h: false, p: { key1: "value1", key2: "value2" }, ts: expect.any(Number) }],
       debug: true
     }
   ]);
@@ -533,7 +533,7 @@ test("Pkg Event: via dom with path and props through dash and colon", async ({ r
   expect(reqs).toStrictEqual([
     {
       u: `${DEBUG_DOMAIN}/new-path`,
-      e: [{ t: "Event", h: false, p: { key1: "value1", key2: "value2" } }],
+      e: [{ t: "Event", h: false, p: { key1: "value1", key2: "value2" }, ts: expect.any(Number) }],
       debug: true
     }
   ]);
@@ -549,7 +549,7 @@ test("Pkg Event: via dom with path and props through dash not colon", async ({ r
   expect(reqs).toStrictEqual([
     {
       u: `${DEBUG_DOMAIN}/new-path`,
-      e: [{ t: "Event", h: false, p: { key1: "value1", key2: "value2" } }],
+      e: [{ t: "Event", h: false, p: { key1: "value1", key2: "value2" }, ts: expect.any(Number) }],
       debug: true
     }
   ]);
@@ -565,7 +565,7 @@ test("Pkg Event: via dom with path and props on 2 parent", async ({ reqs, page }
   expect(reqs).toStrictEqual([
     {
       u: `${DEBUG_DOMAIN}/new-path`,
-      e: [{ t: "Event", h: false, p: { key1: "value1", key2: "value2" } }],
+      e: [{ t: "Event", h: false, p: { key1: "value1", key2: "value2" }, ts: expect.any(Number) }],
       debug: true
     }
   ]);
@@ -581,7 +581,7 @@ test("Pkg Event: via dom with path and props on 4 parent, but a tag", async ({ r
   expect(reqs).toStrictEqual([
     {
       u: `${DEBUG_DOMAIN}/new-path`,
-      e: [{ t: "Event", h: false, p: { key1: "value1", key2: "value2" } }],
+      e: [{ t: "Event", h: false, p: { key1: "value1", key2: "value2" }, ts: expect.any(Number) }],
       debug: true
     }
   ]);
@@ -603,7 +603,7 @@ test("Pkg Event: manually", async ({ reqs, goto }: Context) => {
   expect(reqs).toStrictEqual([
     {
       u: `${DEBUG_DOMAIN}/pkg/event-manually`,
-      e: [{ t: "Event", h: false }],
+      e: [{ t: "Event", h: false, ts: expect.any(Number) }],
       debug: true
     }
   ]);
@@ -615,7 +615,7 @@ test("Pkg Event: manually with path", async ({ reqs, goto }: Context) => {
   expect(reqs).toStrictEqual([
     {
       u: `${DEBUG_DOMAIN}/new-path`,
-      e: [{ t: "Event", h: false }],
+      e: [{ t: "Event", h: false, ts: expect.any(Number) }],
       debug: true
     }
   ]);
@@ -627,7 +627,7 @@ test("Pkg Event: manually with path via meta tag", async ({ reqs, goto }: Contex
   expect(reqs).toStrictEqual([
     {
       u: `${DEBUG_DOMAIN}/new-path`,
-      e: [{ t: "Event", h: false }],
+      e: [{ t: "Event", h: false, ts: expect.any(Number) }],
       debug: true
     }
   ]);
@@ -639,7 +639,7 @@ test("Pkg Event: manually with path via body", async ({ reqs, goto }: Context) =
   expect(reqs).toStrictEqual([
     {
       u: `${DEBUG_DOMAIN}/new-path`,
-      e: [{ t: "Event", h: false }],
+      e: [{ t: "Event", h: false, ts: expect.any(Number) }],
       debug: true
     }
   ]);
@@ -656,7 +656,7 @@ test("Pkg Event: manually with referrer", async ({ reqs, page }: Context) => {
   expect(reqs).toStrictEqual([
     {
       u: `${DEBUG_DOMAIN}/pkg/event-manually`,
-      e: [{ t: "Event", h: false, r: "http://google.com/" }],
+      e: [{ t: "Event", h: false, r: "http://google.com/", ts: expect.any(Number) }],
       debug: true
     }
   ]);
@@ -673,7 +673,7 @@ test("Pkg Event: dom event with referrer", async ({ reqs, page }: Context) => {
   expect(reqs).toStrictEqual([
     {
       u: `${DEBUG_DOMAIN}/pkg/event`,
-      e: [{ t: "Event", h: false, r: "http://google.com/" }],
+      e: [{ t: "Event", h: false, r: "http://google.com/", ts: expect.any(Number) }],
       debug: true
     }
   ]);
@@ -685,7 +685,7 @@ test("Pkg Event: manually with props", async ({ reqs, goto }: Context) => {
   expect(reqs).toStrictEqual([
     {
       u: `${DEBUG_DOMAIN}/pkg/event-manually-with-props`,
-      e: [{ t: "Event", h: false, p: { key1: "value1", key2: "value2" } }],
+      e: [{ t: "Event", h: false, p: { key1: "value1", key2: "value2" }, ts: expect.any(Number) }],
       debug: true
     }
   ]);
@@ -697,7 +697,7 @@ test("Pkg Event: manually with path and props", async ({ reqs, goto }: Context) 
   expect(reqs).toStrictEqual([
     {
       u: `${DEBUG_DOMAIN}/new-path`,
-      e: [{ t: "Event", h: false, p: { key1: "value1", key2: "value2" } }],
+      e: [{ t: "Event", h: false, p: { key1: "value1", key2: "value2" }, ts: expect.any(Number) }],
       debug: true
     }
   ]);
@@ -712,12 +712,12 @@ test("Pkg SPA: page to page navigation", async ({ reqs, page }: Context) => {
 
   expect(reqs).toStrictEqual([
     {
-      e: [{ h: false, t: "PageView" }],
+      e: [{ h: false, t: "PageView", ts: expect.any(Number) }],
       u: `${DEBUG_DOMAIN}/pkg/layout`,
       debug: true
     },
     {
-      e: [{ h: false, t: "PageView" }],
+      e: [{ h: false, t: "PageView", ts: expect.any(Number) }],
       u: `${DEBUG_DOMAIN}/pkg/layout/page-1`,
       debug: true
     }
@@ -741,7 +741,7 @@ test("Pkg SPA: collect even if autocollect is disabled", async ({ reqs, page }: 
 
   expect(reqs).toStrictEqual([
     {
-      e: [{ h: false, t: "PageView" }],
+      e: [{ h: false, t: "PageView", ts: expect.any(Number) }],
       u: `${DEBUG_DOMAIN}/pkg/layout-autocollect-disabled/collect-via-meta/page-1`,
       debug: true
     }
@@ -756,12 +756,12 @@ test("Pkg SPA: ignore collect", async ({ reqs, page }: Context) => {
 
   expect(reqs).toStrictEqual([
     {
-      e: [{ h: false, t: "PageView" }],
+      e: [{ h: false, t: "PageView", ts: expect.any(Number) }],
       u: `${DEBUG_DOMAIN}/pkg/layout/ignore-collect`,
       debug: true
     },
     {
-      e: [{ h: false, t: "PageView" }],
+      e: [{ h: false, t: "PageView", ts: expect.any(Number) }],
       u: `${DEBUG_DOMAIN}/pkg/layout/ignore-collect`,
       debug: true
     }
@@ -776,17 +776,17 @@ test("Pkg SPA: navigate with props", async ({ reqs, page }: Context) => {
 
   expect(reqs).toStrictEqual([
     {
-      e: [{ h: false, t: "PageView" }],
+      e: [{ h: false, t: "PageView", ts: expect.any(Number) }],
       u: `${DEBUG_DOMAIN}/pkg/navigation-with-props`,
       debug: true
     },
     {
-      e: [{ h: false, t: "PageView", p: { prop1: "value1" } }],
+      e: [{ h: false, t: "PageView", p: { prop1: "value1" }, ts: expect.any(Number) }],
       u: `${DEBUG_DOMAIN}/pkg/navigation-with-props/page-1`,
       debug: true
     },
     {
-      e: [{ h: false, t: "PageView" }],
+      e: [{ h: false, t: "PageView", ts: expect.any(Number) }],
       u: `${DEBUG_DOMAIN}/pkg/navigation-with-props`,
       debug: true
     }
@@ -801,17 +801,17 @@ test("Pkg SPA: navigate with meta tag props", async ({ reqs, page }: Context) =>
 
   expect(reqs).toStrictEqual([
     {
-      e: [{ h: false, t: "PageView" }],
+      e: [{ h: false, t: "PageView", ts: expect.any(Number) }],
       u: `${DEBUG_DOMAIN}/pkg/navigation-with-meta-props`,
       debug: true
     },
     {
-      e: [{ h: false, t: "PageView", p: { prop1: "value1" } }],
+      e: [{ h: false, t: "PageView", p: { prop1: "value1" }, ts: expect.any(Number) }],
       u: `${DEBUG_DOMAIN}/pkg/navigation-with-meta-props/page-1`,
       debug: true
     },
     {
-      e: [{ h: false, t: "PageView" }],
+      e: [{ h: false, t: "PageView", ts: expect.any(Number) }],
       u: `${DEBUG_DOMAIN}/pkg/navigation-with-meta-props`,
       debug: true
     }
@@ -832,17 +832,17 @@ test("Pkg SPA: popstate event inside of layout", async ({ reqs, page }: Context)
   expect(reqs).toStrictEqual([
     {
       u: `${DEBUG_DOMAIN}/pkg/layout/popstate`,
-      e: [{ t: "PageView", h: false }],
+      e: [{ t: "PageView", h: false, ts: expect.any(Number) }],
       debug: true
     },
     {
       u: `${DEBUG_DOMAIN}/pkg/layout/popstate/page-1`,
-      e: [{ t: "PageView", h: false }],
+      e: [{ t: "PageView", h: false, ts: expect.any(Number) }],
       debug: true
     },
     {
       u: `${DEBUG_DOMAIN}/pkg/layout/popstate`,
-      e: [{ t: "PageView", h: false }],
+      e: [{ t: "PageView", h: false, ts: expect.any(Number) }],
       debug: true
     }
   ]);
@@ -858,6 +858,7 @@ test("Pkg View: UTM params", async ({ reqs, goto }: Context) => {
       u: `${DEBUG_DOMAIN}/pkg`,
       e: [
         {
+          ts: expect.any(Number),
           t: "PageView",
           h: false
         }
@@ -885,8 +886,8 @@ test("Pkg Hash routing: hash route is the path, one page view per route", async 
   await page.waitForNetworkIdle({ idleTime: 300 });
 
   expect(reqs).toStrictEqual([
-    { u: `${DEBUG_DOMAIN}/settings`, e: [{ t: "PageView", h: true }], debug: true },
-    { u: `${DEBUG_DOMAIN}/users`, e: [{ t: "PageView", h: true }], debug: true },
-    { u: `${DEBUG_DOMAIN}/users`, e: [{ t: "Event", h: true }], debug: true }
+    { u: `${DEBUG_DOMAIN}/settings`, e: [{ t: "PageView", h: true, ts: expect.any(Number) }], debug: true },
+    { u: `${DEBUG_DOMAIN}/users`, e: [{ t: "PageView", h: true, ts: expect.any(Number) }], debug: true },
+    { u: `${DEBUG_DOMAIN}/users`, e: [{ t: "Event", h: true, ts: expect.any(Number) }], debug: true }
   ]);
 });
