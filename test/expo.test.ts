@@ -394,7 +394,7 @@ test("Expo Tabs: (tabs) group is left out of the path, each tab is tracked", asy
 test("Expo 404: unknown routes are all reported as /+not-found", async ({ reqs, goto }: Context) => {
   await goto(`${EXPO_URL}/does-not-exist`);
 
-  expect(reqs).toStrictEqual([{ u: `${DEBUG_DOMAIN}/+not-found`, e: [{ t: "PageView" }], debug: true, ts: expect.any(Number) }]);
+  expect(reqs).toStrictEqual([{ u: `${DEBUG_DOMAIN}/+not-found`, e: [{ t: "PageView", ts: expect.any(Number) }], debug: true }]);
 });
 
 // ─── Expo Web: Production vs development ────────────────────────────────────
@@ -402,7 +402,7 @@ test("Expo 404: unknown routes are all reported as /+not-found", async ({ reqs, 
 test("Expo Production: devmode is ignored on a real domain (debug: false)", async ({ reqs, goto }: Context) => {
   await goto(onProdHost(`${EXPO_URL}`));
 
-  expect(reqs).toStrictEqual([{ u: `${DEBUG_DOMAIN}`, e: [{ t: "PageView" }], debug: false, ts: expect.any(Number) }]);
+  expect(reqs).toStrictEqual([{ u: `${DEBUG_DOMAIN}`, e: [{ t: "PageView", ts: expect.any(Number) }], debug: false }]);
 });
 
 test("Expo Production: custom events on a real domain have debug: false", async ({ reqs, goto }: Context) => {
@@ -422,7 +422,7 @@ test("Expo Dev Gating: localhost without devmode sends nothing, not even manual 
 test("Expo Production: build without devmode sends on a real domain", async ({ reqs, goto }: Context) => {
   await goto(onProdHost(`${EXPO_PROD_BUILD_URL}/page-1`));
 
-  expect(reqs).toStrictEqual([{ u: `${DEBUG_DOMAIN}/page-1`, e: [{ t: "PageView" }], debug: false, ts: expect.any(Number) }]);
+  expect(reqs).toStrictEqual([{ u: `${DEBUG_DOMAIN}/page-1`, e: [{ t: "PageView", ts: expect.any(Number) }], debug: false }]);
 });
 
 test("Expo Production: page outside includePages sends no PageView", async ({ reqs, goto }: Context) => {
@@ -436,5 +436,5 @@ test("Expo Production: manual events ignore includePages", async ({ reqs, goto }
   await goto(onProdHost(`${EXPO_PROD_BUILD_URL}/with-event`));
   await settle();
 
-  expect(reqs).toStrictEqual([{ u: `${DEBUG_DOMAIN}/with-event`, e: [{ t: "page_load" }], debug: false, ts: expect.any(Number) }]);
+  expect(reqs).toStrictEqual([{ u: `${DEBUG_DOMAIN}/with-event`, e: [{ t: "page_load", ts: expect.any(Number) }], debug: false }]);
 });
